@@ -424,17 +424,21 @@ export const ACHIEVEMENT_BADGES = {
 		frame: 'bronze',
 	},
 	'passedSinceAccountCreated1': {
-		img: '/fluent-emoji/0031-20e3.png',
+		// 旧 '/fluent-emoji/0031-20e3.png' (1️⃣ keycap) は @misskey-dev/emoji-assets
+		// (2026.5.2 #17381 で導入) に存在せず 404 になるため、medal 系に置換。
+		img: '/fluent-emoji/1f949.png',
 		bg: null,
 		frame: 'bronze',
 	},
 	'passedSinceAccountCreated2': {
-		img: '/fluent-emoji/0032-20e3.png',
+		// 旧 '/fluent-emoji/0032-20e3.png' (2️⃣ keycap) は新 path に無いので silver medal に置換。
+		img: '/fluent-emoji/1f948.png',
 		bg: null,
 		frame: 'silver',
 	},
 	'passedSinceAccountCreated3': {
-		img: '/fluent-emoji/0033-20e3.png',
+		// 旧 '/fluent-emoji/0033-20e3.png' (3️⃣ keycap) は新 path に無いので gold medal に置換。
+		img: '/fluent-emoji/1f947.png',
 		bg: null,
 		frame: 'gold',
 	},
