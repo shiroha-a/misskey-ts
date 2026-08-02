@@ -23,6 +23,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<template #key>Waiting</template>
 							<template #value>{{ kmg(q.counts.waiting, 2) }}</template>
 						</MkKeyValue>
+						<!--
+							runtime は mk-go 独自の additive block。純正 backend では
+							付かないので v-if で出し分ける。worker 数は auto-scale の
+							有無に関わらず意味があるので常に出す。
+						-->
+						<MkKeyValue v-if="runtimeOf(q)">
+							<template #key>Workers</template>
+							<template #value>{{ workerLabel(runtimeOf(q)!) }}</template>
+						</MkKeyValue>
 					</div>
 					<XChart :dataSet="{ completed: q.metrics.completed.data, failed: q.metrics.failed.data }"/>
 				</div>
@@ -87,6 +96,47 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<template #value>{{ queueInfo.db.uptime }}</template>
 						</MkKeyValue>
 					</div>
+					<!--
+						mk-go の worker runtime (#2277)。Prometheus /metrics は無認証
+						公開で LB ACL 必須なので admin からは読めない。その情報をここに出す。
+						値はプロセスローカルかつ揮発 (再起動で消える) なので、恒久的な
+						監視は Prometheus 側で行う前提。
+					-->
+					<template v-if="runtime">
+						<hr>
+						<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;">
+							<MkKeyValue>
+								<template #key>Workers</template>
+								<template #value>{{ workerLabel(runtime) }}</template>
+							</MkKeyValue>
+							<MkKeyValue>
+								<template #key>Auto-scale</template>
+								<template #value>{{ runtime.autoScale ? 'enabled' : 'disabled' }}</template>
+							</MkKeyValue>
+							<MkKeyValue>
+								<template #key>Dispatch wait (p50/p95)</template>
+								<template #value>{{ latencyLabel(runtime.dispatchWaitMs) }}</template>
+							</MkKeyValue>
+							<MkKeyValue>
+								<template #key>Processing (p50/p95)</template>
+								<template #value>{{ latencyLabel(runtime.processingMs) }}</template>
+							</MkKeyValue>
+							<MkKeyValue>
+								<template #key>Recent failures</template>
+								<template #value>{{ kmg(runtime.recentFailures, 2) }}</template>
+							</MkKeyValue>
+						</div>
+						<template v-if="runtime.scaleEvents.length > 0">
+							<hr>
+							<div :class="$style.scaleEvents">
+								<div v-for="(ev, i) in runtime.scaleEvents" :key="i" :class="$style.scaleEvent">
+									<i :class="ev.direction === 'up' ? 'ti ti-arrow-up' : 'ti ti-arrow-down'" :style="{ color: ev.direction === 'up' ? 'var(--MI_THEME-success)' : 'var(--MI_THEME-warn)' }"></i>
+									<span>{{ ev.from }} → {{ ev.to }}</span>
+									<MkTime :time="ev.at" mode="relative" style="margin-left: auto; opacity: 0.7;"/>
+								</div>
+							</div>
+						</template>
+					</template>
 				</div>
 			</MkFolder>
 
@@ -198,6 +248,45 @@ const jobsFetching = ref(true);
 const queueInfos = ref<Misskey.entities.AdminQueueQueuesResponse>([]);
 const queueInfo = ref<Misskey.entities.AdminQueueQueueStatsResponse | null>(null);
 const searchQuery = ref('');
+
+// mk-go 独自の worker runtime block (#2277)。純正 backend の応答には無いので
+// optional 扱いにし、無ければ該当 UI を丸ごと出さない。autogen 型にも無いため
+// ここで型を定義する (autogen 再生成で消えないように)。
+type QueueLatency = { count: number; p50: number; p95: number; max: number };
+type QueueRuntime = {
+	workers: number;
+	minWorkers: number;
+	maxWorkers: number;
+	autoScale: boolean;
+	dispatchWaitMs: QueueLatency;
+	processingMs: QueueLatency;
+	recentFailures: number;
+	scaleEvents: { at: string; direction: 'up' | 'down'; from: number; to: number }[];
+};
+
+function runtimeOf(q: unknown): QueueRuntime | null {
+	return (q as { runtime?: QueueRuntime } | null)?.runtime ?? null;
+}
+
+const runtime = computed<QueueRuntime | null>(() => runtimeOf(queueInfo.value));
+
+// 「6 (4–32)」形式。auto-scale 無効時は範囲を出さない (静的 concurrency なので
+// 範囲に意味が無い)。
+function workerLabel(rt: QueueRuntime): string {
+	if (!rt.autoScale) return String(rt.workers);
+	return `${rt.workers} (${rt.minWorkers}–${rt.maxWorkers})`;
+}
+
+// 「12.3ms / 88.0ms」形式。サンプルが無い窓は "-" にする (0ms と紛らわしいため)。
+function latencyLabel(l: QueueLatency): string {
+	if (l.count === 0) return '-';
+	return `${formatMs(l.p50)} / ${formatMs(l.p95)}`;
+}
+
+function formatMs(ms: number): string {
+	if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
+	return `${ms.toFixed(1)}ms`;
+}
 
 async function fetchQueues() {
 	if (tab.value !== '-') return;
@@ -374,6 +463,21 @@ definePage(() => ({
 	background-color: var(--MI_THEME-panel);
 	border-radius: 8px;
 	cursor: pointer;
+}
+
+.scaleEvents {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	max-height: 200px;
+	overflow-y: auto;
+}
+
+.scaleEvent {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 0.9em;
 }
 
 .queueCounts {
