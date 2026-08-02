@@ -13,6 +13,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<img src="/client-assets/about-icon.png" alt="" class="icon" draggable="false" @load="iconLoaded" @click="gravity"/>
 						<div class="misskey">Misskey</div>
 						<div class="version">v{{ version }}</div>
+						<!--
+							本ページは Misskey 本体についての説明なので見出しは Misskey のまま。
+							ただし実際に動いているのは mk-go なので、実装の版も併記する (#2274)。
+							純正 backend では mkGoVersion が無いため表示されない。
+						-->
+						<div v-if="mkGoVersion" class="mkGoVersion">mk-go v{{ mkGoVersion }}</div>
 						<span v-for="emoji in easterEggEmojis" :key="emoji.id" class="emoji" :data-physics-x="emoji.left" :data-physics-y="emoji.top" :class="{ _physics_circle_: !emoji.emoji.startsWith(':') }">
 							<MkCustomEmoji v-if="emoji.emoji[0] === ':'" class="emoji" :name="emoji.emoji" :normal="true" :noStyle="true" :fallbackToImage="true"/>
 							<MkEmoji v-else class="emoji unicode" :emoji="emoji.emoji" :normal="true" :noStyle="true"/>
@@ -151,6 +157,10 @@ import { definePage } from '@/page.js';
 import { claimAchievement, claimedAchievements } from '@/utility/achievements.js';
 import { $i } from '@/i.js';
 import { prefer } from '@/preferences.js';
+
+// mk-go が additive に返す実装バージョン (#2274)。純正 backend には無いので optional。
+// autogen の MetaDetailed には無い field なのでここで型を広げる (autogen 再生成で消えないように)。
+const mkGoVersion = (instance as typeof instance & { mkGoVersion?: string }).mkGoVersion ?? null;
 
 const patronsWithIcon = [{
 	name: 'カイヤン',
@@ -548,6 +558,15 @@ definePage(() => ({
 			> .version {
 				margin: 0 auto;
 				width: max-content;
+				opacity: 0.5;
+				position: relative;
+				z-index: 1;
+			}
+
+			> .mkGoVersion {
+				margin: 0 auto;
+				width: max-content;
+				font-size: 0.85em;
 				opacity: 0.5;
 				position: relative;
 				z-index: 1;
