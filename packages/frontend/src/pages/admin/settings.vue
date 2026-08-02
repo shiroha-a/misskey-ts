@@ -452,6 +452,18 @@ const serviceWorkerForm = useForm({
 		swPublicKey: state.swPublicKey,
 		swPrivateKey: state.swPrivateKey,
 	});
+
+	// mk-go は Service Worker 有効化時に鍵が両方空だと backend で VAPID 鍵ペアを
+	// 生成する。update-meta の応答は 204 で生成鍵を返さず、`meta` はページ表示時の
+	// 1 回しか読んでいないため、引き直さないと入力欄が空のままになる。
+	//
+	// 空のままだと (a) 生成された公開鍵を確認できない (b) 次に保存したとき再び
+	// 空文字が送られて鍵が作り直され、既存の push 購読が全部無効になる。
+	// save コールバックの `state` は snapshot なので reactive な form state を直接更新する。
+	const updated = await misskeyApi('admin/meta');
+	serviceWorkerForm.state.swPublicKey = updated.swPublickey ?? '';
+	serviceWorkerForm.state.swPrivateKey = updated.swPrivateKey ?? '';
+
 	fetchInstance(true);
 });
 
