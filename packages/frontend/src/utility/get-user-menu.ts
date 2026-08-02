@@ -389,7 +389,11 @@ export function getUserMenu(user: Misskey.entities.UserDetailed, router: Router 
 			},
 		});
 
-		if ($i.policies.chatAvailability === 'available' && user.canChat && user.host == null) {
+		// リモートユーザーにも「チャットする」を出す。mk-go は DM を
+		// Create + Note(_misskey_talk) で連合配送する (純正は ChatService の
+		// 配送がコメントアウトされており federation しないため host == null で
+		// 隠していた)。相手が受け付けない場合は chatScope が 'none' になる。
+		if ($i.policies.chatAvailability === 'available' && user.canChat && user.chatScope !== 'none') {
 			menuItems.push({
 				type: 'link',
 				icon: 'ti ti-messages',

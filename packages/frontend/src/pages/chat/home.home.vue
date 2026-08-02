@@ -84,8 +84,9 @@ function start(ev: PointerEvent) {
 }
 
 async function startUser() {
-	// TODO: localOnly は連合に対応したら消す
-	os.selectUser({ localOnly: true }).then(user => {
+	// 純正の TODO ("localOnly は連合に対応したら消す") を解消したもの。
+	// mk-go は Create + Note(_misskey_talk) で DM を連合配送する。
+	os.selectUser().then(user => {
 		router.push('/chat/user/:userId', {
 			params: {
 				userId: user.id,
