@@ -50,7 +50,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</TransitionGroup>
 			</div>
 
-			<div v-if="user && (!user.canChat || user.host !== null)">
+			<!--
+				mk-go は chat 連合を実装しているのでリモートユーザーとも DM できる
+				(純正は ChatService の配送がコメントアウトされており federation
+				しないため `host !== null` を一律ブロックしていた)。
+				相手が受け付けない場合だけ warning を出す: canChat は viewer 側の
+				role policy 由来なので、リモート actor の `_misskey_canChat: false`
+				が落ちてくる chatScope === 'none' も見る。
+			-->
+			<div v-if="user && (!user.canChat || user.chatScope === 'none')">
 				<MkInfo warn>{{ i18n.ts._chat.chatNotAvailableInOtherAccount }}</MkInfo>
 			</div>
 
@@ -369,7 +377,9 @@ onBeforeUnmount(() => {
 async function inviteUser() {
 	if (room.value == null) return;
 
-	const invitee = await os.selectUser({ includeSelf: false, localOnly: true });
+	// mk-go は chat room を AP Group として Invite / Accept / Reject / Remove
+	// で連合させるので、リモートユーザーも招待できる。
+	const invitee = await os.selectUser({ includeSelf: false });
 	os.apiWithDialog('chat/rooms/invitations/create', {
 		roomId: room.value.id,
 		userId: invitee.id,

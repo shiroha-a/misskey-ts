@@ -200,7 +200,9 @@ async function matchUser() {
 	const isLoggedIn = await pleaseLogin();
 	if (!isLoggedIn) return;
 
-	const user = await os.selectUser({ includeSelf: false, localOnly: true });
+	// mk-go は remote 相手にも AP Invite を配信する (相手 host が reversi 連合に
+	// 対応しているかは backend が pre-check する)。
+	const user = await os.selectUser({ includeSelf: false });
 	if (user == null) return;
 
 	matchingUser.value = user;
