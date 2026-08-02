@@ -21,9 +21,20 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 	<FormSection>
 		<div class="_gaps_m">
-			<MkKeyValue :copy="version">
+			<!--
+				mk-go は Misskey を Go で書き直した実装なので、サーバー情報として
+				意味があるのは **動いている実装の版** (mkGoVersion)。
+				`version` は drop-in 互換のため互換 Misskey 版を返す契約なので、
+				両方並べて出す (#2274)。
+				純正 backend では mkGoVersion が無いので従来どおり Misskey 行だけになる。
+			-->
+			<MkKeyValue v-if="mkGoVersion" :copy="mkGoVersion">
+				<template #key>mk-go</template>
+				<template #value>{{ mkGoVersion }}</template>
+			</MkKeyValue>
+			<MkKeyValue :copy="serverMisskeyVersion">
 				<template #key>Misskey</template>
-				<template #value>{{ version }}</template>
+				<template #value>{{ serverMisskeyVersion }}</template>
 			</MkKeyValue>
 			<div v-html="i18n.tsx.poweredByMisskeyDescription({ name: instance.name ?? host })">
 			</div>
@@ -129,6 +140,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { host, version } from '@@/js/config.js';
 import { i18n } from '@/i18n.js';
 import { instance } from '@/instance.js';
+
+// mk-go が additive に返す実装バージョン (#2274)。純正 backend には無いので optional。
+// autogen の MetaDetailed には無い field なのでここで型を広げる (autogen 再生成で消えないように)。
+const mkGoVersion = (instance as typeof instance & { mkGoVersion?: string }).mkGoVersion ?? null;
+
+// サーバーが申告する互換 Misskey 版。build 時定数の `version` はフロントの
+// bundle 版でしかなく、backend だけ更新した場合にずれるため、サーバー情報の
+// 欄では meta 由来の値を出す。meta が無い環境向けに build 定数へ fallback する。
+const serverMisskeyVersion = instance.version || version;
 import number from '@/filters/number.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import FormLink from '@/components/form/link.vue';
