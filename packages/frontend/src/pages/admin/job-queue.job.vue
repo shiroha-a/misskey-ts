@@ -195,6 +195,10 @@ const props = defineProps<{
 	queueType: typeof Misskey.queueTypes[number];
 }>();
 
+// job-queue.vue と同じ理由のキャスト (autogen 型が純正の queue 名に固定)。
+type ApiQueueName = Misskey.Endpoints['admin/queue/retry-job']['req']['queue'];
+const apiQueue = computed(() => props.queueType as unknown as ApiQueueName);
+
 const emit = defineEmits<{
 	(ev: 'needRefresh'): void;
 }>();
@@ -260,7 +264,7 @@ async function promoteJob() {
 	});
 	if (canceled) return;
 
-	os.apiWithDialog('admin/queue/retry-job', { queue: props.queueType, jobId: props.job.id });
+	os.apiWithDialog('admin/queue/retry-job', { queue: apiQueue.value, jobId: props.job.id });
 }
 
 async function removeJob() {
@@ -270,11 +274,11 @@ async function removeJob() {
 	});
 	if (canceled) return;
 
-	os.apiWithDialog('admin/queue/remove-job', { queue: props.queueType, jobId: props.job.id });
+	os.apiWithDialog('admin/queue/remove-job', { queue: apiQueue.value, jobId: props.job.id });
 }
 
 async function loadLogs() {
-	logs.value = await os.apiWithDialog('admin/queue/show-job-logs', { queue: props.queueType, jobId: props.job.id });
+	logs.value = await os.apiWithDialog('admin/queue/show-job-logs', { queue: apiQueue.value, jobId: props.job.id });
 }
 
 // TODO

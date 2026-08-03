@@ -8,7 +8,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<div class="_spacer">
 		<div v-if="tab === '-'" class="_gaps">
 			<div :class="$style.queues">
-				<div v-for="q in queueInfos" :key="q.name" :class="$style.queue" @click="tab = q.name">
+				<div v-for="q in queueInfos" :key="q.name" :class="$style.queue" @click="tab = (q.name as typeof tab)">
 					<div style="display: flex; align-items: center; font-weight: bold;"><i class="ti ti-http-que" style="margin-right: 0.5em;"></i>{{ q.name }}<i v-if="!q.isPaused" style="color: var(--MI_THEME-success); margin-left: auto;" class="ti ti-player-play"></i></div>
 					<div :class="$style.queueCounts">
 						<MkKeyValue>
@@ -238,6 +238,14 @@ import MkInput from '@/components/MkInput.vue';
 import bytes from '@/filters/bytes.js';
 
 const tab = ref<typeof Misskey.queueTypes[number] | '-'>('-');
+
+// misskey-js の autogen 型は upstream backend の OpenAPI 由来なので、`queue`
+// パラメータが純正の 10 queue 名に固定されている。mk-go は 6 queue 構成
+// (Misskey.queueTypes を書き換え済み) で名前が一致しないため、API 呼び出し時に
+// ここで一度だけキャストする。autogen を編集すると upstream 追従で失われるうえ、
+// mk-go では再生成もできない (生成に NestJS backend が要る)。
+type ApiQueueName = Misskey.Endpoints['admin/queue/queue-stats']['req']['queue'];
+const apiQueue = computed(() => tab.value as unknown as ApiQueueName);
 const jobState = ref<Misskey.entities.AdminQueueJobsRequest['state'][number] | 'all' | 'latest'>('all');
 const jobs = ref<Misskey.entities.QueueJob[]>([]);
 const jobsFetching = ref(true);
@@ -291,7 +299,7 @@ async function fetchQueues() {
 
 async function fetchCurrentQueue() {
 	if (tab.value === '-') return;
-	queueInfo.value = await misskeyApi('admin/queue/queue-stats', { queue: tab.value });
+	queueInfo.value = await misskeyApi('admin/queue/queue-stats', { queue: apiQueue.value });
 }
 
 async function fetchJobs() {
@@ -299,7 +307,7 @@ async function fetchJobs() {
 	jobsFetching.value = true;
 	const state = jobState.value;
 	jobs.value = await misskeyApi('admin/queue/jobs', {
-		queue: tab.value,
+		queue: apiQueue.value,
 		state: state === 'all' ? ['completed', 'failed', 'active', 'delayed', 'wait'] : state === 'latest' ? ['completed', 'failed'] : [state],
 		search: searchQuery.value.trim() === '' ? undefined : searchQuery.value,
 	}).then((res: Misskey.entities.AdminQueueJobsResponse) => {
@@ -356,7 +364,7 @@ async function clearQueue() {
 	});
 	if (canceled) return;
 
-	os.apiWithDialog('admin/queue/clear', { queue: tab.value, state: '*' });
+	os.apiWithDialog('admin/queue/clear', { queue: apiQueue.value, state: '*' });
 
 	fetchCurrentQueue();
 	fetchJobs();
@@ -371,7 +379,7 @@ async function promoteAllJobs() {
 	});
 	if (canceled) return;
 
-	os.apiWithDialog('admin/queue/promote-jobs', { queue: tab.value });
+	os.apiWithDialog('admin/queue/promote-jobs', { queue: apiQueue.value });
 
 	fetchCurrentQueue();
 	fetchJobs();
@@ -386,7 +394,7 @@ async function pauseQueue() {
 	});
 	if (canceled) return;
 
-	await os.apiWithDialog('admin/queue/pause', { queue: tab.value });
+	await os.apiWithDialog('admin/queue/pause', { queue: apiQueue.value });
 
 	fetchCurrentQueue();
 	fetchJobs();
@@ -395,7 +403,7 @@ async function pauseQueue() {
 async function resumeQueue() {
 	if (tab.value === '-') return;
 
-	await os.apiWithDialog('admin/queue/resume', { queue: tab.value });
+	await os.apiWithDialog('admin/queue/resume', { queue: apiQueue.value });
 
 	fetchCurrentQueue();
 	fetchJobs();
@@ -410,7 +418,7 @@ async function removeJobs() {
 	});
 	if (canceled) return;
 
-	os.apiWithDialog('admin/queue/clear', { queue: tab.value, state: jobState.value === 'all' ? '*' : jobState.value });
+	os.apiWithDialog('admin/queue/clear', { queue: apiQueue.value, state: jobState.value === 'all' ? '*' : jobState.value });
 
 	fetchCurrentQueue();
 	fetchJobs();
@@ -418,7 +426,7 @@ async function removeJobs() {
 
 async function refreshJob(jobId: string) {
 	if (tab.value === '-') return;
-	const newJob = await misskeyApi('admin/queue/show-job', { queue: tab.value, jobId });
+	const newJob = await misskeyApi('admin/queue/show-job', { queue: apiQueue.value, jobId });
 	const index = jobs.value.findIndex((job) => job.id === jobId);
 	if (index !== -1) {
 		jobs.value[index] = newJob;
