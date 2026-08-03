@@ -13370,4 +13370,46 @@ export interface Locale extends ILocale {
          */
         "mfm": string;
     };
+    "_chunkedUpload": {
+        /**
+         * 分割アップロードの利用が許可されていません。
+         */
+        "notAllowed": string;
+        /**
+         * 進行中のアップロードが多すぎます。完了または中断してから再試行してください。
+         */
+        "tooManySessions": string;
+        /**
+         * アップロードの有効期限が切れました。もう一度お試しください。
+         */
+        "sessionExpired": string;
+        /**
+         * 分割アップロードを有効にする
+         */
+        "enable": string;
+        /**
+         * 大きいファイルを分割して送ることで、リバースプロキシのリクエストサイズ上限を回避します。オブジェクトストレージのマルチパートアップロードを使うため、オブジェクトストレージが有効な場合のみ利用できます。
+         */
+        "description": string;
+        /**
+         * チャンクサイズ (MiB)
+         */
+        "chunkSize": string;
+        /**
+         * 1リクエストで送るサイズ。リバースプロキシの上限 (nginxのclient_max_body_sizeなど) より小さくする必要があります。上限を超えていると有効にしても失敗します。
+         */
+        "chunkSizeDescription": string;
+        /**
+         * セッションの有効期限 (分)
+         */
+        "sessionTtl": string;
+        /**
+         * この時間を過ぎた未完了のアップロードは破棄されます。
+         */
+        "sessionTtlDescription": string;
+        /**
+         * オブジェクトストレージが有効でないため、分割アップロードは利用できません。
+         */
+        "requiresObjectStorage": string;
+    };
 }
