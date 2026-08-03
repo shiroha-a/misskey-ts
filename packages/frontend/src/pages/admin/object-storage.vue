@@ -91,7 +91,46 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<template #caption><SearchText>{{ i18n.ts.s3ForcePathStyleDesc }}</SearchText></template>
 						</MkSwitch>
 					</SearchMarker>
+
+					<!-- 分割アップロード (mk-go 独自)。マルチパートアップロードに
+					     依存するのでオブジェクトストレージ有効時のみ意味を持つ。
+					     純正 backend では admin/meta に該当 field が無いので
+					     未定義判定で丸ごと隠す。 -->
+					<template v-if="chunkedUploadSupported">
+						<MkFolder>
+							<template #label><SearchLabel>{{ i18n.ts._chunkedUpload.enable }}</SearchLabel></template>
+							<template #suffix>{{ chunkedUploadEnabled ? i18n.ts.enabled : i18n.ts.disabled }}</template>
+
+							<div class="_gaps_m">
+								<SearchMarker>
+									<MkSwitch v-model="chunkedUploadEnabled">
+										<template #label><SearchLabel>{{ i18n.ts._chunkedUpload.enable }}</SearchLabel></template>
+										<template #caption><SearchText>{{ i18n.ts._chunkedUpload.description }}</SearchText></template>
+									</MkSwitch>
+								</SearchMarker>
+
+								<MkInfo warn>{{ i18n.ts._chunkedUpload.chunkSizeDescription }}</MkInfo>
+
+								<SearchMarker>
+									<MkInput v-model="chunkedUploadChunkSizeMb" type="number" :min="5" :max="32">
+										<template #label><SearchLabel>{{ i18n.ts._chunkedUpload.chunkSize }}</SearchLabel></template>
+										<template #suffix>MiB</template>
+									</MkInput>
+								</SearchMarker>
+
+								<SearchMarker>
+									<MkInput v-model="chunkedUploadSessionTtlMinutes" type="number" :min="5" :max="1440">
+										<template #label><SearchLabel>{{ i18n.ts._chunkedUpload.sessionTtl }}</SearchLabel></template>
+										<template #caption><SearchText>{{ i18n.ts._chunkedUpload.sessionTtlDescription }}</SearchText></template>
+									</MkInput>
+								</SearchMarker>
+							</div>
+						</MkFolder>
+					</template>
 				</template>
+
+				<!-- オブジェクトストレージ無効時は分割アップロードも使えない旨を出す。 -->
+				<MkInfo v-else-if="chunkedUploadSupported">{{ i18n.ts._chunkedUpload.requiresObjectStorage }}</MkInfo>
 			</div>
 		</SearchMarker>
 	</div>
@@ -109,6 +148,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { ref, computed } from 'vue';
 import MkSwitch from '@/components/MkSwitch.vue';
 import MkInput from '@/components/MkInput.vue';
+import MkFolder from '@/components/MkFolder.vue';
+import MkInfo from '@/components/MkInfo.vue';
 import FormSplit from '@/components/form/split.vue';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
@@ -133,6 +174,18 @@ const objectStorageUseProxy = ref(meta.objectStorageUseProxy);
 const objectStorageSetPublicRead = ref(meta.objectStorageSetPublicRead);
 const objectStorageS3ForcePathStyle = ref(meta.objectStorageS3ForcePathStyle);
 
+// 分割アップロード (mk-go 独自)。純正 backend の admin/meta には無いので、
+// undefined 判定で UI ごと隠す。
+const mkMeta = meta as typeof meta & {
+	chunkedUploadEnabled?: boolean;
+	chunkedUploadChunkSizeMb?: number;
+	chunkedUploadSessionTtlMinutes?: number;
+};
+const chunkedUploadSupported = mkMeta.chunkedUploadEnabled !== undefined;
+const chunkedUploadEnabled = ref(mkMeta.chunkedUploadEnabled ?? false);
+const chunkedUploadChunkSizeMb = ref(mkMeta.chunkedUploadChunkSizeMb ?? 10);
+const chunkedUploadSessionTtlMinutes = ref(mkMeta.chunkedUploadSessionTtlMinutes ?? 60);
+
 function save() {
 	os.apiWithDialog('admin/update-meta', {
 		useObjectStorage: useObjectStorage.value,
@@ -148,6 +201,12 @@ function save() {
 		objectStorageUseProxy: objectStorageUseProxy.value,
 		objectStorageSetPublicRead: objectStorageSetPublicRead.value,
 		objectStorageS3ForcePathStyle: objectStorageS3ForcePathStyle.value,
+		// 純正 backend には無い field なので、対応している場合だけ送る。
+		...(chunkedUploadSupported ? {
+			chunkedUploadEnabled: chunkedUploadEnabled.value,
+			chunkedUploadChunkSizeMb: Number(chunkedUploadChunkSizeMb.value),
+			chunkedUploadSessionTtlMinutes: Number(chunkedUploadSessionTtlMinutes.value),
+		} : {}),
 	}).then(() => {
 		fetchInstance(true);
 	});

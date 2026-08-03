@@ -29,13 +29,130 @@ export class UploadAbortedError extends Error {
 	}
 }
 
-export function uploadFile(file: File | Blob, options: {
+type UploadOptions = {
 	name?: string;
 	folderId?: string | null;
 	isSensitive?: boolean;
 	caption?: string | null;
 	onProgress?: (ctx: { total: number; loaded: number; }) => void;
-} = {}): UploadReturnType {
+};
+
+type ChunkedUploadCapability = {
+	chunkSize: number;
+};
+
+/**
+ * mk-go が `/api/meta` で告知する分割アップロードの能力を読む。
+ *
+ * 純正 Misskey や、オブジェクトストレージ未設定 / 機能無効の mk-go では field
+ * ごと存在しないので null が返り、従来の単発アップロードに倒れる。
+ *
+ * チャンクサイズはサーバーの告知に従い、こちら側にハードコードしない。S3 互換
+ * サービスごとに最小パートサイズや「最終パート以外は同一サイズ」といった制約が
+ * 異なり、サーバー側でしか決められないため。
+ */
+function getChunkedUploadCapability(): ChunkedUploadCapability | null {
+	const cap = (instance as typeof instance & { chunkedUpload?: { chunkSize?: unknown } }).chunkedUpload;
+	if (cap == null) return null;
+	const chunkSize = cap.chunkSize;
+	if (typeof chunkSize !== 'number' || !Number.isFinite(chunkSize) || chunkSize <= 0) return null;
+	return { chunkSize };
+}
+
+/**
+ * アップロード失敗時のダイアログ表示。単発経路と分割経路で共通。
+ *
+ * 経路によって同じ制約が別のメッセージになると利用者が混乱するので、error id /
+ * code の分岐はここに一本化する。
+ */
+function showUploadError(status: number, rawResponse: string | null): void {
+	if (status === 413) {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts.cannotUploadBecauseExceedsFileSizeLimit,
+		});
+		return;
+	}
+
+	if (!rawResponse) {
+		os.alert({
+			type: 'error',
+			title: 'Failed to upload',
+			text: `${JSON.stringify(rawResponse)}`,
+		});
+		return;
+	}
+
+	let res: any;
+	try {
+		res = JSON.parse(rawResponse);
+	} catch {
+		os.alert({
+			type: 'error',
+			title: 'Failed to upload',
+			text: rawResponse,
+		});
+		return;
+	}
+
+	if (res.error?.id === 'bec5bd69-fba3-43c9-b4fb-2894b66ad5d2') {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts.cannotUploadBecauseInappropriate,
+		});
+	} else if (res.error?.id === 'd08dbc37-a6a9-463a-8c47-96c32ab5f064') {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts.cannotUploadBecauseNoFreeSpace,
+		});
+	} else if (res.error?.id === '4becd248-7f2c-48c4-a9f0-75edc4f9a1ea') {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts.cannotUploadBecauseUnallowedFileType,
+		});
+	// 以下は mk-go の分割アップロード固有 (#2313)。純正 Misskey では発生しない。
+	} else if (res.error?.code === 'CHUNKED_UPLOAD_NOT_ALLOWED') {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts._chunkedUpload.notAllowed,
+		});
+	} else if (res.error?.code === 'TOO_MANY_UPLOAD_SESSIONS' || res.error?.code === 'PENDING_UPLOAD_LIMIT_EXCEEDED') {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts._chunkedUpload.tooManySessions,
+		});
+	} else if (res.error?.code === 'NO_SUCH_UPLOAD_SESSION') {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: i18n.ts._chunkedUpload.sessionExpired,
+		});
+	} else {
+		os.alert({
+			type: 'error',
+			title: i18n.ts.failedToUpload,
+			text: `${res.error?.message}\n${res.error?.code}\n${res.error?.id}`,
+		});
+	}
+}
+
+export function uploadFile(file: File | Blob, options: UploadOptions = {}): UploadReturnType {
+	const chunked = getChunkedUploadCapability();
+	// 閾値もサーバー告知の chunkSize に従う。1 チャンクに収まるなら分割する意味が
+	// 無いので、従来経路のほうがラウンドトリップが少ない。
+	if (chunked != null && file.size > chunked.chunkSize) {
+		return uploadFileChunked(file, options, chunked);
+	}
+	return uploadFileSingle(file, options);
+}
+
+function uploadFileSingle(file: File | Blob, options: UploadOptions = {}): UploadReturnType {
 	const xhr = new XMLHttpRequest();
 	const abortController = new AbortController();
 	const { signal } = abortController;
@@ -76,47 +193,7 @@ export function uploadFile(file: File | Blob, options: {
 		xhr.open('POST', apiUrl + '/drive/files/create', true);
 		xhr.onload = ((ev: ProgressEvent<XMLHttpRequest>) => {
 			if (xhr.status !== 200 || ev.target == null || ev.target.response == null) {
-				if (xhr.status === 413) {
-					os.alert({
-						type: 'error',
-						title: i18n.ts.failedToUpload,
-						text: i18n.ts.cannotUploadBecauseExceedsFileSizeLimit,
-					});
-				} else if (ev.target?.response) {
-					const res = JSON.parse(ev.target.response);
-					if (res.error?.id === 'bec5bd69-fba3-43c9-b4fb-2894b66ad5d2') {
-						os.alert({
-							type: 'error',
-							title: i18n.ts.failedToUpload,
-							text: i18n.ts.cannotUploadBecauseInappropriate,
-						});
-					} else if (res.error?.id === 'd08dbc37-a6a9-463a-8c47-96c32ab5f064') {
-						os.alert({
-							type: 'error',
-							title: i18n.ts.failedToUpload,
-							text: i18n.ts.cannotUploadBecauseNoFreeSpace,
-						});
-					} else if (res.error?.id === '4becd248-7f2c-48c4-a9f0-75edc4f9a1ea') {
-						os.alert({
-							type: 'error',
-							title: i18n.ts.failedToUpload,
-							text: i18n.ts.cannotUploadBecauseUnallowedFileType,
-						});
-					} else {
-						os.alert({
-							type: 'error',
-							title: i18n.ts.failedToUpload,
-							text: `${res.error?.message}\n${res.error?.code}\n${res.error?.id}`,
-						});
-					}
-				} else {
-					os.alert({
-						type: 'error',
-						title: 'Failed to upload',
-						text: `${JSON.stringify(ev.target?.response)}, ${JSON.stringify(xhr.response)}`,
-					});
-				}
-
+				showUploadError(xhr.status, ev.target?.response ?? null);
 				reject();
 				return;
 			}
@@ -152,6 +229,151 @@ export function uploadFile(file: File | Blob, options: {
 	const abort = () => {
 		xhr.abort();
 		abortController.abort();
+	};
+
+	return { filePromise, abort };
+}
+
+/**
+ * mk-go の分割アップロード (#2313)。ファイルを固定サイズのチャンクに割り、
+ * start / append / finish の 3 段階で送る。
+ *
+ * リバースプロキシのボディサイズ上限 (Cloudflare は 100MB) を超えるファイルを
+ * 送るための経路。1 リクエストあたりの本文はサーバーが告知した chunkSize に
+ * 収まるので、上限を上げられない環境でも通る。
+ */
+function uploadFileChunked(file: File | Blob, options: UploadOptions, cap: ChunkedUploadCapability): UploadReturnType {
+	const abortController = new AbortController();
+	const { signal } = abortController;
+	// 進行中の append。abort() から中断できるよう保持する。
+	let currentXhr: XMLHttpRequest | null = null;
+	let uploadId: string | null = null;
+
+	const post = async (endpoint: string, body: Record<string, unknown>): Promise<any> => {
+		const res = await window.fetch(`${apiUrl}/${endpoint}`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ ...body, i: $i!.token }),
+		});
+		const text = await res.text();
+		if (!res.ok) {
+			showUploadError(res.status, text || null);
+			throw new Error(`${endpoint} failed: ${res.status}`);
+		}
+		return text ? JSON.parse(text) : null;
+	};
+
+	const filePromise = new Promise<Misskey.entities.DriveFile>((resolve, reject) => {
+		if ($i == null) return reject();
+
+		if ((file.size > instance.maxFileSize) || (file.size > ($i.policies.maxFileSizeMb * 1024 * 1024))) {
+			os.alert({
+				type: 'error',
+				title: i18n.ts.failedToUpload,
+				text: i18n.ts.cannotUploadBecauseExceedsFileSizeLimit,
+			});
+			return reject();
+		}
+
+		signal.addEventListener('abort', () => {
+			reject(new UploadAbortedError());
+		}, { once: true });
+
+		void (async () => {
+			try {
+				const name = options.name ?? (file instanceof File ? file.name : 'untitled');
+				const session = await post('drive/files/create-chunked/start', {
+					name,
+					size: file.size,
+					force: true,
+					isSensitive: options.isSensitive ?? false,
+					comment: options.caption ?? null,
+					folderId: options.folderId ?? null,
+				});
+				if (signal.aborted) return;
+				uploadId = session.uploadId;
+
+				// サーバーが返した chunkSize に従う (start と告知の間に admin が
+				// 設定を変えた場合、セッションに固定された値はこちら)。
+				const chunkSize: number = session.chunkSize ?? cap.chunkSize;
+				const totalChunks: number = session.totalChunks;
+
+				for (let index = 0; index < totalChunks; index++) {
+					if (signal.aborted) return;
+					const start = index * chunkSize;
+					const blob = file.slice(start, Math.min(start + chunkSize, file.size));
+					await appendChunk(uploadId!, index, blob, start);
+				}
+				if (signal.aborted) return;
+
+				const driveFile = await post('drive/files/create-chunked/finish', { uploadId });
+				uploadId = null; // finish 済みなので abort で破棄しない
+				globalEvents.emit('driveFileCreated', driveFile);
+				resolve(driveFile);
+			} catch (err) {
+				if (!signal.aborted) reject(err);
+			}
+		})();
+	});
+
+	// チャンク 1 つを送る。進捗は「確定済みバイト数 + 送信中チャンクの loaded」で
+	// 合算し、単発アップロードと同じ体験にする。
+	function appendChunk(id: string, index: number, blob: Blob, uploadedBefore: number): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const xhr = new XMLHttpRequest();
+			currentXhr = xhr;
+			xhr.open('POST', `${apiUrl}/drive/files/create-chunked/append`, true);
+			xhr.onload = () => {
+				currentXhr = null;
+				if (xhr.status !== 200) {
+					showUploadError(xhr.status, xhr.response ?? null);
+					reject(new Error(`append ${index} failed: ${xhr.status}`));
+					return;
+				}
+				options.onProgress?.({ total: file.size, loaded: uploadedBefore + blob.size });
+				resolve();
+			};
+			xhr.onerror = () => {
+				currentXhr = null;
+				reject(new Error(`append ${index} failed`));
+			};
+			xhr.onabort = () => {
+				currentXhr = null;
+				reject(new UploadAbortedError());
+			};
+			if (options.onProgress) {
+				xhr.upload.onprogress = ev => {
+					if (ev.lengthComputable) {
+						options.onProgress?.({ total: file.size, loaded: uploadedBefore + ev.loaded });
+					}
+				};
+			}
+
+			const formData = new FormData();
+			formData.append('i', $i!.token);
+			formData.append('uploadId', id);
+			formData.append('index', String(index));
+			formData.append('chunk', blob);
+			xhr.send(formData);
+		});
+	}
+
+	const abort = () => {
+		currentXhr?.abort();
+		abortController.abort();
+		// サーバー側にセッションを残さない。放置すると未完了のマルチパート
+		// アップロードが期限切れ GC まで残り、オブジェクトストレージの課金対象に
+		// なる。best-effort なので失敗は握り潰す。
+		if (uploadId != null) {
+			const id = uploadId;
+			uploadId = null;
+			void window.fetch(`${apiUrl}/drive/files/create-chunked/abort`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ i: $i?.token, uploadId: id }),
+				keepalive: true,
+			}).catch(() => {});
+		}
 	};
 
 	return { filePromise, abort };
