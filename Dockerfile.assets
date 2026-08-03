@@ -1,0 +1,38 @@
+# mk-go (https://github.com/shiroha-a/mk) 向けフロントエンドアセット専用イメージ。
+#
+# mk-go は Go 実装のバックエンドで Misskey TS の backend を置き換えるため、
+# 必要なのはフロントエンドのビルド成果物と静的アセットだけ。backend を
+# ビルドせず、成果物のみを持つ `FROM scratch` のデータイメージを作る。
+#
+# フルイメージ 1.66GB に対して 228MB (86% 削減)。実行はできず、下流の
+# `COPY --from` 供給元としてのみ機能する。
+#
+# upstream の Dockerfile とは独立した新規ファイル。upstream 追従のたびに
+# custom commit を cherry-pick する運用なので、upstream が触るファイルを
+# 編集するとコンフリクトする。
+
+# mk-go 向けフロントエンドアセット専用イメージ。
+# backend はビルドしない (mk-go が Go 実装で置き換えるため)。
+FROM node:26.4.0-trixie AS builder
+# upstream Dockerfile と同じ。frontend / sw / i18n / misskey-js など 7 パッケージが
+# NODE_ENV を見ており、production でないと minify されず _DEV_ フラグも立つ。
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+WORKDIR /misskey
+COPY . .
+# upstream Dockerfile と同じく package.json の packageManager から pnpm を入れる
+# (Node 26 には corepack が同梱されていない)。
+RUN node -e "console.log(JSON.parse(require('node:fs').readFileSync('./package.json')).packageManager)" | xargs npm install -g \
+ && pnpm install --frozen-lockfile
+# built/ の 4 成果物の生成元は frontend / i18n / frontend-embed / sw。
+# いずれも backend に依存しないので、依存込みで絞り込んでビルドする。
+RUN pnpm build-pre \
+ && pnpm --filter frontend... --filter sw... --filter frontend-embed... build \
+ && pnpm build-assets
+
+FROM scratch
+COPY --from=builder /misskey/built /built
+COPY --from=builder /misskey/packages/frontend/assets /frontend-assets
+COPY --from=builder /misskey/packages/backend/assets /backend-assets
+COPY --from=builder /misskey/assets /repo-assets
+COPY --from=builder /misskey/packages/backend/node_modules/@misskey-dev/emoji-assets/built /emoji-assets
