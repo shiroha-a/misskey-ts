@@ -236,7 +236,7 @@ export const rolePolicies = [
 
 // mk-go (https://github.com/shiroha-a/mk) の job queue 構成。
 //
-// 純正 Misskey は用途ごとに 10 queue へ分けるが、mk-go は 6 queue に集約する
+// 純正 Misskey は用途ごとに 10 queue へ分けるが、mk-go は 7 queue に集約する
 // (`internal/queue/driver/mkqdriver` の QueueNames)。この配列は管理画面の
 // ジョブキュー画面がタブを生成する唯一の情報源で、**サーバーに実在するか
 // どうかとは無関係にタブが出る**。純正の名前のままだと mk-go に存在しない
@@ -251,6 +251,7 @@ export const queueTypes = [
 	'export',
 	'webhook',
 	'maintenance',
+	'objectStorage',
 ] as const;
 
 // See: packages/backend/src/core/ReversiService.ts@L410
