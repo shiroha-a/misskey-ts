@@ -38,6 +38,37 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 				</MkFolder>
 
+				<!-- mk-go 独自: リレー由来の孤児リモートユーザーを定期削除する (shiroha-a/mk#2340)。
+				     転送活動の署名検証は著者の公開鍵を DB に載せる必要があり、その経路だけは
+				     揮発化できないため後追いで回収する。 -->
+				<MkFolder>
+					<template #icon><i class="ti ti-user-off"></i></template>
+					<template #label><SearchLabel>{{ i18n.ts.relayOrphanUserCleanup }}</SearchLabel></template>
+
+					<div class="_gaps_m">
+						<MkInfo>{{ i18n.ts.relayOrphanUserCleanupInfo }}</MkInfo>
+
+						<SearchMarker>
+							<MkSwitch v-model="enableRelayOrphanUserCleanup">
+								<SearchLabel>{{ i18n.ts.enableRelayOrphanUserCleanup }}</SearchLabel>
+								<template #caption><SearchText>{{ i18n.ts.enableRelayOrphanUserCleanupDescription }}</SearchText></template>
+							</MkSwitch>
+						</SearchMarker>
+
+						<template v-if="enableRelayOrphanUserCleanup">
+							<SearchMarker>
+								<MkInput v-model="relayOrphanUserGraceDays" type="number" :min="7">
+									<template #label><SearchLabel>{{ i18n.ts.relayOrphanUserGraceDays }}</SearchLabel></template>
+									<template #suffix>{{ i18n.ts._time.day }}</template>
+									<template #caption><SearchText>{{ i18n.ts.relayOrphanUserGraceDaysDescription }}</SearchText></template>
+								</MkInput>
+							</SearchMarker>
+						</template>
+
+						<MkButton primary @click="saveOrphanCleanupSettings"><i class="ti ti-check"></i> {{ i18n.ts.save }}</MkButton>
+					</div>
+				</MkFolder>
+
 				<div v-for="relay in relays" :key="relay.inbox" class="relaycxt _panel" style="padding: 16px;">
 					<div>{{ relay.inbox }}</div>
 					<div style="margin: 8px 0;">
@@ -73,17 +104,28 @@ const relays = ref<Misskey.entities.AdminRelaysListResponse>([]);
 // OpenAPI 由来で mk-go では再生成できないため、any 経由で読む。
 const enableEphemeralRelayNotes = ref(false);
 const ephemeralRelayNoteTtlMinutes = ref(60);
+const enableRelayOrphanUserCleanup = ref(false);
+const relayOrphanUserGraceDays = ref(30);
 
 async function loadEphemeralSettings() {
 	const meta = await misskeyApi('admin/meta') as any;
 	enableEphemeralRelayNotes.value = meta.enableEphemeralRelayNotes ?? false;
 	ephemeralRelayNoteTtlMinutes.value = meta.ephemeralRelayNoteTtlMinutes ?? 60;
+	enableRelayOrphanUserCleanup.value = meta.enableRelayOrphanUserCleanup ?? false;
+	relayOrphanUserGraceDays.value = meta.relayOrphanUserGraceDays ?? 30;
 }
 
 function saveEphemeralSettings() {
 	os.apiWithDialog('admin/update-meta', {
 		enableEphemeralRelayNotes: enableEphemeralRelayNotes.value,
 		ephemeralRelayNoteTtlMinutes: ephemeralRelayNoteTtlMinutes.value,
+	} as any);
+}
+
+function saveOrphanCleanupSettings() {
+	os.apiWithDialog('admin/update-meta', {
+		enableRelayOrphanUserCleanup: enableRelayOrphanUserCleanup.value,
+		relayOrphanUserGraceDays: relayOrphanUserGraceDays.value,
 	} as any);
 }
 
