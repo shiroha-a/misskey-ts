@@ -8,6 +8,36 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<div class="_spacer" style="--MI_SPACER-w: 800px;">
 		<SearchMarker path="/admin/relays" :label="i18n.ts.relays" :keywords="['relays']" icon="ti ti-planet">
 			<div class="_gaps">
+				<!-- mk-go 独自: リレー経由投稿を DB に保存せず Redis で揮発させる (#2332)。
+				     設定対象がリレー経由の投稿なので、購読の管理と同じ画面に置く。 -->
+				<MkFolder>
+					<template #icon><i class="ti ti-flame"></i></template>
+					<template #label><SearchLabel>{{ i18n.ts.ephemeralRelayNotes }}</SearchLabel></template>
+
+					<div class="_gaps_m">
+						<MkInfo warn>{{ i18n.ts.ephemeralRelayNotesWarning }}</MkInfo>
+
+						<SearchMarker>
+							<MkSwitch v-model="enableEphemeralRelayNotes">
+								<SearchLabel>{{ i18n.ts.enableEphemeralRelayNotes }}</SearchLabel>
+								<template #caption><SearchText>{{ i18n.ts.enableEphemeralRelayNotesDescription }}</SearchText></template>
+							</MkSwitch>
+						</SearchMarker>
+
+						<template v-if="enableEphemeralRelayNotes">
+							<SearchMarker>
+								<MkInput v-model="ephemeralRelayNoteTtlMinutes" type="number" :min="1">
+									<template #label><SearchLabel>{{ i18n.ts.ephemeralRelayNoteTtl }}</SearchLabel></template>
+									<template #suffix>{{ i18n.ts._time.minute }}</template>
+									<template #caption><SearchText>{{ i18n.ts.ephemeralRelayNoteTtlDescription }}</SearchText></template>
+								</MkInput>
+							</SearchMarker>
+						</template>
+
+						<MkButton primary @click="saveEphemeralSettings"><i class="ti ti-check"></i> {{ i18n.ts.save }}</MkButton>
+					</div>
+				</MkFolder>
+
 				<div v-for="relay in relays" :key="relay.inbox" class="relaycxt _panel" style="padding: 16px;">
 					<div>{{ relay.inbox }}</div>
 					<div style="margin: 8px 0;">
@@ -28,12 +58,34 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { ref, computed } from 'vue';
 import * as Misskey from 'misskey-js';
 import MkButton from '@/components/MkButton.vue';
+import MkFolder from '@/components/MkFolder.vue';
+import MkInfo from '@/components/MkInfo.vue';
+import MkInput from '@/components/MkInput.vue';
+import MkSwitch from '@/components/MkSwitch.vue';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 
 const relays = ref<Misskey.entities.AdminRelaysListResponse>([]);
+
+// mk-go 独自の meta 列 (#2332)。misskey-js の autogen 型は upstream backend の
+// OpenAPI 由来で mk-go では再生成できないため、any 経由で読む。
+const enableEphemeralRelayNotes = ref(false);
+const ephemeralRelayNoteTtlMinutes = ref(60);
+
+async function loadEphemeralSettings() {
+	const meta = await misskeyApi('admin/meta') as any;
+	enableEphemeralRelayNotes.value = meta.enableEphemeralRelayNotes ?? false;
+	ephemeralRelayNoteTtlMinutes.value = meta.ephemeralRelayNoteTtlMinutes ?? 60;
+}
+
+function saveEphemeralSettings() {
+	os.apiWithDialog('admin/update-meta', {
+		enableEphemeralRelayNotes: enableEphemeralRelayNotes.value,
+		ephemeralRelayNoteTtlMinutes: ephemeralRelayNoteTtlMinutes.value,
+	} as any);
+}
 
 async function addRelay() {
 	const { canceled, result: inbox } = await os.inputText({
@@ -74,6 +126,7 @@ function refresh() {
 }
 
 refresh();
+loadEphemeralSettings();
 
 const headerActions = computed(() => [{
 	asFullButton: true,
