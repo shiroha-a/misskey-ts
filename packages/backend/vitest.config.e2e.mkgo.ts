@@ -15,12 +15,23 @@ export default mergeConfig(
 	defineConfig({
 		test: {
 			include: ['./test/e2e/**/*.ts'],
-			// move.ts は唯一 initTestDb(false) を呼び、TypeORM のエンティティ定義から
-			// スキーマを作り直す。mk-go の migration にしか無いテーブル / カラム
+			// 本家の TypeScript 実装を同じ DB に対して起動してしまうものは、mk-go
+			// では構造上成立しないので除外する。いずれも TypeORM がスキーマを張り
+			// 直し、mk-go の migration にしか無いテーブル / カラム
 			// (relay_observed_user, meta.chunkedUploadEnabled, poll.notifiedAt 等) が
-			// そこで消えるため、mk-go は起動できなくなり、後続の全ファイルが道連れに
-			// なる。構造上 mk-go では成立しないので除外する。
-			exclude: [...(baseConfig.test?.exclude ?? []), './test/e2e/move.ts'],
+			// 消える。そうなると mk-go は起動できず、後続の全ファイルが道連れになる。
+			//
+			// - move.ts: initTestDb(false) で TypeORM のエンティティ定義から
+			//   スキーマを作り直す (29 ファイル中これだけ)
+			// - exports.ts / synalio/*: startJobQueue() で本家の NestJS ジョブキューを
+			//   プロセス内に起動する
+			exclude: [
+				...(baseConfig.test?.exclude ?? []),
+				'./test/e2e/move.ts',
+				'./test/e2e/exports.ts',
+				'./test/e2e/synalio/abuse-report.ts',
+				'./test/e2e/synalio/user-create.ts',
+			],
 			globalSetup: './test-server-mkgo/entry.ts',
 			setupFiles: ['./test/setup.e2e.mkgo.ts'],
 		},
