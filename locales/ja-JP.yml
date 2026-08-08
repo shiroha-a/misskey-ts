@@ -3606,3 +3606,15 @@ _chunkedUpload:
   sessionTtl: "セッションの有効期限 (分)"
   sessionTtlDescription: "この時間を過ぎた未完了のアップロードは破棄されます。"
   requiresObjectStorage: "オブジェクトストレージが有効でないため、分割アップロードは利用できません。"
+
+_signatureCapability:
+  label: "署名方式"
+  description: "相手サーバーがどの署名方式に対応しているかの観測結果です。鍵の公開 (宣言)、受信した署名、Ed25519での配送成功の3つから判定します。"
+  ed25519Supported: "Ed25519対応"
+  rsaOnly: "RSAのみ"
+  ldSignature: "LD-Signature"
+  notObserved: "未観測"
+  ed25519DeclaredAt: "Ed25519鍵の公開を確認"
+  ed25519AcceptedAt: "Ed25519署名での配送に成功"
+  inboundObservedAt: "受信した署名"
+  ldSignatureSeenAt: "LD-Signatureの受信"
