@@ -11,6 +11,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<XStats/>
 		</MkFoldableSection>
 
+		<!-- mk-go 独自。プロセスの健康状態は他の統計より先に目に入る位置に置く。 -->
+		<MkFoldableSection class="item">
+			<template #header>mk-go</template>
+			<XMkGo/>
+		</MkFoldableSection>
+
 		<MkFoldableSection class="item">
 			<template #header>Active users</template>
 			<XActiveUsers/>
@@ -74,6 +80,7 @@ import XApRequests from './overview.ap-requests.vue';
 import XUsers from './overview.users.vue';
 import XActiveUsers from './overview.active-users.vue';
 import XStats from './overview.stats.vue';
+import XMkGo from './overview.mkgo.vue';
 import XRetention from './overview.retention.vue';
 import XModerators from './overview.moderators.vue';
 import XHeatmap from './overview.heatmap.vue';
