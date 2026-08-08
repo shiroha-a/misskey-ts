@@ -2589,6 +2589,54 @@ export interface Locale extends ILocale {
      */
     "inboxUrl": string;
     /**
+     * リレー投稿の一時保存
+     */
+    "ephemeralRelayNotes": string;
+    /**
+     * リレー経由の投稿を一時保存にする
+     */
+    "enableEphemeralRelayNotes": string;
+    /**
+     * リレー経由でしか届かない投稿を、データベースに残さずキャッシュに置きます。誰も反応しなかった投稿は期限が来ると自動的に消えるため、データベースが肥大化しません。リアクションや返信など何らかの操作をした時点で、通常の投稿として保存されます。
+     */
+    "enableEphemeralRelayNotesDescription": string;
+    /**
+     * 保存期間
+     */
+    "ephemeralRelayNoteTtl": string;
+    /**
+     * キャッシュに置いておく時間です。これを過ぎた投稿は、誰も操作していなければ消えます。
+     */
+    "ephemeralRelayNoteTtlDescription": string;
+    /**
+     * 有効にすると、グローバルタイムラインをこの保存期間より過去に遡れなくなります。
+     */
+    "ephemeralRelayNotesWarning": string;
+    /**
+     * リレー由来ユーザーの整理
+     */
+    "relayOrphanUserCleanup": string;
+    /**
+     * 誰とも関わりのないユーザーを削除する
+     */
+    "enableRelayOrphanUserCleanup": string;
+    /**
+     * リレー経由でしか見かけなかったユーザーのうち、投稿もリアクションもフォロー関係も残っていないものを毎日削除します。再び見かければ自動的に取得し直すので、表示に影響はありません。
+     */
+    "enableRelayOrphanUserCleanupDescription": string;
+    /**
+     * 猶予期間
+     */
+    "relayOrphanUserGraceDays": string;
+    /**
+     * 最後に見かけてからこの日数が経過したユーザーが対象です。短くしすぎると、活動中のユーザーを削除しては取得し直すことを繰り返すため、7日未満は設定できません。
+     */
+    "relayOrphanUserGraceDaysDescription": string;
+    /**
+     * リレーを購読する前から知っているユーザーや、プロフィールを開いたことのあるユーザーは対象外です。フォロー・ブロック・ミュートしている相手も削除されません。
+     */
+    "relayOrphanUserCleanupInfo": string;
+    /**
      * 追加済みのリレー
      */
     "addedRelays": string;
@@ -13419,5 +13467,47 @@ export interface Locale extends ILocale {
          * オブジェクトストレージが有効でないため、分割アップロードは利用できません。
          */
         "requiresObjectStorage": string;
+    };
+    "_signatureCapability": {
+        /**
+         * 署名方式
+         */
+        "label": string;
+        /**
+         * 相手サーバーがどの署名方式に対応しているかの観測結果です。鍵の公開 (宣言)、受信した署名、Ed25519での配送成功の3つから判定します。
+         */
+        "description": string;
+        /**
+         * Ed25519対応
+         */
+        "ed25519Supported": string;
+        /**
+         * RSAのみ
+         */
+        "rsaOnly": string;
+        /**
+         * LD-Signature
+         */
+        "ldSignature": string;
+        /**
+         * 未観測
+         */
+        "notObserved": string;
+        /**
+         * Ed25519鍵の公開を確認
+         */
+        "ed25519DeclaredAt": string;
+        /**
+         * Ed25519署名での配送に成功
+         */
+        "ed25519AcceptedAt": string;
+        /**
+         * 受信した署名
+         */
+        "inboundObservedAt": string;
+        /**
+         * LD-Signatureの受信
+         */
+        "ldSignatureSeenAt": string;
     };
 }

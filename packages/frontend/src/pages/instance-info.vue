@@ -69,6 +69,33 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkKeyValue>
 			</FormSection>
 
+			<!-- signatureCapability は mk-go の additive field。純正 backend では
+			     null になるので、その場合はセクションごと出さない。 -->
+			<FormSection v-if="signatureCapability">
+				<template #label>{{ i18n.ts._signatureCapability.label }}</template>
+				<div :class="$style.signatureCaption">{{ i18n.ts._signatureCapability.description }}</div>
+				<MkKeyValue oneline style="margin: 1em 0;">
+					<template #key>{{ i18n.ts._signatureCapability.inboundObservedAt }}</template>
+					<template #value>
+						<span v-if="signatureCapability.inboundAlgorithm" class="_monospace">{{ signatureCapability.inboundAlgorithm }}</span>
+						<span v-else>{{ i18n.ts._signatureCapability.notObserved }}</span>
+						<MkTime v-if="signatureCapability.inboundObservedAt" :time="signatureCapability.inboundObservedAt" style="margin-left: 8px;"/>
+					</template>
+				</MkKeyValue>
+				<MkKeyValue oneline style="margin: 1em 0;">
+					<template #key>{{ i18n.ts._signatureCapability.ed25519DeclaredAt }}</template>
+					<template #value><MkTime v-if="signatureCapability.ed25519DeclaredAt" :time="signatureCapability.ed25519DeclaredAt"/><span v-else>{{ i18n.ts._signatureCapability.notObserved }}</span></template>
+				</MkKeyValue>
+				<MkKeyValue oneline style="margin: 1em 0;">
+					<template #key>{{ i18n.ts._signatureCapability.ed25519AcceptedAt }}</template>
+					<template #value><MkTime v-if="signatureCapability.ed25519AcceptedAt" :time="signatureCapability.ed25519AcceptedAt"/><span v-else>{{ i18n.ts._signatureCapability.notObserved }}</span></template>
+				</MkKeyValue>
+				<MkKeyValue oneline style="margin: 1em 0;">
+					<template #key>{{ i18n.ts._signatureCapability.ldSignatureSeenAt }}</template>
+					<template #value><MkTime v-if="signatureCapability.ldSignatureSeenAt" :time="signatureCapability.ldSignatureSeenAt"/><span v-else>{{ i18n.ts._signatureCapability.notObserved }}</span></template>
+				</MkKeyValue>
+			</FormSection>
+
 			<FormSection>
 				<MkKeyValue oneline style="margin: 1em 0;">
 					<template #key>Following (Pub)</template>
@@ -146,6 +173,7 @@ import { dateString } from '@/filters/date.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import MkTextarea from '@/components/MkTextarea.vue';
 import { Paginator } from '@/utility/paginator.js';
+import { signatureCapabilityOf } from '@/utility/signature-capability.js';
 
 const props = defineProps<{
 	host: string;
@@ -179,6 +207,8 @@ const isBlocked = ref(false);
 const isSilenced = ref(false);
 const isMediaSilenced = ref(false);
 const faviconUrl = ref<string | null>(null);
+// mk-go の additive field (#2393)。純正 backend では null。
+const signatureCapability = computed(() => signatureCapabilityOf(instance.value));
 const moderationNote = ref('');
 
 const usersPaginator = iAmModerator ? markRaw(new Paginator('admin/show-users', {
@@ -344,5 +374,9 @@ definePage(() => ({
 	display: grid;
 	grid-template-columns: repeat(auto-fill,minmax(270px,1fr));
 	grid-gap: 12px;
+}
+.signatureCaption {
+	font-size: 0.85em;
+	opacity: 0.7;
 }
 </style>
