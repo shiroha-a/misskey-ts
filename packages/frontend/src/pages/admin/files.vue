@@ -67,6 +67,9 @@ const paginator = markRaw(new Paginator('admin/drive/files', {
 	})),
 }));
 
+// mk-go はリモートメディアをローカルにキャッシュしないので削除対象が存在しない。
+// ボタンは disabled で残す (消すと実装漏れに見えるため)。handler は到達しないが、
+// PageHeaderItem が handler 必須なので no-op を置く。
 function clear() {
 	os.confirm({
 		type: 'warning',
@@ -83,8 +86,9 @@ const headerActions = computed(() => [{
 	icon: 'ti ti-search',
 	handler: lookupFile,
 }, {
-	text: i18n.ts.clearCachedFiles,
+	text: `${i18n.ts.clearCachedFiles} (${i18n.ts._mkgoUnsupported.cleanRemoteFiles})`,
 	icon: 'ti ti-trash',
+	disabled: true,
 	handler: clear,
 }]);
 
