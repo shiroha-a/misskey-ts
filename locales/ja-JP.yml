@@ -3618,3 +3618,7 @@ _signatureCapability:
   ed25519AcceptedAt: "Ed25519署名での配送に成功"
   inboundObservedAt: "受信した署名"
   ldSignatureSeenAt: "LD-Signatureの受信"
+
+_mkgoUnsupported:
+  remoteMediaCache: "mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。"
+  cleanRemoteFiles: "mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。"

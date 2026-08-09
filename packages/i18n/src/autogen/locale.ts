@@ -13510,4 +13510,14 @@ export interface Locale extends ILocale {
          */
         "ldSignatureSeenAt": string;
     };
+    "_mkgoUnsupported": {
+        /**
+         * mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。
+         */
+        "remoteMediaCache": string;
+        /**
+         * mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。
+         */
+        "cleanRemoteFiles": string;
+    };
 }

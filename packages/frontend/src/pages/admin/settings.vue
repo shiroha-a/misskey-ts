@@ -335,21 +335,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 								</MkSwitch>
 							</SearchMarker>
 
+							<!-- mk-go はリモートメディアをローカルにキャッシュしない設計のため、
+							     この 2 つは操作できないようにしてある。消さずに残すのは、
+							     (1) 消すと実装漏れに見える、(2) drop-in で Misskey へ戻したときに
+							     保存済みの値が有効化されることに気付けなくなる、の 2 点による。 -->
 							<SearchMarker :keywords="['cache', 'remote', 'files']">
-								<MkSwitch v-model="federationForm.state.cacheRemoteFiles">
-									<template #label><SearchLabel>{{ i18n.ts.cacheRemoteFiles }}</SearchLabel><span v-if="federationForm.modifiedStates.cacheRemoteFiles" class="_modified">{{ i18n.ts.modified }}</span></template>
-									<template #caption><SearchText>{{ i18n.ts.cacheRemoteFilesDescription }}</SearchText>{{ i18n.ts.youCanCleanRemoteFilesCache }}</template>
+								<MkSwitch v-model="federationForm.state.cacheRemoteFiles" disabled>
+									<template #label><SearchLabel>{{ i18n.ts.cacheRemoteFiles }}</SearchLabel></template>
+									<template #caption><SearchText>{{ i18n.ts._mkgoUnsupported.remoteMediaCache }}</SearchText></template>
 								</MkSwitch>
 							</SearchMarker>
 
-							<template v-if="federationForm.state.cacheRemoteFiles">
-								<SearchMarker :keywords="['cache', 'remote', 'sensitive', 'files']">
-									<MkSwitch v-model="federationForm.state.cacheRemoteSensitiveFiles">
-										<template #label><SearchLabel>{{ i18n.ts.cacheRemoteSensitiveFiles }}</SearchLabel><span v-if="federationForm.modifiedStates.cacheRemoteSensitiveFiles" class="_modified">{{ i18n.ts.modified }}</span></template>
-										<template #caption><SearchText>{{ i18n.ts.cacheRemoteSensitiveFilesDescription }}</SearchText></template>
-									</MkSwitch>
-								</SearchMarker>
-							</template>
+							<SearchMarker :keywords="['cache', 'remote', 'sensitive', 'files']">
+								<MkSwitch v-model="federationForm.state.cacheRemoteSensitiveFiles" disabled>
+									<template #label><SearchLabel>{{ i18n.ts.cacheRemoteSensitiveFiles }}</SearchLabel></template>
+									<template #caption><SearchText>{{ i18n.ts.cacheRemoteSensitiveFilesDescription }}</SearchText></template>
+								</MkSwitch>
+							</SearchMarker>
 						</div>
 					</MkFolder>
 				</SearchMarker>
