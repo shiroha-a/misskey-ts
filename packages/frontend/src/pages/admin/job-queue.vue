@@ -240,7 +240,7 @@ import bytes from '@/filters/bytes.js';
 const tab = ref<typeof Misskey.queueTypes[number] | '-'>('-');
 
 // misskey-js の autogen 型は upstream backend の OpenAPI 由来なので、`queue`
-// パラメータが純正の 10 queue 名に固定されている。mk-go は 6 queue 構成
+// パラメータが純正の 10 queue 名に固定されている。mk-go は別構成
 // (Misskey.queueTypes を書き換え済み) で名前が一致しないため、API 呼び出し時に
 // ここで一度だけキャストする。autogen を編集すると upstream 追従で失われるうえ、
 // mk-go では再生成もできない (生成に NestJS backend が要る)。
