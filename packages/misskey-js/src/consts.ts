@@ -252,6 +252,7 @@ export const queueTypes = [
 	'webhook',
 	'maintenance',
 	'objectStorage',
+	'relationship',
 ] as const;
 
 // See: packages/backend/src/core/ReversiService.ts@L410
