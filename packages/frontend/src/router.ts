@@ -28,8 +28,16 @@ import type { RouteDef } from '@/lib/nirax.js';
 function routeDefsWithPlugins(): RouteDef[] {
 	const defs = [...ROUTE_DEF] as unknown as RouteDef[];
 
-	for (const p of collectPages(serverPlugins, false)) {
-		defs.push({ path: p.fullPath, component: p.component, loginRequired: false });
+	// **catch-all より前に入れる。** ROUTE_DEF の末尾は `/:(*)` (not-found) で、
+	// Nirax は順に照合するので、後ろに足すと全部そこで拾われて 404 になる
+	// (/admin の子は catch-all より前にあるため、管理画面だけ動いてしまい
+	// 原因が見えにくかった)。
+	const pages = collectPages(serverPlugins, false).map(p => ({
+		path: p.fullPath, component: p.component, loginRequired: false,
+	}));
+	if (pages.length > 0) {
+		const catchAll = defs.findIndex(d => 'path' in d && d.path === '/:(*)');
+		defs.splice(catchAll >= 0 ? catchAll : defs.length, 0, ...pages);
 	}
 
 	const admin = collectPages(serverPlugins, true);
