@@ -33,7 +33,16 @@ function loadMkPlugins(): MkPluginManifest {
 	const manifestPath = path.resolve(__dirname, 'mk-plugins.generated.json');
 	if (!existsSync(manifestPath)) return { aliases: {}, allow: [] };
 	try {
-		return JSON.parse(readFileSync(manifestPath, 'utf8')) as MkPluginManifest;
+		const raw = JSON.parse(readFileSync(manifestPath, 'utf8')) as MkPluginManifest;
+		// 生成物はリポジトリ相対で書かれている (別の場所でもビルドできるように)。
+		// **Vite には絶対パスを渡す** — 相対のままだと同じモジュールが二重に
+		// 解決される旨の警告が出て、最終的に解決に失敗する。
+		return {
+			aliases: Object.fromEntries(
+				Object.entries(raw.aliases).map(([k, v]) => [k, path.resolve(__dirname, v)]),
+			),
+			allow: raw.allow.map(v => path.resolve(__dirname, v)),
+		};
 	} catch (err) {
 		// 壊れた生成物で build 全体を止めない。プラグインが読まれないことは
 		// 起動ログと mk-go 側の登録で気付ける。
