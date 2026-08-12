@@ -111,6 +111,14 @@ export type PluginPage = {
 
 	/** ナビ項目のアイコン (例: 'ti ti-device-gamepad')。 */
 	navIcon?: string;
+
+	/**
+	 * 管理画面として `/admin/plugin/<name>` の下に置く。
+	 *
+	 * 表示はモデレーター以上に限られるが、**それは UI の都合でしかない**。
+	 * バックエンドは `Request.IsModerator()` で必ず自分で守ること。
+	 */
+	admin?: boolean;
 };
 
 export type PluginHost = {
@@ -135,26 +143,21 @@ export type PluginHost = {
 	 * 認証は利用者のセッションがそのまま使われる。
 	 */
 	api<T = unknown>(endpoint: string, params?: Record<string, unknown>): Promise<T>;
-
-	/**
-	 * Adds a page at `/plugin/<name><path>`, optionally with a navbar entry.
-	 *
-	 *	host.page({ path: '/', component: Top, navTitle: '原神', navIcon: 'ti ti-device-gamepad' });
-	 */
-	page(page: PluginPage): void;
-
-	/**
-	 * Adds a page under `/admin/plugin/<name><path>`.
-	 *
-	 * **画面はモデレーター以上にしか出ないが、それは UI の都合でしかない。**
-	 * バックエンド側は [Request.IsModerator] で必ず自分で守ること — 画面を
-	 * 隠しても API は誰でも叩ける。
-	 */
-	adminPage(page: PluginPage): void;
 };
 
 export type PluginDefinition = {
 	name: string;
+
+	/**
+	 * Pages this plugin adds to the router.
+	 *
+	 * **`setup` ではなくここで宣言する。** ルーターはモジュール読み込み時に
+	 * 現在の URL を解決するので、`setup` で登録すると**直接アクセスが 404 に
+	 * なる** (画面遷移では動くので気付きにくい)。宣言なら読み込み順に依存
+	 * しない。
+	 */
+	pages?: PluginPage[];
+
 	setup: (host: PluginHost) => void | Promise<void>;
 };
 
@@ -167,21 +170,26 @@ export function definePlugin(def: PluginDefinition): PluginDefinition {
 
 export type Registration = { plugin: string; renderer: SlotRenderer };
 
-/** A registered page, with its resolved absolute path. */
+/** A declared page, with its resolved absolute path. */
 export type PageRegistration = PluginPage & { plugin: string; fullPath: string };
 
 const registry = new Map<SlotName, Registration[]>();
-const pages: PageRegistration[] = [];
-const adminPages: PageRegistration[] = [];
 
-/** Returns the pages plugins registered, for the router to merge in. */
-export function pluginPages(): PageRegistration[] {
-	return pages;
-}
-
-/** Returns the admin pages plugins registered. */
-export function pluginAdminPages(): PageRegistration[] {
-	return adminPages;
+/**
+ * Collects the pages declared by the given plugins.
+ *
+ * ルーターとナビが**モジュール読み込み時**に呼ぶ。`setup` の実行を待たないので、
+ * 直接 URL を開いても解決できる。
+ */
+export function collectPages(plugins: PluginDefinition[], admin: boolean): PageRegistration[] {
+	const out: PageRegistration[] = [];
+	for (const p of plugins) {
+		for (const page of p.pages ?? []) {
+			if ((page.admin ?? false) !== admin) continue;
+			out.push({ ...page, plugin: p.name, fullPath: pagePath(p.name, page.path) });
+		}
+	}
+	return out;
 }
 
 /** Returns the mounts registered for a slot, ordered by plugin name. */
@@ -212,12 +220,6 @@ function buildHost(name: string): PluginHost {
 			list.sort((a, b) => a.plugin.localeCompare(b.plugin));
 			registry.set(slotName, list);
 		},
-		page(p) {
-			pages.push({ ...p, plugin: name, fullPath: pagePath(name, p.path) });
-		},
-		adminPage(p) {
-			adminPages.push({ ...p, plugin: name, fullPath: pagePath(name, p.path) });
-		},
 		api(endpoint, params) {
 			// misskeyApi の型は既知のエンドポイント集合に閉じているが、
 			// プラグインのエンドポイントはそこに無い。ここで境界を吸収する。
@@ -242,9 +244,7 @@ export async function launchServerPlugins(plugins: PluginDefinition[]): Promise<
 	}
 }
 
-/** Test hook: clears registered slots and pages. */
+/** Test hook: clears registered slots. */
 export function _resetSlotsForTest(): void {
 	registry.clear();
-	pages.length = 0;
-	adminPages.length = 0;
 }
