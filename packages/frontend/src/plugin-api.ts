@@ -24,8 +24,24 @@
  * 組み込むこと。
  */
 
+import { type Component } from 'vue';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { $i } from '@/i.js';
+
+/*
+ * Misskey のコンポーネントを再公開する。
+ *
+ * プラグインは同じバンドルに入るので技術的には何でも import できるが、
+ * **ここに出ているものだけが「壊さないと約束する範囲」**。これ以外を使うと、
+ * 上流のリファクタで黙って壊れる。
+ *
+ * 追加してほしいものがあれば mk-go 側に要求すること (公開面を広げるのは
+ * 意図的な判断として扱う)。
+ */
+export { default as MkInput } from '@/components/MkInput.vue';
+export { default as MkButton } from '@/components/MkButton.vue';
+export { default as MkFolder } from '@/components/MkFolder.vue';
+export { default as MkLoading } from '@/components/global/MkLoading.vue';
 
 /**
  * Named locations a plugin can render into.
@@ -62,6 +78,21 @@ export type SlotContext = {
  */
 export type SlotMount = (el: HTMLElement, ctx: SlotContext) => void | (() => void);
 
+/**
+ * A Vue component rendered inside a slot, receiving `ctx` as its only prop.
+ *
+ * **Misskey のコンポーネントを使うならこちら。** ホストの Vue インスタンスと
+ * アプリの provide/inject をそのまま引き継ぐので、`MkInput` などが本体と同じ
+ * 見た目・挙動で動く。
+ *
+ * 代償として、上流が該当コンポーネントの props を変えるとプラグインが壊れる。
+ * 見た目の完全一致と引き換えの追従コストとして受け入れる (mk-go #2484)。
+ */
+export type SlotComponent = Component;
+
+/** A slot registration accepts either form. */
+export type SlotRenderer = SlotMount | { component: SlotComponent };
+
 export type PluginHost = {
 	/** プラグイン名 (mk-go 側の Definition.Name と同じ)。 */
 	readonly name: string;
@@ -75,7 +106,7 @@ export type PluginHost = {
 	 * 同じスロットに複数のプラグインが登録できる。描画順は
 	 * プラグイン名の昇順で固定する。
 	 */
-	slot(name: SlotName, mount: SlotMount): void;
+	slot(name: SlotName, renderer: SlotRenderer): void;
 
 	/**
 	 * Calls an mk-go API endpoint.
@@ -98,7 +129,7 @@ export function definePlugin(def: PluginDefinition): PluginDefinition {
 	return def;
 }
 
-type Registration = { plugin: string; mount: SlotMount };
+export type Registration = { plugin: string; renderer: SlotRenderer };
 
 const registry = new Map<SlotName, Registration[]>();
 
@@ -116,9 +147,9 @@ function buildHost(name: string): PluginHost {
 	return {
 		name,
 		me: toSlotUser($i),
-		slot(slotName, mount) {
+		slot(slotName, renderer) {
 			const list = registry.get(slotName) ?? [];
-			list.push({ plugin: name, mount });
+			list.push({ plugin: name, renderer });
 			// 描画順をプラグイン名で固定する。登録順に依存させると、ビルドの
 			// 都合で並びが変わる。
 			list.sort((a, b) => a.plugin.localeCompare(b.plugin));
