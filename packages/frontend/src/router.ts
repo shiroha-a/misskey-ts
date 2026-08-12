@@ -10,7 +10,8 @@ import { Nirax } from '@/lib/nirax.js';
 import { ROUTE_DEF } from '@/router.definition.js';
 import { analytics } from '@/analytics.js';
 import { DI } from '@/di.js';
-import { pluginPages, pluginAdminPages } from '@/plugin-api.js';
+import { collectPages } from '@/plugin-api.js';
+import { serverPlugins } from '@/server-plugins.generated.js';
 import type { RouteDef } from '@/lib/nirax.js';
 
 /*
@@ -19,15 +20,19 @@ import type { RouteDef } from '@/lib/nirax.js';
  * ROUTE_DEF は `as const` で型付けされており、Router の型引数にも使われている。
  * プラグインのパスは実行時に決まるので型には現れないが、Nirax は path 文字列で
  * 照合するため動作には影響しない。型安全が効かないのはプラグインのパスだけ。
+ *
+ * **ページは Definition の宣言から読む。** setup() の実行を待つと、mainRouter が
+ * モジュール読み込み時に現在の URL を解決する時点で未登録になり、**直接 URL を
+ * 開いたときだけ 404 になる** (画面遷移では動くので気付きにくい)。
  */
 function routeDefsWithPlugins(): RouteDef[] {
 	const defs = [...ROUTE_DEF] as unknown as RouteDef[];
 
-	for (const p of pluginPages()) {
+	for (const p of collectPages(serverPlugins, false)) {
 		defs.push({ path: p.fullPath, component: p.component, loginRequired: false });
 	}
 
-	const admin = pluginAdminPages();
+	const admin = collectPages(serverPlugins, true);
 	if (admin.length > 0) {
 		// /admin は children を持つ入れ子ルート。**元の配列を書き換えず**
 		// 差し替える (ROUTE_DEF は as const なので共有されている)。
@@ -38,7 +43,15 @@ function routeDefsWithPlugins(): RouteDef[] {
 				...base,
 				children: [
 					...(base.children ?? []),
-					...admin.map(p => ({ path: p.fullPath, component: p.component })),
+					// **name が要る。** pages/admin/index.vue は
+					// `currentPage.route.name == null` を「子が無い」と見なして
+					// /admin/overview へ replace する。付けないと開いた瞬間に
+					// 飛ばされる (404 ではなくリダイレクトなので原因が見えにくい)。
+					...admin.map(p => ({
+						path: p.fullPath,
+						name: `plugin:${p.plugin}`,
+						component: p.component,
+					})),
 				],
 			} as RouteDef;
 		}

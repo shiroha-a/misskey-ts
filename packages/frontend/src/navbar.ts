@@ -14,7 +14,8 @@ import { lookup } from '@/utility/lookup.js';
 import * as os from '@/os.js';
 import { i18n } from '@/i18n.js';
 import { unisonReload } from '@/utility/unison-reload.js';
-import { pluginPages } from '@/plugin-api.js';
+import { collectPages } from '@/plugin-api.js';
+import { serverPlugins } from '@/server-plugins.generated.js';
 
 export const navbarItemDef = reactive<{
 	[key: string]: {
@@ -211,8 +212,10 @@ export const navbarItemDef = reactive<{
  *
  * navTitle を指定したページだけが対象。ページを持つがナビには出したくない
  * (別の画面から遷移させる) 場合もあるため。
+ *
+ * ルーターと同じく Definition の宣言から読む (setup() の実行順に依存しない)。
  */
-for (const p of pluginPages()) {
+for (const p of collectPages(serverPlugins, false)) {
 	if (p.navTitle == null) continue;
 	navbarItemDef[`plugin:${p.plugin}`] = {
 		title: p.navTitle,
