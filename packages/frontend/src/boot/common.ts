@@ -30,6 +30,8 @@ import { fetchCustomEmojis } from '@/custom-emojis.js';
 import { prefer } from '@/preferences.js';
 import { $i } from '@/i.js';
 import { launchPlugins } from '@/plugin.js';
+import { launchServerPlugins } from '@/plugin-api.js';
+import { serverPlugins } from '@/server-plugins.generated.js';
 import { initTelemetry } from '@/telemetry.js';
 
 export async function common(createVue: () => Promise<App<Element>>) {
@@ -293,6 +295,15 @@ export async function common(createVue: () => Promise<App<Element>>) {
 		await launchPlugins();
 	} catch (error) {
 		console.error('Failed to launch plugins:', error);
+	}
+
+	// サーバープラグイン (mk-go #2479)。ビルド時に取り込まれたものを起動する。
+	// AiScript プラグインとは別系統 — あちらは利用者が入れるサンドボックス付き、
+	// こちらは運営者がビルドに含めるサンドボックス無し。
+	try {
+		await launchServerPlugins(serverPlugins);
+	} catch (error) {
+		console.error('Failed to launch server plugins:', error);
 	}
 
 	app.mount(rootEl);

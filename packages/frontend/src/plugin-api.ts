@@ -1,0 +1,154 @@
+/*
+ * SPDX-FileCopyrightText: syuilo and misskey-project
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+/**
+ * Public API for mk-go server plugins (mk-go #2479).
+ *
+ * サーバープラグインはビルド時に取り込まれる。運営者が `plugins/` に置いた
+ * ものを mk-go が Go と TypeScript の両方まとめてビルドに含める。
+ *
+ * # 内部コンポーネントを直接使わないこと
+ *
+ * プラグインは**このモジュールだけ**を import する。`MkNote` のような内部
+ * コンポーネントを直接使うと、upstream Misskey のリファクタで壊れる。
+ * ここに無いものが必要になったら、mk-go 側に追加を要求すること
+ * (公開面を広げるのは意図的な判断として扱う)。
+ *
+ * # AiScript プラグインとの違い
+ *
+ * AiScript 版 (`plugin.ts`) は**利用者が自分で入れる**もので、サンドボックス
+ * された環境で動く。こちらは**運営者がビルドに含める**もので、サンドボックスは
+ * 無く、利用者のセッションで任意の JS として動く。信頼できる作者のものだけを
+ * 組み込むこと。
+ */
+
+import { misskeyApi } from '@/utility/misskey-api.js';
+import { $i } from '@/i.js';
+
+/**
+ * Named locations a plugin can render into.
+ *
+ * **コンポーネント名ではなく「意味的な位置」で定義する。** upstream が
+ * `MkUserInfo` を別名にしても、位置の意味は変わらないのでプラグインは壊れない。
+ */
+export type SlotName =
+	/** ユーザーのプロフィール。表示中のユーザーが ctx.user に入る。 */
+	| 'profile:info'
+	/** 設定 > プロフィール。自分の設定を編集させたいときはここ。 */
+	| 'settings:profile';
+
+/** Minimal user shape handed to slots. 内部の型をそのまま渡さない。 */
+export type SlotUser = {
+	id: string;
+	username: string;
+	host: string | null;
+};
+
+export type SlotContext = {
+	/** プロフィール系のスロットで、表示中のユーザー。 */
+	user?: SlotUser;
+};
+
+/**
+ * Mounts a plugin's UI into `el`.
+ *
+ * **素の DOM 要素を渡す。** Vue のインスタンスを共有しないので、upstream の
+ * Vue 更新でプラグインが壊れない。プラグイン側は Vue でも素の DOM でも好きに
+ * 書ける。
+ *
+ * 戻り値に関数を返すと、スロットが破棄されるときに呼ばれる (後片付け用)。
+ */
+export type SlotMount = (el: HTMLElement, ctx: SlotContext) => void | (() => void);
+
+export type PluginHost = {
+	/** プラグイン名 (mk-go 側の Definition.Name と同じ)。 */
+	readonly name: string;
+
+	/** ログイン中のユーザー。未ログインなら null。 */
+	readonly me: SlotUser | null;
+
+	/**
+	 * Renders into a named slot.
+	 *
+	 * 同じスロットに複数のプラグインが登録できる。描画順は
+	 * プラグイン名の昇順で固定する。
+	 */
+	slot(name: SlotName, mount: SlotMount): void;
+
+	/**
+	 * Calls an mk-go API endpoint.
+	 *
+	 * 自分のバックエンド側は `plugin/<name>/<path>` で呼べる。
+	 * 認証は利用者のセッションがそのまま使われる。
+	 */
+	api<T = unknown>(endpoint: string, params?: Record<string, unknown>): Promise<T>;
+};
+
+export type PluginDefinition = {
+	name: string;
+	setup: (host: PluginHost) => void | Promise<void>;
+};
+
+/**
+ * Declares a plugin. プラグインはこれを default export する。
+ */
+export function definePlugin(def: PluginDefinition): PluginDefinition {
+	return def;
+}
+
+type Registration = { plugin: string; mount: SlotMount };
+
+const registry = new Map<SlotName, Registration[]>();
+
+/** Returns the mounts registered for a slot, ordered by plugin name. */
+export function slotMounts(name: SlotName): Registration[] {
+	return registry.get(name) ?? [];
+}
+
+function toSlotUser(v: { id: string; username: string; host: string | null } | null): SlotUser | null {
+	if (v == null) return null;
+	return { id: v.id, username: v.username, host: v.host };
+}
+
+function buildHost(name: string): PluginHost {
+	return {
+		name,
+		me: toSlotUser($i),
+		slot(slotName, mount) {
+			const list = registry.get(slotName) ?? [];
+			list.push({ plugin: name, mount });
+			// 描画順をプラグイン名で固定する。登録順に依存させると、ビルドの
+			// 都合で並びが変わる。
+			list.sort((a, b) => a.plugin.localeCompare(b.plugin));
+			registry.set(slotName, list);
+		},
+		api(endpoint, params) {
+			// misskeyApi の型は既知のエンドポイント集合に閉じているが、
+			// プラグインのエンドポイントはそこに無い。ここで境界を吸収する。
+			return misskeyApi(endpoint as never, (params ?? {}) as never) as never;
+		},
+	};
+}
+
+/**
+ * Launches every server plugin bundled into this build.
+ *
+ * **1 つが失敗しても他を止めない。** プラグインの不具合でクライアント全体が
+ * 起動しなくなる方が損害が大きい。
+ */
+export async function launchServerPlugins(plugins: PluginDefinition[]): Promise<void> {
+	for (const p of plugins) {
+		try {
+			await p.setup(buildHost(p.name));
+		} catch (err) {
+			console.error(`[plugin:${p.name}] setup に失敗しました`, err);
+		}
+	}
+}
+
+/** Test hook: clears registered slots. */
+export function _resetSlotsForTest(): void {
+	registry.clear();
+}

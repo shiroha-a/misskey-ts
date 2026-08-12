@@ -112,6 +112,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 								</dd>
 							</dl>
 						</div>
+						<!-- サーバープラグインの描画先 (mk-go #2479)。登録が無ければ何も出ない。 -->
+						<MkPluginSlot name="profile:info" :ctx="{ user: { id: user.id, username: user.username, host: user.host } }"/>
 						<div class="status">
 							<MkA :to="userPage(user, 'notes')">
 								<b>{{ number(user.notesCount) }}</b>
@@ -171,6 +173,7 @@ import MkTextarea from '@/components/MkTextarea.vue';
 import MkOmit from '@/components/MkOmit.vue';
 import MkInfo from '@/components/MkInfo.vue';
 import MkButton from '@/components/MkButton.vue';
+import MkPluginSlot from '@/components/MkPluginSlot.vue';
 import { getUserMenu } from '@/utility/get-user-menu.js';
 import number from '@/filters/number.js';
 import { userPage } from '@/filters/user.js';

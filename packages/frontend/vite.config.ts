@@ -6,7 +6,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 import type { PluginOption, UserConfig } from 'vite';
 import { defineConfig } from 'vite';
 import { load as loadYaml } from 'js-yaml';
-import { promises as fsp } from 'fs';
+import { promises as fsp, existsSync, readFileSync } from 'fs';
 
 import locales from 'i18n';
 import meta from '../../package.json';
@@ -18,6 +18,31 @@ import pluginCreateSearchIndex from './lib/vite-plugin-create-search-index.js';
 import pluginWatchLocales from './lib/vite-plugin-watch-locales.js';
 import { pluginRemoveUnrefI18n } from '../frontend-builder/rollup-plugin-remove-unref-i18n.js';
 import { Features } from 'lightningcss';
+
+/*
+ * mk-go サーバープラグイン (#2479)。
+ *
+ * plugins/ に置かれたプラグインの frontend ソースはリポジトリのルート配下に
+ * あり、ここ (packages/frontend) の外になる。Vite の dev server は既定で
+ * project root の外を配信しないので、alias と server.fs.allow の両方が要る。
+ * どちらも tools/pluginbuild が生成する。
+ */
+type MkPluginManifest = { aliases: Record<string, string>; allow: string[] };
+
+function loadMkPlugins(): MkPluginManifest {
+	const manifestPath = path.resolve(__dirname, 'mk-plugins.generated.json');
+	if (!existsSync(manifestPath)) return { aliases: {}, allow: [] };
+	try {
+		return JSON.parse(readFileSync(manifestPath, 'utf8')) as MkPluginManifest;
+	} catch (err) {
+		// 壊れた生成物で build 全体を止めない。プラグインが読まれないことは
+		// 起動ログと mk-go 側の登録で気付ける。
+		console.error('[mk-plugins] 生成物を読めませんでした', err);
+		return { aliases: {}, allow: [] };
+	}
+}
+
+const mkPlugins = loadMkPlugins();
 
 const url = process.env.NODE_ENV === 'development' ? (loadYaml(await fsp.readFile('../../.config/default.yml', 'utf-8')) as any).url : null;
 const host = url ? (new URL(url)).hostname : undefined;
@@ -130,6 +155,11 @@ export function getConfig(): UserConfig {
 			allowedHosts: host ? [host] : undefined,
 			port: 5173,
 			strictPort: true,
+			fs: {
+				// 既定は project root 配下のみ。プラグインの frontend ソースは
+				// その外にあるので、明示的に許可しないと dev server が配信を拒む。
+				allow: ['.', ...mkPlugins.allow],
+			},
 			hmr: {
 				// バックエンド経由での起動時、Viteは5173経由でアセットを参照していると思い込んでいるが実際は3000から配信される
 				// そのため、バックエンドのWSサーバーにHMRのWSリクエストが吸収されてしまい、正しくHMRが機能しない
@@ -169,6 +199,7 @@ export function getConfig(): UserConfig {
 				'/client-assets/': __dirname + '/assets/',
 				'/static-assets/': __dirname + '/../backend/assets/',
 				'/fluent-emoji/': '@misskey-dev/emoji-assets/fluent-emoji/',
+				...mkPlugins.aliases,
 			},
 		},
 
