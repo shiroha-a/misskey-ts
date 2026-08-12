@@ -25,7 +25,8 @@
 		"skipLibCheck": true,
 		"paths": {
 			"@/*": ["./src/*"],
-			"@@/*": ["../frontend-shared/*"]
+			"@@/*": ["../frontend-shared/*"],
+			"@mkplugin/*": ["../../../../plugins/*/frontend"]
 		},
 		"typeRoots": [
 			"./@types",

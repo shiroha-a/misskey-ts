@@ -151,6 +151,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 		<hr>
 
+		<!-- サーバープラグインの描画先 (mk-go #2479)。登録が無ければ何も出ない。 -->
+		<MkPluginSlot name="settings:profile"/>
+
 		<SearchMarker :keywords="['qrcode']">
 			<FormLink to="/qr">
 				<template #icon><i class="ti ti-qrcode"></i></template>
@@ -172,6 +175,7 @@ import FormSplit from '@/components/form/split.vue';
 import MkFolder from '@/components/MkFolder.vue';
 import FormSlot from '@/components/form/slot.vue';
 import FormLink from '@/components/form/link.vue';
+import MkPluginSlot from '@/components/MkPluginSlot.vue';
 import MkDraggable from '@/components/MkDraggable.vue';
 import { chooseDriveFile } from '@/utility/drive.js';
 import * as os from '@/os.js';
