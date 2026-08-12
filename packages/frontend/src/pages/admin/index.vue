@@ -35,6 +35,8 @@ import { onActivated, onMounted, onUnmounted, provide, watch, ref, computed } fr
 import type { SuperMenuDef } from '@/components/MkSuperMenu.vue';
 import type { PageMetadata } from '@/page.js';
 import { i18n } from '@/i18n.js';
+import { collectPages } from '@/plugin-api.js';
+import { serverPlugins } from '@/server-plugins.generated.js';
 import MkSuperMenu from '@/components/MkSuperMenu.vue';
 import MkInfo from '@/components/MkInfo.vue';
 import { instance } from '@/instance.js';
@@ -85,6 +87,14 @@ const ro = new ResizeObserver((entries, observer) => {
 	if (entries.length === 0) return;
 	narrow.value = entries[0].borderBoxSize[0].inlineSize < NARROW_THRESHOLD;
 });
+
+// プラグインが宣言した管理画面をメニュー項目に写す。
+const pluginAdminMenu = computed(() => collectPages(serverPlugins, true).map(p => ({
+	icon: p.navIcon ?? 'ti ti-puzzle',
+	text: p.navTitle ?? p.plugin,
+	to: `/admin${p.fullPath}`,
+	active: currentPage.value?.route.name === `plugin:${p.plugin}`,
+})));
 
 const menuDef = computed<SuperMenuDef[]>(() => [{
 	title: i18n.ts.quickAction,
@@ -238,7 +248,15 @@ const menuDef = computed<SuperMenuDef[]>(() => [{
 		to: '/admin/database',
 		active: currentPage.value?.route.name === 'database',
 	}],
-}]);
+},
+// サーバープラグインの管理画面 (mk-go #2477)。
+//
+// **ルートを生やすだけでは辿り着けない。** URL を直打ちするしかない状態に
+// なるので、メニューにも出す。1 つも無ければ節ごと出さない。
+...(pluginAdminMenu.value.length > 0 ? [{
+	title: 'プラグイン',
+	items: pluginAdminMenu.value,
+}] : [])]);
 
 onMounted(() => {
 	if (el.value != null) {
