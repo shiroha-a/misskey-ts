@@ -93,6 +93,26 @@ export type SlotComponent = Component;
 /** A slot registration accepts either form. */
 export type SlotRenderer = SlotMount | { component: SlotComponent };
 
+/** A page a plugin adds to the router. */
+export type PluginPage = {
+	/**
+	 * Path under the plugin's namespace. `/foo` は `/plugin/<name>/foo` になる。
+	 *
+	 * **名前空間を切るのは意図的。** 本体のパスと混ざると、upstream が同名の
+	 * ページを足したときに衝突する。
+	 */
+	path: string;
+
+	/** The component rendered for this page. */
+	component: SlotComponent;
+
+	/** ナビゲーションに項目を出すときのラベル。省くと出さない。 */
+	navTitle?: string;
+
+	/** ナビ項目のアイコン (例: 'ti ti-device-gamepad')。 */
+	navIcon?: string;
+};
+
 export type PluginHost = {
 	/** プラグイン名 (mk-go 側の Definition.Name と同じ)。 */
 	readonly name: string;
@@ -115,6 +135,22 @@ export type PluginHost = {
 	 * 認証は利用者のセッションがそのまま使われる。
 	 */
 	api<T = unknown>(endpoint: string, params?: Record<string, unknown>): Promise<T>;
+
+	/**
+	 * Adds a page at `/plugin/<name><path>`, optionally with a navbar entry.
+	 *
+	 *	host.page({ path: '/', component: Top, navTitle: '原神', navIcon: 'ti ti-device-gamepad' });
+	 */
+	page(page: PluginPage): void;
+
+	/**
+	 * Adds a page under `/admin/plugin/<name><path>`.
+	 *
+	 * **画面はモデレーター以上にしか出ないが、それは UI の都合でしかない。**
+	 * バックエンド側は [Request.IsModerator] で必ず自分で守ること — 画面を
+	 * 隠しても API は誰でも叩ける。
+	 */
+	adminPage(page: PluginPage): void;
 };
 
 export type PluginDefinition = {
@@ -131,7 +167,22 @@ export function definePlugin(def: PluginDefinition): PluginDefinition {
 
 export type Registration = { plugin: string; renderer: SlotRenderer };
 
+/** A registered page, with its resolved absolute path. */
+export type PageRegistration = PluginPage & { plugin: string; fullPath: string };
+
 const registry = new Map<SlotName, Registration[]>();
+const pages: PageRegistration[] = [];
+const adminPages: PageRegistration[] = [];
+
+/** Returns the pages plugins registered, for the router to merge in. */
+export function pluginPages(): PageRegistration[] {
+	return pages;
+}
+
+/** Returns the admin pages plugins registered. */
+export function pluginAdminPages(): PageRegistration[] {
+	return adminPages;
+}
 
 /** Returns the mounts registered for a slot, ordered by plugin name. */
 export function slotMounts(name: SlotName): Registration[] {
@@ -141,6 +192,12 @@ export function slotMounts(name: SlotName): Registration[] {
 function toSlotUser(v: { id: string; username: string; host: string | null } | null): SlotUser | null {
 	if (v == null) return null;
 	return { id: v.id, username: v.username, host: v.host };
+}
+
+/** pagePath namespaces a plugin's path so it cannot collide with mk-go's own. */
+function pagePath(name: string, path: string): string {
+	const rest = path === '/' ? '' : path;
+	return `/plugin/${name}${rest}`;
 }
 
 function buildHost(name: string): PluginHost {
@@ -154,6 +211,12 @@ function buildHost(name: string): PluginHost {
 			// 都合で並びが変わる。
 			list.sort((a, b) => a.plugin.localeCompare(b.plugin));
 			registry.set(slotName, list);
+		},
+		page(p) {
+			pages.push({ ...p, plugin: name, fullPath: pagePath(name, p.path) });
+		},
+		adminPage(p) {
+			adminPages.push({ ...p, plugin: name, fullPath: pagePath(name, p.path) });
 		},
 		api(endpoint, params) {
 			// misskeyApi の型は既知のエンドポイント集合に閉じているが、
@@ -179,7 +242,9 @@ export async function launchServerPlugins(plugins: PluginDefinition[]): Promise<
 	}
 }
 
-/** Test hook: clears registered slots. */
+/** Test hook: clears registered slots and pages. */
 export function _resetSlotsForTest(): void {
 	registry.clear();
+	pages.length = 0;
+	adminPages.length = 0;
 }

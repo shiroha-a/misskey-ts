@@ -14,6 +14,7 @@ import { lookup } from '@/utility/lookup.js';
 import * as os from '@/os.js';
 import { i18n } from '@/i18n.js';
 import { unisonReload } from '@/utility/unison-reload.js';
+import { pluginPages } from '@/plugin-api.js';
 
 export const navbarItemDef = reactive<{
 	[key: string]: {
@@ -201,3 +202,21 @@ export const navbarItemDef = reactive<{
 		},
 	},
 });
+
+/*
+ * サーバープラグインが登録したナビ項目を足す (mk-go #2477)。
+ *
+ * navbarItemDef は reactive なので後から追加できる。キーは `plugin:<name>` で
+ * 名前空間を切る — 本体の項目名と衝突すると、上書きして機能を消してしまう。
+ *
+ * navTitle を指定したページだけが対象。ページを持つがナビには出したくない
+ * (別の画面から遷移させる) 場合もあるため。
+ */
+for (const p of pluginPages()) {
+	if (p.navTitle == null) continue;
+	navbarItemDef[`plugin:${p.plugin}`] = {
+		title: p.navTitle,
+		icon: p.navIcon ?? 'ti ti-puzzle',
+		to: p.fullPath,
+	};
+}
