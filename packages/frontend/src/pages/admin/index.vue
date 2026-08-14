@@ -248,15 +248,21 @@ const menuDef = computed<SuperMenuDef[]>(() => [{
 		to: '/admin/database',
 		active: currentPage.value?.route.name === 'database',
 	}],
-},
-// サーバープラグインの管理画面 (mk-go #2477)。
-//
-// **ルートを生やすだけでは辿り着けない。** URL を直打ちするしかない状態に
-// なるので、メニューにも出す。1 つも無ければ節ごと出さない。
-...(pluginAdminMenu.value.length > 0 ? [{
+}, {
+	// サーバープラグインの節 (mk-go #2477 / #2497)。
+	//
+	// **ルートを生やすだけでは辿り着けない。** URL を直打ちするしかない状態に
+	// なるので、メニューにも出す。先頭は一覧ページ (#2497) で、プラグインが
+	// 0 個でも組み込み状況と残存データを確認できるよう常設する。続けて各
+	// プラグインが宣言した管理画面を並べる。
 	title: 'プラグイン',
-	items: pluginAdminMenu.value,
-}] : [])]);
+	items: [{
+		icon: 'ti ti-puzzle',
+		text: 'サーバープラグイン',
+		to: '/admin/server-plugins',
+		active: currentPage.value?.route.name === 'server-plugins',
+	}, ...pluginAdminMenu.value],
+}]);
 
 onMounted(() => {
 	if (el.value != null) {
