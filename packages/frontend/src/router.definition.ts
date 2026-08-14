@@ -451,6 +451,11 @@ export const ROUTE_DEF = [{
 		name: 'database',
 		component: page(() => import('@/pages/admin/database.vue')),
 	}, {
+		// mk-go: 組み込み済みサーバープラグインの一覧 (#2497)
+		path: '/server-plugins',
+		name: 'server-plugins',
+		component: page(() => import('@/pages/admin/server-plugins.vue')),
+	}, {
 		path: '/abuses',
 		name: 'abuses',
 		component: page(() => import('@/pages/admin/abuses.vue')),
