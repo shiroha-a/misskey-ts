@@ -19,7 +19,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkInfo>
 				<MkInfo v-else-if="result.orphanSchemas.length > 0" warn>
 					使われていないプラグインのデータが残っています: {{ result.orphanSchemas.join(', ') }}
-					<br>不要なら手動で削除してください（自動では消しません）。
+					<br>不要なら手動で削除してください。
 				</MkInfo>
 
 				<MkInfo v-if="result.plugins.length === 0">
