@@ -11,6 +11,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<img v-if="faviconUrl" :src="faviconUrl" alt="" :class="$style.icon"/>
 				<span :class="$style.name">{{ instance.name || `(${i18n.ts.unknown})` }}</span>
 			</div>
+
+			<!--
+				サーバープラグインの描画先 (mk-go #2545)。この相手について
+				本体が持っていない情報 (可用性の履歴など) を足せる。
+			-->
+			<MkPluginSlot name="admin:instance-info" :ctx="{ host }"/>
 			<div style="display: flex; flex-direction: column; gap: 1em;">
 				<MkKeyValue :copy="host" oneline>
 					<template #key>Host</template>
@@ -158,6 +164,7 @@ import MkLink from '@/components/MkLink.vue';
 import MkButton from '@/components/MkButton.vue';
 import FormSection from '@/components/form/section.vue';
 import MkKeyValue from '@/components/MkKeyValue.vue';
+import MkPluginSlot from '@/components/MkPluginSlot.vue';
 import MkSelect from '@/components/MkSelect.vue';
 import MkSwitch from '@/components/MkSwitch.vue';
 import * as os from '@/os.js';
