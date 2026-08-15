@@ -61,7 +61,13 @@ export type SlotName =
 	 * モデレーター向けだからでしかないので、プラグインは API 側で
 	 * `Request.IsModerator()` を必ず見ること。
 	 */
-	| 'admin:federation';
+	| 'admin:federation'
+	/**
+	 * インスタンス情報の概要タブ。対象のホストが ctx.host に入る。
+	 *
+	 * `admin:federation` と同じく、**描画されることは権限の保証ではない**。
+	 */
+	| 'admin:instance-info';
 
 /** Minimal user shape handed to slots. 内部の型をそのまま渡さない。 */
 export type SlotUser = {
@@ -73,6 +79,8 @@ export type SlotUser = {
 export type SlotContext = {
 	/** プロフィール系のスロットで、表示中のユーザー。 */
 	user?: SlotUser;
+	/** インスタンス系のスロットで、表示中のホスト。 */
+	host?: string;
 };
 
 /**
