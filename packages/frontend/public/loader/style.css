@@ -35,6 +35,17 @@ html {
 	pointer-events: none;
 }
 
+/*
+ * mk-go: 起動時のスピナー (#2549)。
+ *
+ * 6 つの点が 1 つずつ外から集まってきて、揃ってから 1 回転し、また散る。
+ * 起動時に何かを待っている状況に合う形として選んだ。
+ *
+ * **色はサーバー設定のテーマカラー。** shell が --splash-color を出す。
+ * `--MI_THEME-accent` は利用者が選んだテーマの色なので人によって変わるが、
+ * スプラッシュはテーマが適用される前に出るものなので、サーバーが決めた色の
+ * 方が筋が通る。出ていなければ従来どおり accent に落ちる。
+ */
 #splashSpinner {
 	position: absolute;
 	top: 0;
@@ -42,37 +53,90 @@ html {
 	bottom: 0;
 	left: 0;
 	margin: auto;
-	display: inline-block;
-	width: 28px;
-	height: 28px;
-	transform: translateY(70px);
-	color: var(--MI_THEME-accent);
+	width: 70px;
+	height: 70px;
+	/* アイコン (64px) の下端から 17px 空く。**大きさを変えたらここも変える** —
+	   70px のままだと隙間が 3px しかなく詰まって見える。 */
+	transform: translateY(84px);
+	color: var(--splash-color, var(--MI_THEME-accent));
+	pointer-events: none;
 }
 
-#splashSpinner > .spinner {
+#splashSpinner > svg {
 	position: absolute;
 	top: 0;
 	left: 0;
-	width: 28px;
-	height: 28px;
-	fill-rule: evenodd;
-	clip-rule: evenodd;
-	stroke-linecap: round;
-	stroke-linejoin: round;
-	stroke-miterlimit: 1.5;
-}
-#splashSpinner > .spinner.bg {
-	opacity: 0.275;
-}
-#splashSpinner > .spinner.fg {
-	animation: splashSpinner 0.5s linear infinite;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
 }
 
-@keyframes splashSpinner {
-	0% {
+#splashSpinner .pkt {
+	fill: currentColor;
+}
+
+/*
+ * **回転する層と半径方向に動く層を分ける。** 1 つの要素で両方やると
+ * transform が衝突して、集まる動きが回転に巻き取られる。
+ */
+#splashSpinner .rig {
+	/* **viewBox 座標での中心。** transform-box の既定は view-box なので、
+	   原点は viewBox の左上から測られる。SVG 側で `<g transform="translate(...)">`
+	   に包むと要素のローカル座標とここがずれ、回転軸が中心から外れて首を振る。 */
+	transform-origin: 76px 76px;
+	animation: splashHold 2.45s ease-in-out infinite;
+}
+
+#splashSpinner .pkt {
+	animation: splashGather 2.45s ease-in-out infinite;
+}
+
+/* 1 拍 0.35s の 7 拍で 1 周 (2.45s)。点は 1 拍の 0.28 倍 = 約 0.098s ずつ
+   遅れて出る。**速さを変えるなら周期と遅れを同じ比で動かすこと** —
+   周期だけ縮めると点の間隔が開いたままになり、1 つずつ来る感じが消える。 */
+#splashSpinner .p2 { animation-delay: 0.1s; }
+#splashSpinner .p3 { animation-delay: 0.2s; }
+#splashSpinner .p4 { animation-delay: 0.29s; }
+#splashSpinner .p5 { animation-delay: 0.39s; }
+#splashSpinner .p6 { animation-delay: 0.49s; }
+
+/*
+ * 集まる間は止まり、揃ってから 1 回転する。
+ * **回りっぱなしにすると「集まった」ことが伝わらない。**
+ */
+@keyframes splashHold {
+	0%, 30% {
 		transform: rotate(0deg);
 	}
-	100% {
+	72%, 100% {
 		transform: rotate(360deg);
+	}
+}
+
+@keyframes splashGather {
+	0% {
+		transform: translateY(-52px);
+		opacity: 0;
+	}
+	18%, 72% {
+		transform: translateY(-22px);
+		opacity: 1;
+	}
+	92%, 100% {
+		transform: translateY(-52px);
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	/* 動かさない設定でも「読み込み中」であることは伝える必要がある。
+	   点を静止させたうえで薄く見せる。 */
+	#splashSpinner .rig,
+	#splashSpinner .pkt {
+		animation: none;
+	}
+	#splashSpinner .pkt {
+		transform: translateY(-22px);
+		opacity: 0.5;
 	}
 }
