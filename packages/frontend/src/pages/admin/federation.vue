@@ -7,6 +7,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 <PageWithHeader :actions="headerActions" :tabs="headerTabs">
 	<div class="_spacer" style="--MI_SPACER-w: 900px;">
 		<div class="_gaps">
+			<!--
+				サーバープラグインの描画先 (mk-go #2543)。連合の状態を見に来る
+				のはこのページなので、概要は検索欄より前に置く。
+			-->
+			<MkPluginSlot name="admin:federation"/>
+
 			<div>
 				<MkInput v-model="host" :debounce="true" class="">
 					<template #prefix><i class="ti ti-search"></i></template>
@@ -41,6 +47,7 @@ import MkInput from '@/components/MkInput.vue';
 import MkSelect from '@/components/MkSelect.vue';
 import MkPagination from '@/components/MkPagination.vue';
 import MkInstanceCardMini from '@/components/MkInstanceCardMini.vue';
+import MkPluginSlot from '@/components/MkPluginSlot.vue';
 import FormSplit from '@/components/form/split.vue';
 import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
