@@ -53,7 +53,15 @@ export type SlotName =
 	/** ユーザーのプロフィール。表示中のユーザーが ctx.user に入る。 */
 	| 'profile:info'
 	/** 設定 > プロフィール。自分の設定を編集させたいときはここ。 */
-	| 'settings:profile';
+	| 'settings:profile'
+	/**
+	 * コントロールパネル > 連合。一覧の手前に出る。
+	 *
+	 * **描画されることは権限の保証ではない。** ここに出るのはページが
+	 * モデレーター向けだからでしかないので、プラグインは API 側で
+	 * `Request.IsModerator()` を必ず見ること。
+	 */
+	| 'admin:federation';
 
 /** Minimal user shape handed to slots. 内部の型をそのまま渡さない。 */
 export type SlotUser = {

@@ -56,7 +56,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<template #key>ページ</template>
 							<template #value>
 								<div class="_gaps_s">
-									<MkA v-for="pg in pagesOf(p.name)" :key="pg.to" :to="pg.to" class="_link">{{ pg.label }}</MkA>
+									<MkA v-for="pg in pagesOf(p.name)" :key="pg.to" :to="pg.to" class="_link">
+										<!--
+											プラグインが navIcon を宣言していればそれを出す。
+											アイコンがあるとリンクだと分かりやすい (mk-go #2543)。
+										-->
+										<i :class="[pg.icon, $style.pageIcon]"></i>{{ pg.label }}
+									</MkA>
 								</div>
 							</template>
 						</MkKeyValue>
@@ -111,13 +117,20 @@ function capabilities(p: ServerPluginInfo): string {
 	return caps.length > 0 ? caps.join(' / ') : '(なし)';
 }
 
-function pagesOf(name: string): { to: string; label: string }[] {
+// navIcon を宣言していないプラグインもあるので既定を用意する。
+const defaultPageIcon = 'ti ti-external-link';
+
+function pagesOf(name: string): { to: string; label: string; icon: string }[] {
 	const normal = collectPages(serverPlugins, false)
 		.filter(pg => pg.plugin === name)
-		.map(pg => ({ to: pg.fullPath, label: pg.navTitle ?? pg.fullPath }));
+		.map(pg => ({ to: pg.fullPath, label: pg.navTitle ?? pg.fullPath, icon: pg.navIcon ?? defaultPageIcon }));
 	const admin = collectPages(serverPlugins, true)
 		.filter(pg => pg.plugin === name)
-		.map(pg => ({ to: `/admin${pg.fullPath}`, label: `${pg.navTitle ?? pg.fullPath}（管理画面）` }));
+		.map(pg => ({
+			to: `/admin${pg.fullPath}`,
+			label: `${pg.navTitle ?? pg.fullPath}（管理画面）`,
+			icon: pg.navIcon ?? defaultPageIcon,
+		}));
 	return [...normal, ...admin];
 }
 
@@ -130,3 +143,10 @@ definePage(() => ({
 	icon: 'ti ti-puzzle',
 }));
 </script>
+
+<style lang="scss" module>
+.pageIcon {
+	margin-right: 6px;
+	opacity: 0.8;
+}
+</style>
