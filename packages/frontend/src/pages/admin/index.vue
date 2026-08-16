@@ -127,6 +127,13 @@ const menuDef = computed<SuperMenuDef[]>(() => [{
 		to: '/admin/invites',
 		active: currentPage.value?.route.name === 'invites',
 	}, {
+		// mk-go: 承認制の登録の審査 (#2555)。招待の隣に置く — 承認すると
+		// 内部で招待が発行されるので、運用上は同じ導線に並ぶのが自然。
+		icon: 'ti ti-user-plus',
+		text: '登録申請',
+		to: '/admin/signup-applications',
+		active: currentPage.value?.route.name === 'signup-applications',
+	}, {
 		icon: 'ti ti-badges',
 		text: i18n.ts.roles,
 		to: '/admin/roles',

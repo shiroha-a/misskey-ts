@@ -451,6 +451,11 @@ export const ROUTE_DEF = [{
 		name: 'database',
 		component: page(() => import('@/pages/admin/database.vue')),
 	}, {
+		// mk-go: 承認制の登録の審査 (#2555)
+		path: '/signup-applications',
+		name: 'signup-applications',
+		component: page(() => import('@/pages/admin/signup-applications.vue')),
+	}, {
 		// mk-go: 組み込み済みサーバープラグインの一覧 (#2497)
 		path: '/server-plugins',
 		name: 'server-plugins',
