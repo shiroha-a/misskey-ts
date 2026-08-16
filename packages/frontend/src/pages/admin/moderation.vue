@@ -18,6 +18,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</MkSwitch>
 				</SearchMarker>
 
+				<!--
+					mk-go: 承認制の登録 (#2554 / #2557)。アカウント作成を開けたまま、
+					申請と承認を必須にする。承認制それ自体がゲートなので、
+					disableRegistration と組み合わせる必要は無い。
+				-->
+				<MkSwitch :modelValue="approvalRequiredForSignup" @update:modelValue="onChange_approvalRequiredForSignup">
+					<template #label>登録を承認制にする</template>
+					<template #caption>
+						<div>他の Misskey サーバーのアカウントを連絡先として申請してもらい、承認した相手だけが登録できます。</div>
+						<div v-if="approvalRequiredForSignup">
+							申請は<MkA to="/admin/signup-applications" class="_link">登録申請</MkA>で確認できます。
+						</div>
+					</template>
+				</MkSwitch>
+
 				<SearchMarker :keywords="['email', 'required', 'signup']">
 					<MkSwitch v-model="emailRequiredForSignup" @change="onChange_emailRequiredForSignup">
 						<template #label><SearchLabel>{{ i18n.ts.emailRequiredForSignup }}</SearchLabel> ({{ i18n.ts.recommended }})</template>
@@ -158,6 +173,7 @@ import { ref, computed } from 'vue';
 import * as Misskey from 'misskey-js';
 import XServerRules from './server-rules.vue';
 import MkSwitch from '@/components/MkSwitch.vue';
+import MkA from '@/components/global/MkA.vue';
 import MkInput from '@/components/MkInput.vue';
 import MkTextarea from '@/components/MkTextarea.vue';
 import * as os from '@/os.js';
@@ -174,6 +190,8 @@ import MkSelect from '@/components/MkSelect.vue';
 const meta = await misskeyApi('admin/meta');
 
 const enableRegistration = ref(!meta.disableRegistration);
+const approvalRequiredForSignup = ref(
+	(meta as unknown as Record<string, unknown>).approvalRequiredForSignup === true);
 const emailRequiredForSignup = ref(meta.emailRequiredForSignup);
 const {
 	model: ugcVisibilityForVisitor,
@@ -209,6 +227,16 @@ async function onChange_enableRegistration(value: boolean) {
 	os.apiWithDialog('admin/update-meta', {
 		disableRegistration: !value,
 	}).then(() => {
+		fetchInstance(true);
+	});
+}
+
+// mk-go 独自の meta なので misskey-js の型集合には無い (#2557)。
+function onChange_approvalRequiredForSignup(value: boolean) {
+	approvalRequiredForSignup.value = value;
+	os.apiWithDialog('admin/update-meta', {
+		approvalRequiredForSignup: value,
+	} as never).then(() => {
 		fetchInstance(true);
 	});
 }

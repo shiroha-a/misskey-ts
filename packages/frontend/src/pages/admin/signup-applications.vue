@@ -8,37 +8,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 	申請は「他の Misskey サーバーのアカウント」を連絡先として作られる。承認しても
 	この時点では user 行を作らず、申請者が登録ページに戻ってきたときに初めて作る。
+
+	有効・無効の切り替えはコントロールパネルのモデレーションにある (#2557)。
+	設定と審査を 1 画面に混ぜると、審査のたびに設定が目に入って誤操作しやすい。
 -->
 <template>
 <PageWithHeader :actions="headerActions" :tabs="headerTabs">
 	<div class="_spacer" style="--MI_SPACER-w: 800px; --MI_SPACER-min: 16px; --MI_SPACER-max: 32px;">
 		<div class="_gaps_m">
-			<MkFolder :defaultOpen="false">
-				<template #icon><i class="ti ti-settings"></i></template>
-				<template #label>設定</template>
-
-				<div class="_gaps_m">
-					<MkSwitch v-model="approvalRequired">
-						<template #label>承認制の登録を有効にする</template>
-						<template #caption>
-							他の Misskey サーバーのアカウントを連絡先として申請してもらい、審査を経てから登録できるようにします。
-						</template>
-					</MkSwitch>
-
-					<!--
-						approvalRequiredForSignup 単体では登録を止めない。実際のゲートは
-						disableRegistration + 招待コードで、承認は内部で招待を発行して通す。
-						両方を設定しないと直接登録の口が開いたままになるので、その状態を警告する。
-					-->
-					<MkInfo v-if="approvalRequired && !registrationDisabled" warn>
-						「誰でも登録できる」状態のままです。この設定だけでは登録は止まりません。
-						<br>モデレーションの設定で登録を締め切ってください。承認した相手には自動で招待が発行されます。
-					</MkInfo>
-
-					<MkButton primary @click="save"><i class="ti ti-device-floppy"></i> 保存</MkButton>
-				</div>
-			</MkFolder>
-
 			<MkSelect v-model="filter" :items="filterDef">
 				<template #label>表示</template>
 			</MkSelect>
@@ -95,10 +72,8 @@ import MkInfo from '@/components/MkInfo.vue';
 import MkKeyValue from '@/components/MkKeyValue.vue';
 import MkSelect from '@/components/MkSelect.vue';
 import { useMkSelect } from '@/composables/use-mkselect.js';
-import MkSwitch from '@/components/MkSwitch.vue';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
-import { fetchInstance } from '@/instance.js';
 import { definePage } from '@/page.js';
 
 type SignupApplication = {
@@ -136,8 +111,6 @@ const {
 	],
 	initialValue: 'pending',
 });
-const approvalRequired = ref(false);
-const registrationDisabled = ref(false);
 
 const statusLabels: Record<SignupApplication['status'], string> = {
 	pending: '審査待ち',
@@ -155,21 +128,6 @@ async function refresh() {
 	const res = await api<{ applications: SignupApplication[]; count: number }>(
 		'admin/signup-application/list', { filter: filter.value, limit: 100 });
 	applications.value = res.applications;
-}
-
-async function loadMeta() {
-	const meta = await misskeyApi('admin/meta');
-	// mk-go 独自の列なので misskey-js の型には無い。
-	approvalRequired.value = (meta as unknown as Record<string, unknown>).approvalRequiredForSignup === true;
-	registrationDisabled.value = meta.disableRegistration;
-}
-
-function save() {
-	os.apiWithDialog('admin/update-meta', {
-		approvalRequiredForSignup: approvalRequired.value,
-	} as never).then(() => {
-		fetchInstance(true);
-	});
 }
 
 async function approve(app: SignupApplication) {
@@ -194,7 +152,7 @@ async function reject(app: SignupApplication) {
 
 watch(filter, refresh);
 
-await Promise.all([refresh(), loadMeta()]);
+await refresh();
 
 const headerActions = computed(() => [{
 	icon: 'ti ti-refresh',

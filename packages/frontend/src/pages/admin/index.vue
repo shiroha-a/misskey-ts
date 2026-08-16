@@ -37,9 +37,13 @@ import type { PageMetadata } from '@/page.js';
 import { i18n } from '@/i18n.js';
 import { collectPages } from '@/plugin-api.js';
 import { serverPlugins } from '@/server-plugins.generated.js';
+
 import MkSuperMenu from '@/components/MkSuperMenu.vue';
 import MkInfo from '@/components/MkInfo.vue';
 import { instance } from '@/instance.js';
+
+// mk-go 独自の meta なので misskey-js の型集合には無い (#2557)。
+const approvalRequiredForSignup = (instance as unknown as Record<string, unknown>).approvalRequiredForSignup === true;
 import { lookup } from '@/utility/lookup.js';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
@@ -126,14 +130,14 @@ const menuDef = computed<SuperMenuDef[]>(() => [{
 		text: i18n.ts.invite,
 		to: '/admin/invites',
 		active: currentPage.value?.route.name === 'invites',
-	}, {
-		// mk-go: 承認制の登録の審査 (#2555)。招待の隣に置く — 承認すると
-		// 内部で招待が発行されるので、運用上は同じ導線に並ぶのが自然。
+	}, ...(approvalRequiredForSignup ? [{
+		// mk-go: 承認制の登録の審査 (#2555)。**承認制のときだけ出す** — 使って
+		// いないインスタンスのメニューに、押しても空の項目を並べない (#2557)。
 		icon: 'ti ti-user-plus',
 		text: '登録申請',
 		to: '/admin/signup-applications',
 		active: currentPage.value?.route.name === 'signup-applications',
-	}, {
+	}] : []), {
 		icon: 'ti ti-badges',
 		text: i18n.ts.roles,
 		to: '/admin/roles',
