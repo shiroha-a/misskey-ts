@@ -11,9 +11,5 @@
  */
 
 import type { PluginDefinition } from '@/plugin-api.js';
-import p0 from '@mkplugin/fedwatch';
-import p1 from '@mkplugin/genshin';
-import p2 from '@mkplugin/hsr';
-import p3 from '@mkplugin/nowplaying';
 
-export const serverPlugins: PluginDefinition[] = [p0, p1, p2, p3];
+export const serverPlugins: PluginDefinition[] = [];
