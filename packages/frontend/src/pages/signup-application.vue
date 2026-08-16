@@ -90,10 +90,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<template #label>申請する</template>
 
 					<div class="_gaps_m">
-						<MkTextarea v-model="reason" :disabled="busy">
-							<template #label>申請理由</template>
-							<template #caption>審査の参考にします。</template>
-						</MkTextarea>
+						<MkInfo v-if="form.length === 0">
+							このサーバーは申請項目を設定していません。そのまま申請できます。
+						</MkInfo>
+						<template v-for="(field, i) in form" :key="i">
+							<MkTextarea v-if="field.type === 'textarea'" v-model="answers[i]" :disabled="busy">
+								<template #label>{{ field.label }}<span v-if="field.required"> *</span></template>
+							</MkTextarea>
+							<MkInput v-else v-model="answers[i]" :disabled="busy">
+								<template #label>{{ field.label }}<span v-if="field.required"> *</span></template>
+							</MkInput>
+						</template>
 						<MkCaptcha v-if="captchaProvider" v-model="captchaResponse" :provider="captchaProvider" :sitekey="captchaSiteKey"/>
 						<MkButton primary rounded :disabled="busy" @click="apply">
 							<i class="ti ti-send"></i> 申請する
@@ -137,9 +144,15 @@ import { login } from '@/accounts.js';
 
 type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'completed';
 
+type FormField = {
+	label: string;
+	type: 'text' | 'textarea';
+	required: boolean;
+	maxLength?: number;
+};
+
 type ApplicationView = {
 	status: ApplicationStatus;
-	reason: string | null;
 	createdAt: string;
 	expiresAt: string;
 };
@@ -150,7 +163,6 @@ function api<T>(endpoint: string, params: Record<string, unknown> = {}): Promise
 	return misskeyApi(endpoint as never, params as never) as unknown as Promise<T>;
 }
 
-const reason = ref('');
 const claimCode = ref('');
 const issuedCode = ref('');
 const username = ref('');
@@ -159,6 +171,16 @@ const busy = ref(false);
 const fatal = ref<string | null>(null);
 const application = ref<ApplicationView | null>(null);
 const captchaResponse = ref<string | null>(null);
+
+// mk-go 独自の meta なので misskey-js の型集合には無い (#2570)。
+const form = computed<FormField[]>(() => {
+	const raw = (instance as unknown as Record<string, unknown>).signupApplicationForm;
+	return Array.isArray(raw) ? raw as FormField[] : [];
+});
+
+// **定義と同じ順序の値の配列を送る。** ラベルはサーバーが定義から埋めるので、
+// こちらから送らない (送れると審査画面に偽のラベルを流し込める)。
+const answers = ref<string[]>(form.value.map(() => ''));
 
 // 有効な captcha があればそれを使う。**申請フォームは誰でも叩けるので、ここが
 // 唯一の防波堤になる** — 連絡先という自然キーが無くなり、重複申請を DB で抑止
@@ -198,7 +220,9 @@ function message(err: unknown): string {
 	switch (code) {
 		case 'NO_SUCH_APPLICATION': return 'そのコードの申請は見つかりませんでした。入力を確認してください。';
 		case 'NOT_APPROVED': return 'この申請はまだ承認されていません。';
-		case 'REASON_TOO_LONG': return '申請理由が長すぎます。';
+		case 'ANSWER_REQUIRED': return '必須の項目が入力されていません。';
+		case 'ANSWER_TOO_LONG': return '入力が長すぎる項目があります。';
+		case 'FORM_CHANGED': return '申請フォームが変更されました。ページを再読み込みしてやり直してください。';
 		case 'CAPTCHA_FAILED': return '認証に失敗しました。やり直してください。';
 		case 'UNAVAILABLE': return 'このサーバーでは承認制の登録を受け付けていません。';
 		case 'INVALID_USERNAME': return 'そのユーザー名は使えません。';
@@ -212,7 +236,7 @@ async function apply() {
 	fatal.value = null;
 	try {
 		const res = await api<{ claimCode: string; application: ApplicationView }>(
-			'signup-application/apply', { reason: reason.value, ...captchaParams() });
+			'signup-application/apply', { answers: answers.value, ...captchaParams() });
 		// **コードを表示するのはここだけ。** サーバーは hash しか持っていない。
 		issuedCode.value = res.claimCode;
 		claimCode.value = res.claimCode;
@@ -248,7 +272,7 @@ async function refresh() {
 function restart() {
 	application.value = null;
 	claimCode.value = '';
-	reason.value = '';
+	answers.value = form.value.map(() => '');
 	fatal.value = null;
 }
 

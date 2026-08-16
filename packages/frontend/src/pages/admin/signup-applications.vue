@@ -27,14 +27,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div v-else class="_gaps_s">
 				<MkFolder v-for="app in applications" :key="app.id" :defaultOpen="filter === 'pending'">
 					<template #icon><i class="ti ti-user-plus"></i></template>
-					<template #label>{{ app.contactAcct }}</template>
+					<template #label><MkTime :time="app.createdAt" mode="detail"/></template>
 					<template #suffix>{{ statusLabel(app.status) }}</template>
 
 					<div class="_gaps_s">
-						<MkKeyValue oneline>
-							<template #key>連絡先</template>
-							<template #value>{{ app.contactAcct }}</template>
-						</MkKeyValue>
 						<MkKeyValue oneline>
 							<template #key>申請日時</template>
 							<template #value><MkTime :time="app.createdAt" mode="detail"/></template>
@@ -47,9 +43,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<template #key>審査日時</template>
 							<template #value><MkTime :time="app.processedAt" mode="detail"/></template>
 						</MkKeyValue>
-						<MkKeyValue v-if="app.reason">
-							<template #key>申請理由</template>
-							<template #value><div :class="$style.reason">{{ app.reason }}</div></template>
+						<MkKeyValue v-for="(answer, i) in app.answers" :key="i">
+							<template #key>{{ answer.label }}</template>
+							<template #value><div :class="$style.reason">{{ answer.value || '(未回答)' }}</div></template>
 						</MkKeyValue>
 
 						<div v-if="app.status === 'pending'" :class="$style.actions">
@@ -76,14 +72,16 @@ import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { definePage } from '@/page.js';
 
+type Answer = {
+	label: string;
+	value: string;
+};
+
 type SignupApplication = {
 	id: string;
-	contactHost: string;
-	contactRemoteId: string;
-	contactUsername: string;
-	contactAcct: string;
 	status: 'pending' | 'approved' | 'rejected' | 'expired' | 'completed';
-	reason: string | null;
+	// 回答は提出時のラベル付き。**定義を変えても既存申請が読める** (#2570)。
+	answers: Answer[];
 	createdAt: string;
 	updatedAt: string;
 	expiresAt: string;
@@ -133,7 +131,7 @@ async function refresh() {
 async function approve(app: SignupApplication) {
 	const { canceled } = await os.confirm({
 		type: 'question',
-		text: `${app.contactAcct} の登録を承認しますか？`,
+		text: 'この申請を承認しますか？',
 	});
 	if (canceled) return;
 	await os.apiWithDialog('admin/signup-application/approve' as never, { applicationId: app.id } as never);
@@ -143,7 +141,7 @@ async function approve(app: SignupApplication) {
 async function reject(app: SignupApplication) {
 	const { canceled } = await os.confirm({
 		type: 'warning',
-		text: `${app.contactAcct} の申請を却下しますか？`,
+		text: 'この申請を却下しますか？',
 	});
 	if (canceled) return;
 	await os.apiWithDialog('admin/signup-application/reject' as never, { applicationId: app.id } as never);
