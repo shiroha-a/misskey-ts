@@ -29,6 +29,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkButton>
 			</template>
 
+			<!-- 確認メールを送った -->
+			<template v-else-if="confirmationSent">
+				<MkInfo>{{ emailAddress }} に確認メールを送りました。リンクを開くと登録が完了します。</MkInfo>
+				<div :class="$style.note">
+					届かない場合は迷惑メールを確認してください。アドレスを間違えた場合は、同じクレームコードでもう一度登録してください。<b>やり直すと前のリンクは無効になります。</b>
+				</div>
+				<MkButton rounded @click="confirmationSent = false">
+					<i class="ti ti-arrow-back"></i> 登録の入力に戻る
+				</MkButton>
+			</template>
+
 			<!-- 申請の状態を表示 -->
 			<template v-else-if="application">
 				<template v-if="application.status === 'pending'">
@@ -55,8 +66,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<template #label>{{ i18n.ts.password }}</template>
 						<template #prefix><i class="ti ti-lock"></i></template>
 					</MkInput>
+					<MkInput v-if="emailRequired" v-model="emailAddress" type="email" :disabled="busy">
+						<template #label>{{ i18n.ts.emailAddress }}</template>
+						<template #prefix><i class="ti ti-mail"></i></template>
+						<template #caption>確認メールを送ります。リンクを開くと登録が完了します。</template>
+					</MkInput>
 
-					<MkButton primary rounded :disabled="busy || username === '' || password === ''" @click="register">
+					<MkButton primary rounded :disabled="busy || username === '' || password === '' || (emailRequired && emailAddress === '')" @click="register">
 						<i class="ti ti-user-plus"></i> {{ i18n.ts.signup }}
 					</MkButton>
 				</template>
@@ -167,6 +183,11 @@ const claimCode = ref('');
 const issuedCode = ref('');
 const username = ref('');
 const password = ref('');
+const emailAddress = ref('');
+const confirmationSent = ref(false);
+
+// メール必須なら承認済みの登録も確認メールを挟む (#2571)。
+const emailRequired = computed(() => instance.emailRequiredForSignup === true);
 const busy = ref(false);
 const fatal = ref<string | null>(null);
 const application = ref<ApplicationView | null>(null);
@@ -224,6 +245,8 @@ function message(err: unknown): string {
 		case 'ANSWER_TOO_LONG': return '入力が長すぎる項目があります。';
 		case 'FORM_CHANGED': return '申請フォームが変更されました。ページを再読み込みしてやり直してください。';
 		case 'CAPTCHA_FAILED': return '認証に失敗しました。やり直してください。';
+		case 'DENIED_USERNAME': return 'そのユーザー名は使えません。';
+		case 'EMAIL_UNAVAILABLE': return 'そのメールアドレスは使えません。';
 		case 'UNAVAILABLE': return 'このサーバーでは承認制の登録を受け付けていません。';
 		case 'INVALID_USERNAME': return 'そのユーザー名は使えません。';
 		case 'USED_USERNAME': return 'そのユーザー名は既に使われています。';
@@ -282,9 +305,20 @@ async function register() {
 	busy.value = true;
 	fatal.value = null;
 	try {
-		const res = await api<{ id: string; token: string }>(
+		const res = await api<{ id: string; token: string } | null>(
 			'signup-application/register',
-			{ claimCode: claimCode.value, username: username.value, password: password.value });
+			{
+				claimCode: claimCode.value,
+				username: username.value,
+				password: password.value,
+				...(emailRequired.value ? { emailAddress: emailAddress.value } : {}),
+			});
+		// メール必須のときサーバーは 204 を返す (本体なし)。確認リンクを踏むまで
+		// アカウントは作られないので、ここでログインさせない。
+		if (emailRequired.value || res == null) {
+			confirmationSent.value = true;
+			return;
+		}
 		await os.alert({ type: 'success', text: 'アカウントを作成しました。' });
 		await login(res.token);
 	} catch (err) {
