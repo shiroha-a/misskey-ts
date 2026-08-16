@@ -46,6 +46,48 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</template>
 				</MkSwitch>
 
+				<!--
+					mk-go: 申請フォームの項目 (#2570)。fediverse アカウントの欄など、
+					聞きたいことを管理者が決める。**検証はしない** — 単なる自由記述。
+				-->
+				<MkFolder v-if="approvalRequiredForSignup" :defaultOpen="false">
+					<template #icon><i class="ti ti-forms"></i></template>
+					<template #label>申請フォームの項目</template>
+					<template #suffix>{{ signupApplicationForm.length }} 項目</template>
+
+					<div class="_gaps_m">
+						<div v-if="signupApplicationForm.length === 0" style="font-size: 0.9em; opacity: 0.8;">
+							項目を追加しないと、申請者は理由を書かずに申請することになります。
+						</div>
+
+						<div v-for="(field, i) in signupApplicationForm" :key="i" class="_gaps_s" :class="$style.formField">
+							<MkInput v-model="field.label">
+								<template #label>項目名</template>
+							</MkInput>
+							<MkSelect v-model="field.type" :items="fieldTypeDef">
+								<template #label>入力欄</template>
+							</MkSelect>
+							<MkSwitch v-model="field.required">
+								<template #label>必須にする</template>
+							</MkSwitch>
+							<MkButton danger inline @click="removeField(i)">
+								<i class="ti ti-trash"></i> この項目を削除
+							</MkButton>
+						</div>
+
+						<MkButton :disabled="signupApplicationForm.length >= maxFormFields" @click="addField">
+							<i class="ti ti-plus"></i> 項目を追加
+						</MkButton>
+						<div v-if="signupApplicationForm.length >= maxFormFields" style="font-size: 0.9em; opacity: 0.8;">
+							項目は{{ maxFormFields }}個までです。
+						</div>
+
+						<MkButton primary @click="saveSignupApplicationForm">
+							<i class="ti ti-device-floppy"></i> 保存
+						</MkButton>
+					</div>
+				</MkFolder>
+
 				<SearchMarker :keywords="['email', 'required', 'signup']">
 					<MkSwitch v-model="emailRequiredForSignup" :disabled="approvalRequiredForSignup" @change="onChange_emailRequiredForSignup">
 						<template #label><SearchLabel>{{ i18n.ts.emailRequiredForSignup }}</SearchLabel> ({{ i18n.ts.recommended }})</template>
@@ -185,7 +227,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { ref, computed } from 'vue';
+import { ref, computed, toRaw } from 'vue';
 import * as Misskey from 'misskey-js';
 import XServerRules from './server-rules.vue';
 import MkSwitch from '@/components/MkSwitch.vue';
@@ -208,6 +250,37 @@ const meta = await misskeyApi('admin/meta');
 const enableRegistration = ref(!meta.disableRegistration);
 const approvalRequiredForSignup = ref(
 	(meta as unknown as Record<string, unknown>).approvalRequiredForSignup === true);
+
+// mk-go: 申請フォームの項目 (#2570)。上限はサーバー側 (ValidateForm) と揃える。
+type SignupFormField = { label: string; type: 'text' | 'textarea'; required: boolean };
+const maxFormFields = 10;
+const signupApplicationForm = ref<SignupFormField[]>(
+	Array.isArray((meta as unknown as Record<string, unknown>).signupApplicationForm)
+		? structuredClone(toRaw((meta as unknown as Record<string, unknown>).signupApplicationForm)) as SignupFormField[]
+		: []);
+
+const fieldTypeDef = [
+	{ label: '1 行', value: 'text' },
+	{ label: '複数行', value: 'textarea' },
+];
+
+function addField() {
+	if (signupApplicationForm.value.length >= maxFormFields) return;
+	signupApplicationForm.value.push({ label: '', type: 'text', required: false });
+}
+
+function removeField(i: number) {
+	signupApplicationForm.value.splice(i, 1);
+}
+
+function saveSignupApplicationForm() {
+	os.apiWithDialog('admin/update-meta', {
+		signupApplicationForm: signupApplicationForm.value,
+	} as never).then(() => {
+		fetchInstance(true);
+	});
+}
+
 const emailRequiredForSignup = ref(meta.emailRequiredForSignup);
 const {
 	model: ugcVisibilityForVisitor,
@@ -360,3 +433,11 @@ definePage(() => ({
 	icon: 'ti ti-shield',
 }));
 </script>
+
+<style lang="scss" module>
+.formField {
+	padding: 16px;
+	border: 1px solid var(--MI_THEME-divider);
+	border-radius: var(--MI-radius);
+}
+</style>
