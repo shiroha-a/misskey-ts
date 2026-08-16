@@ -23,19 +23,33 @@ SPDX-License-Identifier: AGPL-3.0-only
 					申請と承認を必須にする。承認制それ自体がゲートなので、
 					disableRegistration と組み合わせる必要は無い。
 				-->
-				<MkSwitch :modelValue="approvalRequiredForSignup" @update:modelValue="onChange_approvalRequiredForSignup">
+				<MkSwitch
+					:modelValue="approvalRequiredForSignup"
+					:disabled="!enableRegistration || emailRequiredForSignup"
+					@update:modelValue="onChange_approvalRequiredForSignup"
+				>
 					<template #label>登録を承認制にする</template>
 					<template #caption>
 						<div>他の Misskey サーバーのアカウントを連絡先として申請してもらい、承認した相手だけが登録できます。</div>
-						<div v-if="approvalRequiredForSignup">
+						<!--
+							承認は内部で招待を発行して通すので、招待制と重ねると二重のゲートに
+							意味が無い。メール必須とは、承認フローがメール確認の経路を通らない
+							ため実態と食い違う (#2565)。
+						-->
+						<div v-if="!enableRegistration">アカウント作成を開放しているときだけ設定できます。</div>
+						<div v-else-if="emailRequiredForSignup">メールアドレス必須とは同時に設定できません。</div>
+						<div v-else-if="approvalRequiredForSignup">
 							申請は<MkA to="/admin/signup-applications" class="_link">登録申請</MkA>で確認できます。
 						</div>
 					</template>
 				</MkSwitch>
 
 				<SearchMarker :keywords="['email', 'required', 'signup']">
-					<MkSwitch v-model="emailRequiredForSignup" @change="onChange_emailRequiredForSignup">
+					<MkSwitch v-model="emailRequiredForSignup" :disabled="approvalRequiredForSignup" @change="onChange_emailRequiredForSignup">
 						<template #label><SearchLabel>{{ i18n.ts.emailRequiredForSignup }}</SearchLabel> ({{ i18n.ts.recommended }})</template>
+						<template v-if="approvalRequiredForSignup" #caption>
+							承認制とは同時に設定できません (#2565)。
+						</template>
 					</MkSwitch>
 				</SearchMarker>
 
@@ -224,9 +238,16 @@ async function onChange_enableRegistration(value: boolean) {
 
 	enableRegistration.value = value;
 
-	os.apiWithDialog('admin/update-meta', {
-		disableRegistration: !value,
-	}).then(() => {
+	// 承認制は登録開放が前提なので、閉じるときは同じ更新で一緒に落とす (#2565)。
+	// **別々に送ると、サーバー側の検証に弾かれて「承認制を切らないと閉じられない」
+	// 詰みになる。**
+	const patch: Record<string, unknown> = { disableRegistration: !value };
+	if (!value && approvalRequiredForSignup.value) {
+		patch.approvalRequiredForSignup = false;
+		approvalRequiredForSignup.value = false;
+	}
+
+	os.apiWithDialog('admin/update-meta', patch as never).then(() => {
 		fetchInstance(true);
 	});
 }
