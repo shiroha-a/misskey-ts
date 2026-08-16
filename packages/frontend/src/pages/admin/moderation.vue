@@ -25,19 +25,18 @@ SPDX-License-Identifier: AGPL-3.0-only
 				-->
 				<MkSwitch
 					:modelValue="approvalRequiredForSignup"
-					:disabled="emailRequiredForSignup"
 					@update:modelValue="onChange_approvalRequiredForSignup"
 				>
 					<template #label>登録を承認制にする</template>
 					<template #caption>
-						<div>他の Misskey サーバーのアカウントを連絡先として申請してもらい、承認した相手だけが登録できます。</div>
+						<div>申請フォームに答えてもらい、承認した相手だけが登録できます。</div>
 						<!--
 							承認は内部で招待を発行して通すので、招待制と重ねると二重のゲートに
-							意味が無い。メール必須とは、承認フローがメール確認の経路を通らない
-							ため実態と食い違う (#2565)。
+							意味が無い。メール必須との排他は #2571 で撤去した (承認済みの登録も
+							確認メールの経路を通るようになったため)。
 						-->
-						<div v-if="emailRequiredForSignup">メールアドレス必須とは同時に設定できません。</div>
-						<div v-else-if="!enableRegistration && !approvalRequiredForSignup">
+						<div v-if="emailRequiredForSignup">承認された相手には確認メールを送ります。</div>
+						<div v-if="!enableRegistration && !approvalRequiredForSignup">
 							有効にすると、アカウント作成も同時に開放されます。
 						</div>
 						<div v-else-if="approvalRequiredForSignup">
@@ -89,10 +88,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkFolder>
 
 				<SearchMarker :keywords="['email', 'required', 'signup']">
-					<MkSwitch v-model="emailRequiredForSignup" :disabled="approvalRequiredForSignup" @change="onChange_emailRequiredForSignup">
+					<MkSwitch v-model="emailRequiredForSignup" @change="onChange_emailRequiredForSignup">
 						<template #label><SearchLabel>{{ i18n.ts.emailRequiredForSignup }}</SearchLabel> ({{ i18n.ts.recommended }})</template>
 						<template v-if="approvalRequiredForSignup" #caption>
-							承認制とは同時に設定できません (#2565)。
+							承認済みの登録にも確認メールを挟みます (#2571)。
 						</template>
 					</MkSwitch>
 				</SearchMarker>
