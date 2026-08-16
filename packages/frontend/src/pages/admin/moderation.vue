@@ -25,7 +25,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				-->
 				<MkSwitch
 					:modelValue="approvalRequiredForSignup"
-					:disabled="!enableRegistration || emailRequiredForSignup"
+					:disabled="emailRequiredForSignup"
 					@update:modelValue="onChange_approvalRequiredForSignup"
 				>
 					<template #label>登録を承認制にする</template>
@@ -36,8 +36,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 							意味が無い。メール必須とは、承認フローがメール確認の経路を通らない
 							ため実態と食い違う (#2565)。
 						-->
-						<div v-if="!enableRegistration">アカウント作成を開放しているときだけ設定できます。</div>
-						<div v-else-if="emailRequiredForSignup">メールアドレス必須とは同時に設定できません。</div>
+						<div v-if="emailRequiredForSignup">メールアドレス必須とは同時に設定できません。</div>
+						<div v-else-if="!enableRegistration && !approvalRequiredForSignup">
+							有効にすると、アカウント作成も同時に開放されます。
+						</div>
 						<div v-else-if="approvalRequiredForSignup">
 							申請は<MkA to="/admin/signup-applications" class="_link">登録申請</MkA>で確認できます。
 						</div>
@@ -255,9 +257,18 @@ async function onChange_enableRegistration(value: boolean) {
 // mk-go 独自の meta なので misskey-js の型集合には無い (#2557)。
 function onChange_approvalRequiredForSignup(value: boolean) {
 	approvalRequiredForSignup.value = value;
-	os.apiWithDialog('admin/update-meta', {
-		approvalRequiredForSignup: value,
-	} as never).then(() => {
+
+	// 承認制を入れるときはアカウント作成の開放も同じ更新で送る (#2565)。
+	// **「先に開放してから承認制を入れる」順にすると、その間に素通しで登録
+	// される窓ができる。** 承認制それ自体がゲートなので、開放は表示上の整合
+	// (訪問者に「招待制」と出さない) のため。
+	const patch: Record<string, unknown> = { approvalRequiredForSignup: value };
+	if (value && !enableRegistration.value) {
+		patch.disableRegistration = false;
+		enableRegistration.value = true;
+	}
+
+	os.apiWithDialog('admin/update-meta', patch as never).then(() => {
 		fetchInstance(true);
 	});
 }
