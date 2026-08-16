@@ -21,7 +21,22 @@ SPDX-License-Identifier: AGPL-3.0-only
 			:enterFromClass="$style.transition_x_enterFrom"
 			:leaveToClass="$style.transition_x_leaveTo"
 		>
-			<template v-if="!isAcceptedServerRule">
+			<!--
+				mk-go: 承認制のときは通常の登録フォームを出さない (#2556)。
+				申請から始まるので、専用ページへ案内する。
+			-->
+			<template v-if="approvalRequired">
+				<div class="_gaps_m" style="padding: 24px;">
+					<div>このサーバーでは、登録に申請と承認が必要です。</div>
+					<div style="font-size: 0.9em; opacity: 0.8;">
+						他の Misskey サーバーのアカウントを連絡先として登録します。権限は一切要求しません。
+					</div>
+					<MkButton primary rounded @click="goToApplication">
+						<i class="ti ti-user-plus"></i> 登録を申請する
+					</MkButton>
+				</div>
+			</template>
+			<template v-else-if="!isAcceptedServerRule">
 				<XServerRules @done="isAcceptedServerRule = true" @cancel="onClose"/>
 			</template>
 			<template v-else>
@@ -38,7 +53,10 @@ import * as Misskey from 'misskey-js';
 import XSignup from '@/components/MkSignupDialog.form.vue';
 import XServerRules from '@/components/MkSignupDialog.rules.vue';
 import MkModalWindow from '@/components/MkModalWindow.vue';
+import MkButton from '@/components/MkButton.vue';
 import { i18n } from '@/i18n.js';
+import { instance } from '@/instance.js';
+import { useRouter } from '@/router.js';
 
 const props = withDefaults(defineProps<{
 	autoSet?: boolean;
@@ -55,6 +73,16 @@ const emit = defineEmits<{
 const dialog = useTemplateRef('dialog');
 
 const isAcceptedServerRule = ref(false);
+
+// mk-go 独自の meta なので misskey-js の型集合には無い (#2556)。
+const approvalRequired = (instance as unknown as Record<string, unknown>).approvalRequiredForSignup === true;
+
+const router = useRouter();
+
+function goToApplication() {
+	onClose();
+	router.push('/signup-application');
+}
 
 function onClose() {
 	emit('cancelled');
