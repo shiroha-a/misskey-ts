@@ -227,6 +227,8 @@ function message(err: unknown): string {
 		case 'UNAVAILABLE': return 'このサーバーでは承認制の登録を受け付けていません。';
 		case 'INVALID_USERNAME': return 'そのユーザー名は使えません。';
 		case 'USED_USERNAME': return 'そのユーザー名は既に使われています。';
+		case 'DUPLICATED_USERNAME': return 'そのユーザー名は既に使われています。';
+		case 'PASSWORD_TOO_LONG': return 'パスワードが長すぎます。';
 		default: return '処理に失敗しました。時間をおいて試してください。';
 	}
 }
