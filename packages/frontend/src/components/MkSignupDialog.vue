@@ -29,7 +29,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div class="_gaps_m" style="padding: 24px;">
 					<div>このサーバーでは、登録に申請と承認が必要です。</div>
 					<div style="font-size: 0.9em; opacity: 0.8;">
-						他の Misskey サーバーのアカウントを連絡先として登録します。権限は一切要求しません。
+						申請するとクレームコードが発行されます。結果の確認と登録に必要なので控えてください。
 					</div>
 					<MkButton primary rounded @click="goToApplication">
 						<i class="ti ti-user-plus"></i> 登録を申請する
