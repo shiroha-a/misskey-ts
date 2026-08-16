@@ -15,7 +15,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					mk-go: 承認制のときは招待制の文言を出さない (#2557)。招待コードは
 					内部で使うだけで利用者には渡らないので、実態と食い違う。
 				-->
-				<MkInfo v-if="approvalRequiredForSignup" warn>このサーバーの登録は承認制です。他の Misskey サーバーのアカウントを連絡先として申請し、承認されると登録できます。</MkInfo>
+				<MkInfo v-if="approvalRequiredForSignup" warn>このサーバーの登録は承認制です。申請すると管理者が確認し、承認されると登録できます。</MkInfo>
 				<MkInfo v-else-if="instance.disableRegistration" warn>{{ i18n.ts.invitationRequiredToRegister }}</MkInfo>
 				<MkInfo v-if="instance.federation === 'specified'" warn>{{ i18n.ts.federationSpecified }}</MkInfo>
 				<MkInfo v-else-if="instance.federation === 'none'" warn>{{ i18n.ts.federationDisabled }}</MkInfo>

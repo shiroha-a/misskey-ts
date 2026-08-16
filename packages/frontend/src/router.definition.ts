@@ -212,11 +212,7 @@ export const ROUTE_DEF = [{
 	path: '/announcements/:announcementId',
 	component: page(() => import('@/pages/announcement.vue')),
 }, {
-	// mk-go: 承認制の登録 (#2556)。callback は MiAuth の戻り先で、同じページが
-	// 続きを実行する。
-	path: '/signup-application/callback',
-	component: page(() => import('@/pages/signup-application.vue')),
-}, {
+	// mk-go: 承認制の登録 (#2569)
 	path: '/signup-application',
 	component: page(() => import('@/pages/signup-application.vue')),
 }, {
