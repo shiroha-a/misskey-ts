@@ -18,8 +18,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div v-html="instance.description || i18n.ts.headlineMisskey"></div>
 			</div>
-			<div v-if="instance.disableRegistration || instance.federation !== 'all'" :class="$style.mainWarn" class="_gaps_s">
-				<MkInfo v-if="instance.disableRegistration" warn>{{ i18n.ts.invitationRequiredToRegister }}</MkInfo>
+			<div v-if="approvalRequiredForSignup || instance.disableRegistration || instance.federation !== 'all'" :class="$style.mainWarn" class="_gaps_s">
+				<!--
+					mk-go: 承認制のときは招待制の文言を出さない (#2557)。招待コードは
+					内部で使うだけで利用者には渡らないので、実態と食い違う。
+				-->
+				<MkInfo v-if="approvalRequiredForSignup" warn>このサーバーの登録は承認制です。他の Misskey サーバーのアカウントを連絡先として申請し、承認されると登録できます。</MkInfo>
+				<MkInfo v-else-if="instance.disableRegistration" warn>{{ i18n.ts.invitationRequiredToRegister }}</MkInfo>
 				<MkInfo v-if="instance.federation === 'specified'" warn>{{ i18n.ts.federationSpecified }}</MkInfo>
 				<MkInfo v-else-if="instance.federation === 'none'" warn>{{ i18n.ts.federationDisabled }}</MkInfo>
 			</div>
@@ -66,6 +71,9 @@ import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { i18n } from '@/i18n.js';
 import { instance } from '@/instance.js';
+
+// mk-go 独自の meta なので misskey-js の型集合には無い (#2557)。
+const approvalRequiredForSignup = (instance as unknown as Record<string, unknown>).approvalRequiredForSignup === true;
 import MkNumber from '@/components/MkNumber.vue';
 import XActiveUsersChart from '@/components/MkVisitorDashboard.ActiveUsersChart.vue';
 import { openInstanceMenu } from '@/ui/_common_/common.js';
