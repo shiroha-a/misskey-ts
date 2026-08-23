@@ -122,6 +122,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<b>Processed</b> <i class="ti ti-player-play"></i>
 						<span v-if="event.attempt > 1" style="margin-left: 0.5em; color: var(--MI_THEME-warn); font-variant-numeric: diagonal-fractions;">#{{ event.attempt }}</span>
 					</template>
+					<template v-else-if="event.type === 'attempt'">
+						<b>Attempt #{{ event.attempt }}</b> <i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i>
+					</template>
 					<template v-else-if="event.type === 'created'">
 						<b>Created</b> <i class="ti ti-plus"></i>
 					</template>
@@ -204,11 +207,18 @@ const logs = ref<string[]>([]);
 type TlType = TlEvent<{
 	type: 'created' | 'finished';
 } | {
-	type: 'processed';
-	// attempt は「何回目の実行か」(Bull の attemptsMade)。試行ごとの時刻は
-	// 保存されていないので、回数だけをこの行に添える。
+	type: 'processed' | 'attempt';
+	// attempt は「何回目の実行か」(Bull の attemptsMade)。
 	attempt: number;
 }>;
+
+// attemptsAt は mk-go 独自の additive field (#2692)。純正 backend や、記録が
+// 入る前に失敗した job では無い。misskey-js の型は upstream の OpenAPI から
+// 生成しているのでここには現れない — runtime (#2277) と同じく局所的に受ける。
+function attemptsAtOf(job: unknown): number[] {
+	const v = (job as { attemptsAt?: unknown } | null)?.attemptsAt;
+	return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
+}
 
 const timeline = computed(() => {
 	const events: TlType[] = [{
@@ -219,11 +229,27 @@ const timeline = computed(() => {
 		},
 	}];
 
-	// **試行ごとのイベントは作らない。** Bull / BullMQ は attempt ごとの
-	// 時刻を保存していないので、並べるための時刻が存在しない。以前は
-	// `timestamp + i` という架空の値を割り当てて「作成直後」に全部を積み、
-	// 表示だけ `at ?` にしていた。結果、時系列としては嘘で、delta 表示も
-	// 無意味になっていた。試行回数は Processed 行に出す。
+	// **試行ごとの行は記録がある場合だけ出す。** Bull / BullMQ は attempt ごとの
+	// 時刻を保存しないので、upstream は `timestamp + i` という架空の値を割り当てて
+	// 「作成直後」に全部を積み、表示だけ `at ?` にしていた。時系列として嘘になり
+	// delta 表示も無意味だった。
+	//
+	// mk-go backend は mkq の拡張で実際の開始時刻を返す (`attemptsAt`)。ある分は
+	// 実時刻で並べ、無い job (記録が入る前に失敗したもの / 純正 backend) は
+	// 回数だけを Processed 行に添える。
+	const attemptsAt = attemptsAtOf(props.job);
+	for (let i = 0; i < attemptsAt.length; i++) {
+		// 最後の試行は Processed 行と同じ時刻なので重ねない。
+		if (props.job.processedOn != null && attemptsAt[i] === props.job.processedOn) continue;
+		events.push({
+			id: `attempt-${i}`,
+			timestamp: attemptsAt[i],
+			data: {
+				type: 'attempt',
+				attempt: i + 1,
+			},
+		});
+	}
 	if (props.job.processedOn != null) {
 		events.push({
 			id: 'processed',
