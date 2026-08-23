@@ -120,9 +120,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</template>
 					<template v-else-if="event.type === 'processed'">
 						<b>Processed</b> <i class="ti ti-player-play"></i>
-					</template>
-					<template v-else-if="event.type === 'attempt'">
-						<b>Attempt #{{ event.attempt }}</b> <i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i>
+						<span v-if="event.attempt > 1" style="margin-left: 0.5em; color: var(--MI_THEME-warn); font-variant-numeric: diagonal-fractions;">#{{ event.attempt }}</span>
 					</template>
 					<template v-else-if="event.type === 'created'">
 						<b>Created</b> <i class="ti ti-plus"></i>
@@ -131,13 +129,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</template>
 			<template #right="{ event, timestamp, delta }">
 				<div style="margin: 8px 0;">
-					<template v-if="event.type === 'attempt'">
-						<div>at ?</div>
-					</template>
-					<template v-else>
-						<div>at <MkTime :time="timestamp" mode="detail"/></div>
-						<div style="font-size: 90%; opacity: 0.7;">{{ timestamp }} (+{{ msSMH(delta) }})</div>
-					</template>
+					<div>at <MkTime :time="timestamp" mode="detail"/></div>
+					<div style="font-size: 90%; opacity: 0.7;">{{ timestamp }} (+{{ msSMH(delta) }})</div>
 				</div>
 			</template>
 		</MkTl>
@@ -209,9 +202,11 @@ const canEdit = true;
 const logs = ref<string[]>([]);
 
 type TlType = TlEvent<{
-	type: 'created' | 'processed' | 'finished';
+	type: 'created' | 'finished';
 } | {
-	type: 'attempt';
+	type: 'processed';
+	// attempt は「何回目の実行か」(Bull の attemptsMade)。試行ごとの時刻は
+	// 保存されていないので、回数だけをこの行に添える。
 	attempt: number;
 }>;
 
@@ -224,24 +219,18 @@ const timeline = computed(() => {
 		},
 	}];
 
-	if (props.job.attempts > 1) {
-		for (let i = 1; i < props.job.attempts; i++) {
-			events.push({
-				id: `attempt-${i}`,
-				timestamp: props.job.timestamp + i,
-				data: {
-					type: 'attempt',
-					attempt: i,
-				},
-			});
-		}
-	}
+	// **試行ごとのイベントは作らない。** Bull / BullMQ は attempt ごとの
+	// 時刻を保存していないので、並べるための時刻が存在しない。以前は
+	// `timestamp + i` という架空の値を割り当てて「作成直後」に全部を積み、
+	// 表示だけ `at ?` にしていた。結果、時系列としては嘘で、delta 表示も
+	// 無意味になっていた。試行回数は Processed 行に出す。
 	if (props.job.processedOn != null) {
 		events.push({
 			id: 'processed',
 			timestamp: props.job.processedOn,
 			data: {
 				type: 'processed',
+				attempt: props.job.attempts,
 			},
 		});
 	}
