@@ -179,7 +179,7 @@
 				<path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"></path>
 			</svg>
 			<h1>${messages.title}</h1>
-			<button class="button-big" onclick="location.reload(true);">
+			<button id="mkBootReload" class="button-big">
 				<span class="button-label-big">${messages?.reload}</span>
 			</button>
 			<p><b>${messages.solution}</b></p>
@@ -216,6 +216,11 @@
 			<br>
 			<div id="errors"></div>
 			`;
+			// mk-go: onclick 属性から addEventListener へ移した。inline event handler は
+			// CSP の script-src で hash を登録しても通らず ('unsafe-hashes' が要る)、
+			// mk-go は #2786 で script-src から 'unsafe-inline' を外したため、属性の
+			// ままだとこの復旧ボタンだけが押しても反応しなくなる。
+			document.getElementById('mkBootReload')?.addEventListener('click', () => location.reload(true));
 			errorsElement = document.getElementById('errors');
 		}
 		const detailsElement = document.createElement('details');
