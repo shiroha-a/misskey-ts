@@ -42,6 +42,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<div v-else-if="approvalRequiredForSignup">
 							申請は<MkA to="/admin/signup-applications" class="_link">登録申請</MkA>で確認できます。
 						</div>
+						<!--
+							mk-go: 承認制を外すとゲートが 1 つも無くなるので、
+							アカウント作成を閉じるかどうかを確認する (#2803)。
+						-->
+						<div v-if="approvalRequiredForSignup && enableRegistration">
+							無効にすると、アカウント作成も閉じるかどうかを確認します。
+						</div>
 					</template>
 				</MkSwitch>
 
@@ -327,22 +334,76 @@ async function onChange_enableRegistration(value: boolean) {
 }
 
 // mk-go 独自の meta なので misskey-js の型集合には無い (#2557)。
-function onChange_approvalRequiredForSignup(value: boolean) {
-	approvalRequiredForSignup.value = value;
-
-	// 承認制を入れるときはアカウント作成の開放も同じ更新で送る (#2565)。
-	// **「先に開放してから承認制を入れる」順にすると、その間に素通しで登録
-	// される窓ができる。** 承認制それ自体がゲートなので、開放は表示上の整合
-	// (訪問者に「招待制」と出さない) のため。
+async function onChange_approvalRequiredForSignup(value: boolean) {
 	const patch: Record<string, unknown> = { approvalRequiredForSignup: value };
-	if (value && !enableRegistration.value) {
-		patch.disableRegistration = false;
-		enableRegistration.value = true;
+
+	if (value) {
+		// 承認制を入れるときはアカウント作成の開放も同じ更新で送る (#2565)。
+		// **「先に開放してから承認制を入れる」順にすると、その間に素通しで登録
+		// される窓ができる。** 承認制それ自体がゲートなので、開放は表示上の整合
+		// (訪問者に「招待制」と出さない) のため。
+		if (!enableRegistration.value) {
+			patch.disableRegistration = false;
+		}
+	} else if (enableRegistration.value) {
+		// 承認制を外すとゲートが 1 つも無くなる (#2803)。承認制で開いた登録が
+		// そのまま残ると、誰でも登録できる状態が無警告で残る (アカウント作成の
+		// トグル自体を入れるときは注意喚起を挟むのに、こちらは素通りしていた)。
+		//
+		// **どちらを選んだかを必ず明示して送る。** 省略するとサーバー側が閉じる
+		// 側の既定を補うので (#2803)、「開けたままにする」が選べなくなる。
+		//
+		// 本文で結果を断定しない。primary は「閉じる」なので、断定すると直後の
+		// ボタンが本文を打ち消す形になる。openRegistrationWarning はスイッチを
+		// オンにする側の文面 (「…場合のみオンにすることを推奨します」) なので、
+		// ここでは流用せず条件付きで書く。
+		const { canceled, result } = await os.actions({
+			type: 'warning',
+			title: '承認制を解除しますか？',
+			text: '解除すると申請と承認のゲートが無くなります。アカウント作成を開けたままにすると、誰でも登録できる状態になります。',
+			actions: [
+				{ value: 'close', text: 'アカウント作成も閉じる', primary: true },
+				{ value: 'keep', text: 'アカウント作成は開けたままにする', danger: true },
+				{ value: 'cancel', text: 'やめる' },
+			],
+		});
+		if (canceled || result === 'cancel') return;
+		patch.disableRegistration = result === 'close';
+	} else {
+		// 元から閉じているなら開く余地が無いので聞かない。それでも明示して送る
+		// (要求だけを見れば結果が決まる形にしておく)。
+		patch.disableRegistration = true;
 	}
 
-	os.apiWithDialog('admin/update-meta', patch as never).then(() => {
-		fetchInstance(true);
-	});
+	// enableRegistration はページを開いた時点の meta から作った ref で、以後
+	// 同期されない。**OFF 側は必ず disableRegistration を送るようになったので、
+	// 開いている間に他の管理者が登録を閉じ / 開きしていると、その値を上書きする。**
+	// 選択は管理者自身がダイアログで明示したものなので黙って倒れるわけではないが、
+	// 判断材料が古くなりうる点は変わらない。
+
+	const prevApproval = approvalRequiredForSignup.value;
+	const prevRegistration = enableRegistration.value;
+	approvalRequiredForSignup.value = value;
+	if (typeof patch.disableRegistration === 'boolean') {
+		enableRegistration.value = !patch.disableRegistration;
+	}
+
+	// **失敗したら表示を戻す (#2803)。** 楽観更新のまま放置すると、「閉じる」を
+	// 選んで失敗したときに画面だけ招待制になり、実際には申請を受け付け続けている
+	// のに管理者は止めたと読む。update-meta は保存に成功したら必ず 204 なので、
+	// reject = 未保存として戻してよい。
+	//
+	// エラーの提示は apiWithDialog が担う。ただし通信断のように `err.code` が
+	// 無い失敗ではその中の分岐が先に落ちてダイアログが出ない (upstream 由来。
+	// ここでは直さない)。その場合もスイッチは実状態へ戻る。
+	try {
+		await os.apiWithDialog('admin/update-meta', patch as never);
+	} catch {
+		approvalRequiredForSignup.value = prevApproval;
+		enableRegistration.value = prevRegistration;
+		return;
+	}
+	fetchInstance(true);
 }
 
 function onChange_emailRequiredForSignup(value: boolean) {
