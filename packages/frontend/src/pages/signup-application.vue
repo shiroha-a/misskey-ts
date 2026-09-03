@@ -118,9 +118,20 @@ SPDX-License-Identifier: AGPL-3.0-only
 							</MkInput>
 						</template>
 						<MkCaptcha v-if="captchaProvider" v-model="captchaResponse" :provider="captchaProvider" :sitekey="captchaSiteKey"/>
-						<MkButton primary rounded :disabled="busy" @click="apply">
+						<MkButton primary rounded :disabled="busy || waitingForForm" @click="apply">
 							<i class="ti ti-send"></i> 申請する
 						</MkButton>
+						<div v-if="waitingForForm" style="font-size: 0.9em; opacity: 0.8;">
+							フォームを開いた直後は送信できません。少し待ってから送信してください。
+						</div>
+						<div v-if="formTokenFailed" class="_gaps_s">
+							<div style="font-size: 0.9em; opacity: 0.8;">
+								フォームの準備に失敗しました。そのまま送信もできますが、うまくいかない場合は読み込み直してください。
+							</div>
+							<MkButton rounded @click="fetchFormToken">
+								<i class="ti ti-refresh"></i> 読み込み直す
+							</MkButton>
+						</div>
 					</div>
 				</MkFolder>
 
@@ -144,7 +155,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import MkButton from '@/components/MkButton.vue';
 import MkFolder from '@/components/MkFolder.vue';
 import MkInfo from '@/components/MkInfo.vue';
@@ -192,6 +203,59 @@ const busy = ref(false);
 const fatal = ref<string | null>(null);
 const application = ref<ApplicationView | null>(null);
 const captchaResponse = ref<string | null>(null);
+
+// captcha の実 provider が 1 つも無いときに申請を守る署名付きトークン (#2806)。
+// **captcha の代替ではない** — 止まるのは「フォームを取得せずに endpoint を
+// 直接叩く」bot だけ。サーバー側が要求しない構成では空文字が返るので、その
+// ときは送信を抑えない。
+const formToken = ref('');
+const formTokenReadyAt = ref(0);
+// 取得が終わるまでは送信を抑える。**未取得を「要求しない構成」と同じ扱いに
+// すると**、トークンが届く前に押せてしまい、400 で終わるうえ apply の
+// レート制限枠を 1 回消費する (レート制限は handler の前で数える)。
+const formTokenLoaded = ref(false);
+// 取得に失敗したときだけ「読み込み直す」を出す。**`!formTokenLoaded` を条件に
+// すると、finally で loaded を立てる以上ボタンは一瞬しか出ない。**
+const formTokenFailed = ref(false);
+const now = ref(Date.now());
+let ticker: number | null = null;
+
+// 最短滞在時間が明けるまで送信ボタンを抑える。**サーバー側でも同じ判定をする** —
+// ここは正規の利用者が FORM_TOKEN_TOO_SOON を見ないようにするためだけのもの。
+const waitingForForm = computed(() =>
+	!formTokenLoaded.value || (formToken.value !== '' && now.value < formTokenReadyAt.value));
+
+async function fetchFormToken() {
+	try {
+		const res = await api<{ token: string; minWaitSeconds: number }>('signup-application/form-token');
+		formToken.value = res.token;
+		formTokenReadyAt.value = Date.now() + res.minWaitSeconds * 1000;
+		formTokenFailed.value = false;
+	} catch {
+		// 取れなくても申請自体は試せる (要求する構成ならサーバーが弾く)。
+		// ここで fatal を立てると、要求しない構成でも画面が壊れて見える。
+		//
+		// **送信は塞がない。** ここで塞ぐと、トークンを要求しない構成
+		// (実 captcha が有効) でも、発行 endpoint が一時的に落ちただけで申請
+		// 自体ができなくなる。要求する構成なら塞がなくてもサーバーが
+		// FORM_TOKEN_INVALID で弾くので、塞ぐ利得は apply の枠を 1 消費しない
+		// ことだけで、それより「詰まらせない」ほうを取る。
+		formToken.value = '';
+		formTokenReadyAt.value = 0;
+		formTokenFailed.value = true;
+	} finally {
+		formTokenLoaded.value = true;
+	}
+}
+
+onMounted(() => {
+	void fetchFormToken();
+	ticker = window.setInterval(() => { now.value = Date.now(); }, 500);
+});
+
+onUnmounted(() => {
+	if (ticker != null) window.clearInterval(ticker);
+});
 
 // mk-go 独自の meta なので misskey-js の型集合には無い (#2570)。
 const form = computed<FormField[]>(() => {
@@ -245,6 +309,8 @@ function message(err: unknown): string {
 		case 'ANSWER_TOO_LONG': return '入力が長すぎる項目があります。';
 		case 'FORM_CHANGED': return '申請フォームが変更されました。ページを再読み込みしてやり直してください。';
 		case 'CAPTCHA_FAILED': return '認証に失敗しました。やり直してください。';
+		case 'FORM_TOKEN_INVALID': return 'フォームの有効期限が切れました。もう一度送信してください。';
+		case 'FORM_TOKEN_TOO_SOON': return '送信が早すぎます。少し待ってからもう一度送信してください。';
 		case 'DENIED_USERNAME': return 'そのユーザー名は使えません。';
 		case 'EMAIL_UNAVAILABLE': return 'そのメールアドレスは使えません。';
 		case 'UNAVAILABLE': return 'このサーバーでは承認制の登録を受け付けていません。';
@@ -261,13 +327,19 @@ async function apply() {
 	fatal.value = null;
 	try {
 		const res = await api<{ claimCode: string; application: ApplicationView }>(
-			'signup-application/apply', { answers: answers.value, ...captchaParams() });
+			'signup-application/apply',
+			{ answers: answers.value, formToken: formToken.value, ...captchaParams() });
 		// **コードを表示するのはここだけ。** サーバーは hash しか持っていない。
 		issuedCode.value = res.claimCode;
 		claimCode.value = res.claimCode;
 		application.value = res.application;
 	} catch (err) {
 		fatal.value = message(err);
+		// トークンが失効・使用済みなら取り直す。**そのままだと何度送っても
+		// 同じエラーになる。**
+		if ((err as { code?: string } | null)?.code === 'FORM_TOKEN_INVALID') {
+			await fetchFormToken();
+		}
 	} finally {
 		busy.value = false;
 	}
