@@ -396,10 +396,17 @@ export async function mainBoot() {
 
 			// 自分の情報が更新されたとき
 			main.on('meUpdated', i => {
-				// meUpdated の payload も未読の 2 フィールドを持つ (mk-go は
-				// meDetailedWithUnread で実値を載せる) ので、これも第 3 の書き手に
-				// あたる。世代を上げないと飛行中の resync が上書きしうる。
-				unreadCountGeneration++;
+				// meUpdated は第 3 の書き手になりうるが、**未読を載せる producer と
+				// 載せない producer がある**。mk-go では 2FA 系だけが実値を載せ
+				// (meDetailedWithUnread)、プロフィール更新 / pin の経路は
+				// PackUserDetailed = UserDetailed を送るのでキー自体が無い
+				// (未読 2 フィールドは MeDetailed 側の宣言)。部分 merge の
+				// publishMeUpdatedPartial も指定 field しか持たない。
+				//
+				// **載っていないのに世代を上げてはいけない。** 飛行中の resync が
+				// 捨てられたうえで誰も正しい値を書かないので、バッジが stale の
+				// まま次の再接続まで残る = 直しに来た症状そのものになる。
+				if ('unreadNotificationsCount' in i) unreadCountGeneration++;
 				updateCurrentAccountPartial(i);
 			});
 
