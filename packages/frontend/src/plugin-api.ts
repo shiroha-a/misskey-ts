@@ -24,7 +24,7 @@
  * 組み込むこと。
  */
 
-import { type Component } from 'vue';
+import type { Component } from 'vue';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { $i } from '@/i.js';
 
