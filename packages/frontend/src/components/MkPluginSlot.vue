@@ -23,7 +23,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <script lang="ts" setup>
 import { computed, onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
-import { slotMounts, type SlotName, type SlotContext, type SlotMount } from '@/plugin-api.js';
+import { slotMounts } from '@/plugin-api.js';
+import type { SlotName, SlotContext, SlotMount } from '@/plugin-api.js';
 
 /*
  * サーバープラグインの描画先 (mk-go #2479)。
