@@ -27,6 +27,7 @@ import { makeHotkey } from '@/utility/hotkey.js';
 import { addCustomEmoji, removeCustomEmojis, updateCustomEmojis } from '@/custom-emojis.js';
 import { prefer } from '@/preferences.js';
 import { updateCurrentAccountPartial } from '@/accounts.js';
+import { misskeyApi } from '@/utility/misskey-api.js';
 import { unisonReload } from '@/utility/unison-reload.js';
 import { isBirthday } from '@/utility/is-birthday.js';
 
@@ -313,6 +314,70 @@ export async function mainBoot() {
 				}
 			});
 
+			// 接続が確立したら未読通知の件数をサーバーの値へ揃える。
+			//
+			// バッジの件数はサーバーが持っておらず、unreadNotification (+1) と
+			// readAllNotifications (0) という差分イベントだけで同期している。これらは
+			// pub/sub なので、切断していた間に発行された分は再送されない。
+			// readAllNotifications を取りこぼすとサーバー側の既読位置だけが先に進み、
+			// 暗黙既読 (通知一覧の取得 / WebSocket の readNotification) からは
+			// 「既読位置が動いたとき」という発行条件を満たさなくなるため、
+			// 次の通知を受け取って読むまでバッジが残り続ける。
+			//
+			// **$i を丸ごと取り直さない。** refreshCurrentAccount() は取得に失敗すると
+			// サインアウトして localStorage ごと消す経路を持つ (accounts.ts の
+			// fetchAccount は 4xx の error 応答を全て isAccountDeleted に倒す)。
+			// サーバー再起動の直後は一時的な認証失敗が起こりうるうえ、再接続は全タブ
+			// 全ユーザーで同時に走るので、そこへ繋ぐと巻き添えでサインアウトさせうる。
+			// 未読の 2 フィールドだけを部分適用し、失敗は無視する。
+			let unreadCountGeneration = 0;
+			let unreadResyncInFlight = false;
+			// 初回接続はブート時の refreshCurrentAccount と重複するので抑止する。
+			// 「_disconnected_ を見たか」では判別しない。_disconnected_ は state が
+			// 'connected' になった後の close でしか出ないので、一度も繋がらないまま
+			// 復帰した場合 (オフラインで開いた PWA、停止中のサーバーへ繋いだタブ) に
+			// 出ない。そこはブート時の取得も失敗しているので、最も揃えたい場面になる。
+			let lastUnreadResyncAt = Date.now();
+			const unreadResyncInterval = 30 * 1000;
+			// 失敗したときはこの間隔まで詰める。再接続はほぼ即時 (misskey-js の
+			// minReconnectionDelay は 1ms) なので、素の 30 秒だと「起動途中の
+			// サーバーに繋がって /api/i が 502 → 直後に再接続」で抑止され、
+			// **そのタブは以降ずっと stale** になる。直しに来た症状そのもの。
+			const unreadResyncRetryInterval = 5 * 1000;
+			// 全クライアントが同時に再接続するので /api/i を散らす。バッジの再同期に
+			// 秒単位の即時性は要らないので広めに取る。
+			const unreadResyncJitter = 10 * 1000;
+
+			const resyncUnreadNotificationCount = async () => {
+				if (unreadResyncInFlight) return;
+				if (Date.now() - lastUnreadResyncAt < unreadResyncInterval) return;
+				unreadResyncInFlight = true;
+				// 失敗しても間隔を空けたいので、成功時ではなく試行時に更新する。
+				lastUnreadResyncAt = Date.now();
+				try {
+					await new Promise(resolve => window.setTimeout(resolve, Math.random() * unreadResyncJitter));
+					const generation = unreadCountGeneration;
+					const me = await misskeyApi('i');
+					// 飛行中に差分イベントが来ていたら、そちらのほうが新しい。
+					if (generation !== unreadCountGeneration) return;
+					updateCurrentAccountPartial({
+						hasUnreadNotification: me.hasUnreadNotification,
+						unreadNotificationsCount: me.unreadNotificationsCount,
+					});
+				} catch {
+					// 一時的な失敗は次の再接続で取り直せばよい。ここでサインアウトや
+					// ダイアログに倒さないことがこの実装の主眼。次の再接続がすぐ来ても
+					// 拾えるよう、抑止だけ短く巻き戻す。
+					lastUnreadResyncAt = Date.now() - (unreadResyncInterval - unreadResyncRetryInterval);
+				} finally {
+					unreadResyncInFlight = false;
+				}
+			};
+
+			stream.on('_connected_', () => {
+				resyncUnreadNotificationCount();
+			});
+
 			stream.on('emojiAdded', emojiData => {
 				addCustomEmoji(emojiData.emoji);
 			});
@@ -331,10 +396,16 @@ export async function mainBoot() {
 
 			// 自分の情報が更新されたとき
 			main.on('meUpdated', i => {
+				// meUpdated の payload も未読の 2 フィールドを持つ (mk-go は
+				// meDetailedWithUnread で実値を載せる) ので、これも第 3 の書き手に
+				// あたる。世代を上げないと飛行中の resync が上書きしうる。
+				unreadCountGeneration++;
 				updateCurrentAccountPartial(i);
 			});
 
+			// generation は飛行中の resync が古いスナップショットで上書きするのを防ぐ。
 			main.on('readAllNotifications', () => {
+				unreadCountGeneration++;
 				updateCurrentAccountPartial({
 					hasUnreadNotification: false,
 					unreadNotificationsCount: 0,
@@ -342,6 +413,7 @@ export async function mainBoot() {
 			});
 
 			main.on('unreadNotification', () => {
+				unreadCountGeneration++;
 				const unreadNotificationsCount = ($i?.unreadNotificationsCount ?? 0) + 1;
 				updateCurrentAccountPartial({
 					hasUnreadNotification: true,
