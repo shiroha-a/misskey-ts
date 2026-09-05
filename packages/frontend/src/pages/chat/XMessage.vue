@@ -185,7 +185,10 @@ function showMenu(ev: PointerEvent, contextmenu = false) {
 				const localUrl = `${url}/chat/messages/${props.message.id}`;
 				const { dispose } = await os.popupAsyncWithDialog(import('@/components/MkAbuseReportWindow.vue').then(x => x.default), {
 					user: props.message.fromUser!,
-					initialComment: `${localUrl}\n-----\n`,
+					context: {
+						targetUsername: props.message.fromUser!.username,
+						where: localUrl,
+					},
 				}, {
 					closed: () => dispose(),
 				});
