@@ -74,9 +74,8 @@ import {
 	getAbuseReportFormLocale,
 	isAbuseReportFormValid,
 	remainingAbuseReportRunes,
-	type AbuseReportCategory,
-	type AbuseReportContext,
 } from '@/utility/abuse-report.js';
+import type { AbuseReportCategory, AbuseReportContext } from '@/utility/abuse-report.js';
 
 const props = defineProps<{
 	user: Misskey.entities.UserLite;
