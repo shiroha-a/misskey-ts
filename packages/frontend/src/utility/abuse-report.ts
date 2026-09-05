@@ -5,8 +5,10 @@
 
 import * as Misskey from 'misskey-js';
 import { version } from '@@/js/config.js';
-import { instance } from '@/instance.js';
+import { languages } from 'i18n/const';
 import type { Locale } from 'i18n';
+import { i18n } from '@/i18n.js';
+import { instance } from '@/instance.js';
 
 export const ABUSE_REPORT_COMMENT_MAX = 2048;
 
@@ -48,18 +50,31 @@ export interface AbuseReportFormValues {
 
 type AbuseReportFormLocale = Locale['_abuseReportForm'];
 
-const primaries: Record<string, string> = { en: 'US', ja: 'JP', zh: 'CN' };
 const localeCache = new Map<string, AbuseReportFormLocale>();
 
 export function countRunes(str: string): number {
 	return [...str].length;
 }
 
+export function matchLangCode(raw: string): string {
+	if ((languages as readonly string[]).includes(raw)) return raw;
+	const prefixed = (languages as readonly string[]).find(lang => lang.startsWith(`${raw}-`));
+	if (prefixed) return prefixed;
+	return 'ja-JP';
+}
+
 export function resolveInstanceLangCode(): string {
-	const raw = instance.langs?.[0] ?? 'ja';
-	if (raw.includes('-')) return raw;
-	const suffix = primaries[raw];
-	return suffix ? `${raw}-${suffix}` : 'ja-JP';
+	return matchLangCode(instance.langs?.[0] ?? 'ja');
+}
+
+async function fetchLocaleJson(code: string): Promise<Locale | null> {
+	try {
+		const res = await window.fetch(`/assets/locales/${code}.${version}.json`);
+		if (!res.ok) return null;
+		return await res.json() as Locale;
+	} catch {
+		return null;
+	}
 }
 
 export async function getAbuseReportFormLocale(): Promise<AbuseReportFormLocale> {
@@ -67,17 +82,19 @@ export async function getAbuseReportFormLocale(): Promise<AbuseReportFormLocale>
 	const cached = localeCache.get(code);
 	if (cached) return cached;
 
-	const locale = await window.fetch(`/assets/locales/${code}.${version}.json`).then(r => r.json(), () => null) as Locale | null;
-	const form = locale?._abuseReportForm;
-	if (form) {
-		localeCache.set(code, form);
-		return form;
+	for (const tryCode of [code, 'ja-JP']) {
+		const locale = await fetchLocaleJson(tryCode);
+		const form = locale?._abuseReportForm;
+		if (form) {
+			localeCache.set(code, form);
+			return form;
+		}
 	}
 
-	// ponytail: 取得失敗時は ja-JP にフォールバック
-	const fallback = await window.fetch(`/assets/locales/ja-JP.${version}.json`).then(r => r.json()) as Locale;
-	localeCache.set(code, fallback._abuseReportForm);
-	return fallback._abuseReportForm;
+	// ponytail: 取得不能時は UI locale を最終フォールバック（送信不能よりマシ）
+	const fallback = i18n.ts._abuseReportForm;
+	localeCache.set(code, fallback);
+	return fallback;
 }
 
 export function formatAbuseReportWhen(date: Date, langCode = resolveInstanceLangCode()): string {
@@ -108,17 +125,29 @@ export function buildContextFromProfile(user: Misskey.entities.UserLite, baseUrl
 	};
 }
 
+function buildNoteWhere(note: Misskey.entities.Note, baseUrl: string): string {
+	const localUrl = `${baseUrl}/notes/${note.id}`;
+	const remoteUrl = note.url ?? note.uri;
+	if (remoteUrl == null) return localUrl;
+	return `Note: ${remoteUrl}\nLocal Note: ${localUrl}`;
+}
+
+function noteHasOwnContent(note: Misskey.entities.Note): boolean {
+	if (note.text != null && note.text !== '') return true;
+	return (note.fileIds?.length ?? 0) > 0 || (note.files?.length ?? 0) > 0;
+}
+
 export function buildContextFromNote(note: Misskey.entities.Note, baseUrl: string): AbuseReportContext {
 	const ctx: AbuseReportContext = {
 		targetUsername: note.user.username,
-		where: `${baseUrl}/notes/${note.id}`,
+		where: buildNoteWhere(note, baseUrl),
 		when: formatAbuseReportWhen(new Date(note.createdAt)),
 	};
 
 	if (note.renoteId) {
 		const renote = note.renote;
 		const renoteUrl = renote ? `${baseUrl}/notes/${renote.id}` : `${baseUrl}/notes/${note.renoteId}`;
-		if (note.text) {
+		if (noteHasOwnContent(note)) {
 			ctx.quoteSource = { url: renoteUrl };
 		} else {
 			ctx.renoteSource = {
