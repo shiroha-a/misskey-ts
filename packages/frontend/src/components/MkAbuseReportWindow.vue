@@ -28,10 +28,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #label>{{ i18n.ts._abuseReportForm.when }}</template>
 			</MkInput>
 
-			<MkTextarea v-model="details" :class="{ [$style.invalid]: showDetailsError }">
-				<template #label>{{ i18n.ts._abuseReportForm.details }}</template>
-				<template #caption>{{ i18n.ts._abuseReportForm.detailsCaption }}</template>
-			</MkTextarea>
+			<div data-testid="abuse-report-details">
+				<MkTextarea v-model="details" :class="{ [$style.invalid]: showDetailsError }">
+					<template #label>{{ i18n.ts._abuseReportForm.details }}</template>
+					<template #caption>{{ i18n.ts._abuseReportForm.detailsCaption }}</template>
+				</MkTextarea>
+			</div>
 			<p v-if="showDetailsError" :class="$style.error">{{ i18n.ts._abuseReportForm.detailsRequired }}</p>
 
 			<MkTextarea v-model="evidence">
