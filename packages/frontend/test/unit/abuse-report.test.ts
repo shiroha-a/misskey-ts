@@ -4,14 +4,16 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { ParameterizedString } from 'i18n';
 import {
 	ABUSE_REPORT_COMMENT_MAX,
 	buildAbuseReportComment,
 	buildContextFromNote,
 	countRunes,
 	isAbuseReportFormValid,
+	matchLangCode,
 	type AbuseReportFormValues,
-} from './abuse-report.js';
+} from '@/utility/abuse-report.js';
 
 const formLocale = {
 	category: '違反カテゴリ',
@@ -26,8 +28,8 @@ const formLocale = {
 	evidenceCaption: '',
 	renoteSource: 'リノート元',
 	quoteSource: '引用元ノート',
-	remainingChars: '{n}',
-	totalTooLong: '',
+	remainingChars: '残り {n} 文字' as ParameterizedString<'n'>,
+	totalTooLong: '通報内容が長すぎます（{max} 文字以内）' as ParameterizedString<'max'>,
 	_category: {
 		spam: 'スパム',
 		harassment: '嫌がらせ・迷惑行為',
@@ -111,8 +113,40 @@ describe('abuse-report', () => {
 			},
 			user: { username: 'alice' },
 		} as never, 'https://example.com');
-		expect(ctx.where).toBe('https://example.com/notes/n1');
+		expect(ctx.where).toContain('https://example.com/notes/n1');
 		expect(ctx.quoteSource?.url).toBe('https://example.com/notes/n0');
 		expect(ctx.renoteSource).toBeUndefined();
+	});
+
+	it('includes remote note URL in where', () => {
+		const ctx = buildContextFromNote({
+			id: 'n1',
+			createdAt: '2026-09-05T03:34:56.000Z',
+			url: 'https://remote.example/notes/orig',
+			user: { username: 'alice' },
+		} as never, 'https://example.com');
+		expect(ctx.where).toContain('Note: https://remote.example/notes/orig');
+		expect(ctx.where).toContain('Local Note: https://example.com/notes/n1');
+	});
+
+	it('treats file-only renote as quote', () => {
+		const ctx = buildContextFromNote({
+			id: 'n1',
+			createdAt: '2026-09-05T03:34:56.000Z',
+			text: '',
+			fileIds: ['f1'],
+			renoteId: 'n0',
+			renote: { id: 'n0', user: { username: 'bob' } },
+			user: { username: 'alice' },
+		} as never, 'https://example.com');
+		expect(ctx.quoteSource?.url).toBe('https://example.com/notes/n0');
+		expect(ctx.renoteSource).toBeUndefined();
+	});
+
+	it('resolves de/fr/ko lang codes', () => {
+		expect(matchLangCode('de')).toBe('de-DE');
+		expect(matchLangCode('fr')).toBe('fr-FR');
+		expect(matchLangCode('ko')).toBe('ko-KR');
+		expect(matchLangCode('ja-JP')).toBe('ja-JP');
 	});
 });

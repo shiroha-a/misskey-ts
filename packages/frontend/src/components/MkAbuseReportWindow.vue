@@ -39,8 +39,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #caption>{{ i18n.ts._abuseReportForm.evidenceCaption }}</template>
 			</MkTextarea>
 
-			<p :class="[$style.counter, { [$style.counterWarn]: remaining < 128, [$style.counterError]: remaining < 0 }]">
-				{{ i18n.t(i18n.ts._abuseReportForm.remainingChars, { n: Math.max(remaining, 0) }) }}
+			<p v-if="remaining >= 0" :class="[$style.counter, { [$style.counterWarn]: remaining < 128 }]">
+				{{ i18n.tsx._abuseReportForm.remainingChars({ n: remaining }) }}
+			</p>
+			<p v-else :class="[$style.counter, $style.counterError]">
+				{{ i18n.tsx._abuseReportForm.totalTooLong({ max: ABUSE_REPORT_COMMENT_MAX }) }}
 			</p>
 
 			<div>
@@ -63,6 +66,7 @@ import * as os from '@/os.js';
 import { i18n } from '@/i18n.js';
 import {
 	ABUSE_REPORT_CATEGORIES,
+	ABUSE_REPORT_COMMENT_MAX,
 	buildAbuseReportComment,
 	buildContextFromProfile,
 	getAbuseReportFormLocale,
@@ -106,7 +110,7 @@ const formValues = computed(() => ({
 }));
 
 const remaining = computed(() => {
-	if (!formLocale.value) return 2048;
+	if (!formLocale.value) return ABUSE_REPORT_COMMENT_MAX;
 	return remainingAbuseReportRunes(formLocale.value, formValues.value, reportContext.value);
 });
 
