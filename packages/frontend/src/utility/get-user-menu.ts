@@ -20,6 +20,7 @@ import { mainRouter } from '@/router.js';
 import { genEmbedCode } from '@/utility/get-embed-code.js';
 import { prefer } from '@/preferences.js';
 import { getPluginHandlers } from '@/plugin.js';
+import { buildContextFromProfile } from '@/utility/abuse-report.js';
 
 export function getUserMenu(user: Misskey.entities.UserDetailed, router: Router = mainRouter) {
 	const meId = $i ? $i.id : null;
@@ -97,6 +98,7 @@ export function getUserMenu(user: Misskey.entities.UserDetailed, router: Router 
 	async function reportAbuse() {
 		const { dispose } = await os.popupAsyncWithDialog(import('@/components/MkAbuseReportWindow.vue').then(x => x.default), {
 			user: user,
+			context: buildContextFromProfile(user, url),
 		}, {
 			closed: () => dispose(),
 		});

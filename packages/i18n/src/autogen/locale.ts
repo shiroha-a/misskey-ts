@@ -6473,6 +6473,41 @@ export interface Locale extends ILocale {
          */
         "resolveTutorial": string;
     };
+    "_abuseReportForm": {
+        "category": string;
+        "categoryRequired": string;
+        "targetUser": string;
+        "url": string;
+        "when": string;
+        "details": string;
+        "detailsRequired": string;
+        "detailsCaption": string;
+        "evidence": string;
+        "evidenceCaption": string;
+        "renoteSource": string;
+        "quoteSource": string;
+        "remainingChars": ParameterizedString<"n">;
+        "totalTooLong": ParameterizedString<"max">;
+        "_category": {
+            "spam": string;
+            "harassment": string;
+            "impersonation": string;
+            "illegal": string;
+            "copyright": string;
+            "doxxing": string;
+            "other": string;
+        };
+        "_commentLabel": {
+            "category": string;
+            "targetUser": string;
+            "url": string;
+            "when": string;
+            "details": string;
+            "evidence": string;
+            "renoteSource": string;
+            "quoteSource": string;
+        };
+    };
     "_delivery": {
         /**
          * 配信状態

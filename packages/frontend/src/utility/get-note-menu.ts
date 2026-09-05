@@ -21,6 +21,7 @@ import { clipsCache, favoritedChannelsCache } from '@/cache.js';
 import MkRippleEffect from '@/components/MkRippleEffect.vue';
 import { isSupportShare } from '@/utility/navigator.js';
 import { getAppearNote } from '@/utility/get-appear-note.js';
+import { buildContextFromNote } from '@/utility/abuse-report.js';
 import { genEmbedCode } from '@/utility/get-embed-code.js';
 import { prefer } from '@/preferences.js';
 import { getPluginHandlers } from '@/plugin.js';
@@ -140,13 +141,9 @@ export function getAbuseNoteMenu(note: Misskey.entities.Note, text: string): Men
 		icon: 'ti ti-exclamation-circle',
 		text,
 		action: async (): Promise<void> => {
-			const localUrl = `${url}/notes/${note.id}`;
-			let noteInfo = '';
-			if (note.url ?? note.uri != null) noteInfo = `Note: ${note.url ?? note.uri}\n`;
-			noteInfo += `Local Note: ${localUrl}\n`;
 			const { dispose } = await os.popupAsyncWithDialog(import('@/components/MkAbuseReportWindow.vue').then(x => x.default), {
 				user: note.user,
-				initialComment: `${noteInfo}-----\n`,
+				context: buildContextFromNote(note, url),
 			}, {
 				closed: () => dispose(),
 			});

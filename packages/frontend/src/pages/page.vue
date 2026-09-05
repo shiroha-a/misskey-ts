@@ -252,7 +252,10 @@ async function reportAbuse() {
 
 	const { dispose } = await os.popupAsyncWithDialog(import('@/components/MkAbuseReportWindow.vue').then(x => x.default), {
 		user: page.value.user,
-		initialComment: `Page: ${pageUrl}\n-----\n`,
+		context: {
+			targetUsername: page.value.user.username,
+			where: pageUrl,
+		},
 	}, {
 		closed: () => dispose(),
 	});
