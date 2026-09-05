@@ -12,7 +12,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<i v-else class="ti ti-exclamation-circle" style="color: var(--MI_THEME-warn)"></i>
 	</template>
 	<template #label><MkAcct :user="report.targetUser"/> (by <MkAcct :user="report.reporter"/>)</template>
-	<template #caption>{{ report.comment }}</template>
+	<template #caption><span :class="$style.caption">{{ report.comment }}</span></template>
 	<template #suffix><MkTime :time="report.createdAt"/></template>
 	<template #footer>
 		<div class="_buttons">
@@ -43,7 +43,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<MkFolder :defaultOpen="true">
 			<template #icon><i class="ti ti-message-2"></i></template>
 			<template #label>{{ i18n.ts.details }}</template>
-			<div class="_gaps_s">
+			<div :class="$style.commentBody">
 				<Mfm :text="report.comment" :linkNavigationBehavior="'window'"/>
 			</div>
 		</MkFolder>
@@ -150,4 +150,8 @@ function showMenu(ev: PointerEvent) {
 </script>
 
 <style lang="scss" module>
+.caption,
+.commentBody {
+	white-space: pre-wrap;
+}
 </style>
