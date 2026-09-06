@@ -163,10 +163,13 @@ describe('abuse-report', () => {
 			details: 'd'.repeat(1200),
 			evidence: 'e'.repeat(400),
 		};
+		// **フィールド名は AbuseReportContext に合わせる。** 変数経由だと TypeScript の
+		// excess property check が効かず、誤った名前でも型検査を通ってしまう。
+		// `renoteSource` でないと buildRenoteLines が何も足さず、
+		// 「捨てられる末尾がリノート元の行」という状況を再現できない。
 		const context = {
 			targetUsername: 'alice',
-			renoteUsername: 'someone',
-			renoteUrl: 'https://example.com/notes/9abcdefghijklmno',
+			renoteSource: { username: 'someone@remote.example', url: 'https://example.com/notes/9abcdefghijklmno' },
 		};
 
 		expect(countRunes(buildAbuseReportComment(formLocale, values, context)))
@@ -200,8 +203,24 @@ describe('abuse-report', () => {
 			text: 'hi',
 		} as never;
 		const ctx = buildContextFromNote(note, 'https://example.com');
+		// note 側も host を保つ (profile 側だけ守られていた)。
+		expect(ctx.targetUsername).toBe('alice@remote.example');
 		expect(ctx.where).not.toContain('\n');
 		expect(ctx.where).toContain('https://remote.example/notes/orig');
 		expect(ctx.where).toContain('https://example.com/notes/n1');
+	});
+
+	// リノート元の作者も acct で組む。**コメントは <Mfm> でレンダーされる**ので、
+	// host を落とすと `@bob` が mention ノードになりローカルの別人へリンクする。
+	it('keeps the host for the renote source author', () => {
+		const note = {
+			id: 'n1',
+			createdAt: new Date().toISOString(),
+			user: { id: 'u1', username: 'alice', host: null },
+			renoteId: 'r1',
+			renote: { id: 'r1', user: { id: 'u2', username: 'bob', host: 'remote.example' } },
+		} as never;
+		const ctx = buildContextFromNote(note, 'https://example.com');
+		expect(ctx.renoteSource?.username).toBe('bob@remote.example');
 	});
 });
