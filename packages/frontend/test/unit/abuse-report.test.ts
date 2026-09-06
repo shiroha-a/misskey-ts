@@ -9,8 +9,10 @@ import {
 	ABUSE_REPORT_COMMENT_MAX,
 	buildAbuseReportComment,
 	buildContextFromNote,
+	buildContextFromProfile,
 	countRunes,
 	isAbuseReportFormValid,
+	remainingAbuseReportRunes,
 	matchLangCode,
 	type AbuseReportFormValues,
 } from '@/utility/abuse-report.js';
@@ -125,8 +127,8 @@ describe('abuse-report', () => {
 			url: 'https://remote.example/notes/orig',
 			user: { username: 'alice' },
 		} as never, 'https://example.com');
-		expect(ctx.where).toContain('Note: https://remote.example/notes/orig');
-		expect(ctx.where).toContain('Local Note: https://example.com/notes/n1');
+		// **単一行で持つ。** 受け側が MkInput (`<input>`) なので改行は消える。
+		expect(ctx.where).toBe('https://remote.example/notes/orig (local: https://example.com/notes/n1)');
 	});
 
 	it('treats file-only renote as quote', () => {
@@ -148,5 +150,58 @@ describe('abuse-report', () => {
 		expect(matchLangCode('fr')).toBe('fr-FR');
 		expect(matchLangCode('ko')).toBe('ko-KR');
 		expect(matchLangCode('ja-JP')).toBe('ja-JP');
+	});
+
+	// **上限の判定は切り落とし前を見る。** buildAbuseReportComment は末尾で
+	// truncate するので、その戻り値を数えると判定が恒真になり、自動収集した
+	// 文脈 (リノート元) が無言で欠ける。
+	it('rejects a form whose joined comment exceeds the limit', () => {
+		const values: AbuseReportFormValues = {
+			category: 'spam',
+			where: 'w'.repeat(300),
+			when: 'n'.repeat(100),
+			details: 'd'.repeat(1200),
+			evidence: 'e'.repeat(400),
+		};
+		const context = {
+			targetUsername: 'alice',
+			renoteUsername: 'someone',
+			renoteUrl: 'https://example.com/notes/9abcdefghijklmno',
+		};
+
+		expect(countRunes(buildAbuseReportComment(formLocale, values, context)))
+			.toBeLessThanOrEqual(ABUSE_REPORT_COMMENT_MAX);
+		expect(isAbuseReportFormValid(formLocale, values, context)).toBe(false);
+		expect(remainingAbuseReportRunes(formLocale, values, context)).toBeLessThan(0);
+	});
+
+	// リモート利用者は acct (username@host) で組む。username だけだと該当 URL が
+	// 自インスタンスの同名ユーザー (別人) を指すか 404 になる。
+	it('keeps the host for remote users', () => {
+		const remote = { id: 'u1', username: 'alice', host: 'remote.example' } as never;
+		const ctx = buildContextFromProfile(remote, 'https://example.com');
+		expect(ctx.targetUsername).toBe('alice@remote.example');
+		expect(ctx.where).toBe('https://example.com/@alice@remote.example');
+
+		const local = { id: 'u2', username: 'bob', host: null } as never;
+		const localCtx = buildContextFromProfile(local, 'https://example.com');
+		expect(localCtx.targetUsername).toBe('bob');
+		expect(localCtx.where).toBe('https://example.com/@bob');
+	});
+
+	// where は single-line <input> に入るので改行を含めない。含めると HTML の
+	// value sanitization で LF が消え、URL がセパレータ無しで連結される。
+	it('keeps where on a single line for remote notes', () => {
+		const note = {
+			id: 'n1',
+			createdAt: new Date().toISOString(),
+			user: { id: 'u1', username: 'alice', host: 'remote.example' },
+			url: 'https://remote.example/notes/orig',
+			text: 'hi',
+		} as never;
+		const ctx = buildContextFromNote(note, 'https://example.com');
+		expect(ctx.where).not.toContain('\n');
+		expect(ctx.where).toContain('https://remote.example/notes/orig');
+		expect(ctx.where).toContain('https://example.com/notes/n1');
 	});
 });
