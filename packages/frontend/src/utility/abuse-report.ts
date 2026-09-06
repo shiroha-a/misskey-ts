@@ -7,6 +7,7 @@ import * as Misskey from 'misskey-js';
 import { version } from '@@/js/config.js';
 import { languages } from 'i18n/const';
 import type { Locale } from 'i18n';
+import { acct } from '@/filters/user.js';
 import { i18n } from '@/i18n.js';
 import { instance } from '@/instance.js';
 
@@ -118,10 +119,12 @@ export function formatAbuseReportWhen(date: Date, langCode = resolveInstanceLang
 }
 
 export function buildContextFromProfile(user: Misskey.entities.UserLite, baseUrl: string): AbuseReportContext {
-	const profileUrl = `${baseUrl}/@${user.username}`;
+	// **acct で組む。** username だけだとリモート利用者の該当 URL が自インスタンスの
+	// 同名ユーザー (別人) を指すか 404 になり、対象ユーザー欄もどのインスタンスの
+	// 誰か判別できない。
 	return {
-		targetUsername: user.username,
-		where: profileUrl,
+		targetUsername: acct(user),
+		where: `${baseUrl}/@${acct(user)}`,
 	};
 }
 
@@ -129,7 +132,10 @@ function buildNoteWhere(note: Misskey.entities.Note, baseUrl: string): string {
 	const localUrl = `${baseUrl}/notes/${note.id}`;
 	const remoteUrl = note.url ?? note.uri;
 	if (remoteUrl == null) return localUrl;
-	return `Note: ${remoteUrl}\nLocal Note: ${localUrl}`;
+	// **改行を入れない。** 受け側は MkInput (single-line `<input>`) で、
+	// HTML の value sanitization が LF を除去するため区切りが消えて URL が連結される。
+	// ユーザーが 1 文字でも編集するとその連結済み文字列が送信される。
+	return `${remoteUrl} (local: ${localUrl})`;
 }
 
 function noteHasOwnContent(note: Misskey.entities.Note): boolean {
@@ -139,7 +145,7 @@ function noteHasOwnContent(note: Misskey.entities.Note): boolean {
 
 export function buildContextFromNote(note: Misskey.entities.Note, baseUrl: string): AbuseReportContext {
 	const ctx: AbuseReportContext = {
-		targetUsername: note.user.username,
+		targetUsername: acct(note.user),
 		where: buildNoteWhere(note, baseUrl),
 		when: formatAbuseReportWhen(new Date(note.createdAt)),
 	};
@@ -184,7 +190,8 @@ function truncateRunes(str: string, max: number): string {
 	return [...str].slice(0, max).join('');
 }
 
-export function buildAbuseReportComment(
+/** Joins the form values into the comment body **without** clamping. */
+function joinAbuseReportLines(
 	formLocale: AbuseReportFormLocale,
 	values: AbuseReportFormValues,
 	context: AbuseReportContext,
@@ -200,7 +207,22 @@ export function buildAbuseReportComment(
 	appendLine(lines, formLocale._commentLabel.evidence, values.evidence.trim());
 	lines.push(...buildRenoteLines(formLocale, context));
 
-	return truncateRunes(lines.join('\n'), ABUSE_REPORT_COMMENT_MAX);
+	return lines.join('\n');
+}
+
+/**
+ * Builds the comment, clamping it to the API limit.
+ *
+ * **切り落としは最後の保険。** 検証系 (isAbuseReportFormValid /
+ * remainingAbuseReportRunes) がこの戻り値を数えると、常に上限以下なので判定が
+ * 恒真になり、自動収集した文脈 (リノート元など) が無言で欠ける。
+ */
+export function buildAbuseReportComment(
+	formLocale: AbuseReportFormLocale,
+	values: AbuseReportFormValues,
+	context: AbuseReportContext,
+): string {
+	return truncateRunes(joinAbuseReportLines(formLocale, values, context), ABUSE_REPORT_COMMENT_MAX);
 }
 
 export function isAbuseReportFormValid(
@@ -213,7 +235,7 @@ export function isAbuseReportFormValid(
 	if (countRunes(values.evidence) > ABUSE_REPORT_LIMITS.evidence) return false;
 	if (countRunes(values.when) > ABUSE_REPORT_LIMITS.when) return false;
 	if (countRunes(values.where) > ABUSE_REPORT_LIMITS.where) return false;
-	return countRunes(buildAbuseReportComment(formLocale, values, context)) <= ABUSE_REPORT_COMMENT_MAX;
+	return countRunes(joinAbuseReportLines(formLocale, values, context)) <= ABUSE_REPORT_COMMENT_MAX;
 }
 
 export function remainingAbuseReportRunes(
@@ -221,5 +243,5 @@ export function remainingAbuseReportRunes(
 	values: AbuseReportFormValues,
 	context: AbuseReportContext,
 ): number {
-	return ABUSE_REPORT_COMMENT_MAX - countRunes(buildAbuseReportComment(formLocale, values, context));
+	return ABUSE_REPORT_COMMENT_MAX - countRunes(joinAbuseReportLines(formLocale, values, context));
 }
