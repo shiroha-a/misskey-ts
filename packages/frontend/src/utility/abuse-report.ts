@@ -157,7 +157,10 @@ export function buildContextFromNote(note: Misskey.entities.Note, baseUrl: strin
 			ctx.quoteSource = { url: renoteUrl };
 		} else {
 			ctx.renoteSource = {
-				username: renote?.user?.username ?? '?',
+				// **ここも acct で組む。** コメントは MkAbuseReport が <Mfm> で
+				// レンダーするので、host を落とすと `@bob` が mention ノードになり
+				// **ローカルの別人へリンクする**。該当 URL と同じ症状。
+				username: renote?.user ? acct(renote.user) : '?',
 				url: renoteUrl,
 			};
 		}
