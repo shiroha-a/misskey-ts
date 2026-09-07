@@ -164,10 +164,12 @@ export function openInstanceMenu(ev: PointerEvent) {
 		});
 	}
 
+	// mk-go: 実際に動いているのは mk-go なので、既定の導線はそちらへ向ける。
+	// Misskey についてのページは /about-mkgo から辿れる (#2700)。
 	menuItems.push({
 		type: 'link',
-		text: i18n.ts.aboutMisskey,
-		to: '/about-misskey',
+		text: i18n.ts.aboutMkGo,
+		to: '/about-mkgo',
 	});
 
 	os.popupMenu(menuItems, ev.currentTarget ?? ev.target, {

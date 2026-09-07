@@ -1829,6 +1829,10 @@ export interface Locale extends ILocale {
      */
     "aboutMisskey": string;
     /**
+     * mk-goについて
+     */
+    "aboutMkGo": string;
+    /**
      * 管理者
      */
     "administrator": string;
@@ -6474,37 +6478,124 @@ export interface Locale extends ILocale {
         "resolveTutorial": string;
     };
     "_abuseReportForm": {
+        /**
+         * 違反カテゴリ
+         */
         "category": string;
+        /**
+         * 違反カテゴリを選択してください
+         */
         "categoryRequired": string;
+        /**
+         * 対象ユーザー
+         */
         "targetUser": string;
+        /**
+         * 該当URL
+         */
         "url": string;
+        /**
+         * 発生日時
+         */
         "when": string;
+        /**
+         * 詳細
+         */
         "details": string;
+        /**
+         * 詳細を入力してください
+         */
         "detailsRequired": string;
+        /**
+         * 具体的な状況を記入してください
+         */
         "detailsCaption": string;
+        /**
+         * 補足・証拠
+         */
         "evidence": string;
+        /**
+         * スクリーンショットの説明や追加の経緯があれば記入してください
+         */
         "evidenceCaption": string;
+        /**
+         * リノート元
+         */
         "renoteSource": string;
+        /**
+         * 引用元ノート
+         */
         "quoteSource": string;
+        /**
+         * 残り {n} 文字
+         */
         "remainingChars": ParameterizedString<"n">;
+        /**
+         * 通報内容が長すぎます（{max} 文字以内）
+         */
         "totalTooLong": ParameterizedString<"max">;
         "_category": {
+            /**
+             * スパム
+             */
             "spam": string;
+            /**
+             * 嫌がらせ・迷惑行為
+             */
             "harassment": string;
+            /**
+             * なりすまし
+             */
             "impersonation": string;
+            /**
+             * 違法・危険なコンテンツ
+             */
             "illegal": string;
+            /**
+             * 著作権侵害
+             */
             "copyright": string;
+            /**
+             * 個人情報の晒し
+             */
             "doxxing": string;
+            /**
+             * その他
+             */
             "other": string;
         };
         "_commentLabel": {
+            /**
+             * 【違反カテゴリ】
+             */
             "category": string;
+            /**
+             * 【対象ユーザー】
+             */
             "targetUser": string;
+            /**
+             * 【該当URL】
+             */
             "url": string;
+            /**
+             * 【発生日時】
+             */
             "when": string;
+            /**
+             * 【詳細】
+             */
             "details": string;
+            /**
+             * 【補足・証拠】
+             */
             "evidence": string;
+            /**
+             * 【リノート元】
+             */
             "renoteSource": string;
+            /**
+             * 【引用元ノート】
+             */
             "quoteSource": string;
         };
     };
@@ -8841,6 +8932,48 @@ export interface Locale extends ILocale {
          * プロジェクトメンバー
          */
         "projectMembers": string;
+    };
+    "_aboutMkGo": {
+        /**
+         * mk-goは、Misskey互換のバックエンド実装です。
+         */
+        "about": string;
+        /**
+         * バックエンド
+         */
+        "backend": string;
+        /**
+         * フロントエンド
+         */
+        "frontend": string;
+        /**
+         * このサーバーのソースコード
+         */
+        "sourceCodeOfThisServer": string;
+        /**
+         * このサーバーで実際に動作しているコードです。改変されている場合は、改変後のコードがここから入手できます。
+         */
+        "sourceCodeOfThisServerDescription": string;
+        /**
+         * mk-go本体(バックエンド)
+         */
+        "sourceCodeOfMkGo": string;
+        /**
+         * フロントエンド(Misskeyのフォーク)
+         */
+        "sourceCodeOfFrontend": string;
+        /**
+         * ライセンス
+         */
+        "license": string;
+        /**
+         * コントリビューター
+         */
+        "contributors": string;
+        /**
+         * 全てのコントリビューター
+         */
+        "allContributors": string;
     };
     "_displayOfSensitiveMedia": {
         /**

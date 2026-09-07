@@ -226,6 +226,10 @@ export const ROUTE_DEF = [{
 	path: '/about-misskey',
 	component: page(() => import('@/pages/about-misskey.vue')),
 }, {
+	// mk-go: 実際に動いている実装の説明とソースコードの案内 (#2700)
+	path: '/about-mkgo',
+	component: page(() => import('@/pages/about-mkgo.vue')),
+}, {
 	path: '/invite',
 	name: 'invite',
 	component: page(() => import('@/pages/invite.vue')),

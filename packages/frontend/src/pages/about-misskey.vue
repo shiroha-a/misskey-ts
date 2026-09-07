@@ -29,6 +29,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div style="text-align: center;">
 					{{ i18n.ts._aboutMisskey.about }}<br><a href="https://misskey-hub.net/docs/about-misskey/" target="_blank" class="_link">{{ i18n.ts.learnMore }}</a>
 				</div>
+				<!--
+					mk-go: このページは Misskey 本体の説明で、実際に動いているのは
+					mk-go。ソースコードの案内も mk-go 側のページが持つので導線を出す
+					(#2700)。**このファイルへの変更はこの 1 ブロックだけに留める** —
+					upstream が頻繁に更新するので、書き換えると追従のたびに手で
+					コンフリクトを解くことになる。
+				-->
+				<FormLink to="/about-mkgo">
+					<template #icon><i class="ti ti-info-circle"></i></template>
+					{{ i18n.ts.aboutMkGo }}
+				</FormLink>
 				<div v-if="$i != null" style="text-align: center;">
 					<MkButton primary rounded inline @click="iLoveMisskey">I <Mfm text="$[jelly ❤]"/> #Misskey</MkButton>
 				</div>

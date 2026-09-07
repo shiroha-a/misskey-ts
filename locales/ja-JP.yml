@@ -454,6 +454,7 @@ popularTags: "人気のタグ"
 userList: "リスト"
 about: "情報"
 aboutMisskey: "Misskeyについて"
+aboutMkGo: "mk-goについて"
 administrator: "管理者"
 token: "確認コード"
 2fa: "二要素認証"
@@ -2333,6 +2334,18 @@ _aboutMisskey:
   morePatrons: "他にも多くの方が支援してくれています。ありがとうございます🥰"
   patrons: "支援者"
   projectMembers: "プロジェクトメンバー"
+
+_aboutMkGo:
+  about: "mk-goは、Misskey互換のバックエンド実装です。"
+  backend: "バックエンド"
+  frontend: "フロントエンド"
+  sourceCodeOfThisServer: "このサーバーのソースコード"
+  sourceCodeOfThisServerDescription: "このサーバーで実際に動作しているコードです。改変されている場合は、改変後のコードがここから入手できます。"
+  sourceCodeOfMkGo: "mk-go本体(バックエンド)"
+  sourceCodeOfFrontend: "フロントエンド(Misskeyのフォーク)"
+  license: "ライセンス"
+  contributors: "コントリビューター"
+  allContributors: "全てのコントリビューター"
 
 _displayOfSensitiveMedia:
   respect: "センシティブ設定されたメディアを隠す"
