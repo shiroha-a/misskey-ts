@@ -91,10 +91,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</FormSection>
 
 			<!--
-				**アバター画像は出さない。** mk-go の CSP は `img-src 'self' data: blob:`
-				なので、avatars.githubusercontent.com の画像は enforce 下で必ず落ちる
-				(about-misskey のプロジェクトメンバー欄は実際に壊れた画像になっている)。
-				名前だけならポリシーに触らず確実に表示できる。
+				**アバター画像は出さない。** 新規ページなので最初から外部画像を持たせる
+				必要が無く、名前だけで用は足りる。about-misskey 側の外部画像は #2892 で
+				CSP に 2 origin を足して表示できるようにしたので、**「CSP で落ちるから
+				出せない」わけではない** (出すなら avatars.githubusercontent.com は既に
+				許可済み)。
 			-->
 			<FormSection>
 				<template #label>{{ i18n.ts._aboutMkGo.contributors }}</template>
