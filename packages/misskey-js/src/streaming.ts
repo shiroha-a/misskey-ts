@@ -24,6 +24,11 @@ export type StreamEvents = {
 	_disconnected_: void;
 } & BroadcastEvents;
 
+// 意図的な張り直し (reconnect) を利用者に見せないでいられる猶予。これを過ぎても
+// 繋がらなければ通常の切断として通知する。黙ったままにすると、サーバーが落ちて
+// いるときに何の表示も出ず、直しに来た「ストリームだけ無言で止まる」に戻る。
+const intentionalReconnectGrace = 30 * 1000;
+
 export interface IStream extends EventEmitter<StreamEvents> {
 	state: 'initializing' | 'reconnecting' | 'connected';
 
@@ -37,6 +42,7 @@ export interface IStream extends EventEmitter<StreamEvents> {
 	send(typeOrPayload: string | Record<string, unknown> | unknown[], payload?: unknown): void;
 	ping(): void;
 	heartbeat(): void;
+	reconnect(): void;
 	close(): void;
 }
 
@@ -51,6 +57,8 @@ export default class Stream extends EventEmitter<StreamEvents> implements IStrea
 	private sharedConnections: SharedConnection[] = [];
 	private nonSharedConnections: NonSharedConnection[] = [];
 	private idCounter = 0;
+	private intentionalReconnect = false;
+	private reconnectGraceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	constructor(origin: string, user: { token: string; } | null, options?: {
 		WebSocket?: Options['WebSocket'];
@@ -69,6 +77,7 @@ export default class Stream extends EventEmitter<StreamEvents> implements IStrea
 		this.onClose = this.onClose.bind(this);
 		this.onMessage = this.onMessage.bind(this);
 		this.send = this.send.bind(this);
+		this.reconnect = this.reconnect.bind(this);
 		this.close = this.close.bind(this);
 
 		// eslint-disable-next-line no-param-reassign
@@ -145,6 +154,8 @@ export default class Stream extends EventEmitter<StreamEvents> implements IStrea
 		const isReconnect = this.state === 'reconnecting';
 
 		this.state = 'connected';
+		this.intentionalReconnect = false;
+		this.clearReconnectGrace();
 		this.emit('_connected_');
 
 		// チャンネル再接続
@@ -158,10 +169,42 @@ export default class Stream extends EventEmitter<StreamEvents> implements IStrea
 	 * Callback of when close connection
 	 */
 	private onClose(): void {
-		if (this.state === 'connected') {
-			this.state = 'reconnecting';
-			this.emit('_disconnected_');
+		if (this.state !== 'connected') return;
+
+		this.state = 'reconnecting';
+
+		// Pool の購読状態は intentional かどうかに関わらず必ず戻す。**これを
+		// _disconnected_ の購読に任せない** — 通知を抑止したときに道連れで
+		// 戻らなくなり、再接続後の connect() が isConnected の早期 return で
+		// 素通りして、購読が一つも復活しないまま接続だけ張り直る (今より静かに
+		// 壊れる) ため。
+		for (const pool of this.sharedConnectionPools) pool.markDisconnected();
+
+		// 復帰時の張り直しは利用者にとって何も起きていないので通知しない。
+		// 出すとリロード / ダイアログ / バナーがアプリを前面に戻すたびに走る。
+		if (this.intentionalReconnect) {
+			this.armReconnectGrace();
+			return;
 		}
+
+		this.emit('_disconnected_');
+	}
+
+	// 猶予を過ぎても繋がらなければ、意図的な張り直しでも通常の切断として通知する。
+	private armReconnectGrace(): void {
+		this.clearReconnectGrace();
+		this.reconnectGraceTimer = setTimeout(() => {
+			this.reconnectGraceTimer = null;
+			if (this.state === 'connected') return;
+			this.intentionalReconnect = false;
+			this.emit('_disconnected_');
+		}, intentionalReconnectGrace);
+	}
+
+	private clearReconnectGrace(): void {
+		if (this.reconnectGraceTimer == null) return;
+		clearTimeout(this.reconnectGraceTimer);
+		this.reconnectGraceTimer = null;
 	}
 
 	/**
@@ -221,9 +264,44 @@ export default class Stream extends EventEmitter<StreamEvents> implements IStrea
 	}
 
 	/**
+	 * Replace the current connection with a fresh one, even when it still
+	 * looks open.
+	 *
+	 * A socket that died while the device was suspended can stay in the OPEN
+	 * state without ever firing `close`, in which case the underlying
+	 * reconnection logic never runs and the stream goes silent. Callers with
+	 * reason to distrust the current connection (returning from the
+	 * background, for instance) use this to replace it unconditionally.
+	 *
+	 * The disconnection is not surfaced through `_disconnected_` unless the
+	 * replacement fails to connect within the grace period.
+	 */
+	public reconnect(): void {
+		this.intentionalReconnect = true;
+
+		// **自分で閉じる。** ReconnectingWebSocket の reconnect() が close を
+		// 配送するのは readyState が OPEN のときだけで、CLOSED / ソケット未生成
+		// なら黙って繋ぎ直す。しかも直後の _connect() が _removeListeners() を
+		// 呼ぶので、キューに積まれたまま未配送だった close も捨てられる。
+		//
+		// これは例外的な状態ではない。WebSocket は閉じる時点で readyState を
+		// CLOSED にし、close イベントはタスクとしてキューするので、frozen な
+		// ページでは「CLOSED だが close は未配送」がバックグラウンド滞在中ずっと
+		// 続く。復帰時に visibilitychange とそのタスクのどちらが先かは規定が無い。
+		//
+		// 埋めずに放置すると onClose が走らず state が 'connected' のまま残り、
+		// 再購読も Pool のリセットも起きない (= 直しに来た症状の再現)。
+		// onClose は state を見るので、RWS が close を配送しても二重にならない。
+		this.onClose();
+
+		this.stream.reconnect();
+	}
+
+	/**
 	 * Close this connection
 	 */
 	public close(): void {
+		this.clearReconnectGrace();
 		this.stream.close();
 	}
 }
@@ -239,7 +317,6 @@ class Pool {
 	private isConnected = false;
 
 	constructor(stream: Stream, channel: string, id: string) {
-		this.onStreamDisconnected = this.onStreamDisconnected.bind(this);
 		this.inc = this.inc.bind(this);
 		this.dec = this.dec.bind(this);
 		this.connect = this.connect.bind(this);
@@ -248,11 +325,17 @@ class Pool {
 		this.channel = channel;
 		this.stream = stream;
 		this.id = id;
-
-		this.stream.on('_disconnected_', this.onStreamDisconnected);
 	}
 
-	private onStreamDisconnected(): void {
+	/**
+	 * Called by {@link Stream} when the underlying connection drops, so that
+	 * the next open re-sends this channel's subscription.
+	 *
+	 * `_disconnected_` の購読ではなく Stream からの直接呼び出しにしてある。
+	 * 意図的な張り直しでは通知を抑止するので、購読に頼ると道連れで
+	 * リセットが飛び、再購読が素通りする。
+	 */
+	public markDisconnected(): void {
 		this.isConnected = false;
 	}
 
@@ -293,7 +376,6 @@ class Pool {
 	}
 
 	private disconnect(): void {
-		this.stream.off('_disconnected_', this.onStreamDisconnected);
 		this.stream.send('disconnect', { id: this.id });
 		this.stream.removeSharedConnectionPool(this);
 	}
