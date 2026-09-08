@@ -190,7 +190,10 @@ async function menu(ev: PointerEvent) {
 			text: i18n.ts.import,
 			icon: 'ti ti-plus',
 			action: () => {
-				importRemoteEmoji(emojiName.value);
+				// リアクションの `emojiName` は `name@host` 形式。
+				const at = emojiName.value.lastIndexOf('@');
+				if (at <= 0) return;
+				importRemoteEmoji(emojiName.value.slice(0, at), emojiName.value.slice(at + 1));
 			},
 		});
 	}

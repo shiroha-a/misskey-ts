@@ -8,22 +8,7 @@ import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { i18n } from '@/i18n.js';
 
-/**
- * mk-go: リモート絵文字をその場からインポートする (#2698)。
- *
- * 投稿本文中の絵文字とリアクションの**両方**から呼ぶので、ここに集約する。
- * CherryPick は本文からはモーダルを出し、リアクションからは endpoint を直接
- * 叩いていて挙動が揃っていない。そこは踏襲しない。
- *
- * **ここでは id と画像 URL の解決だけを行う。** 右クリックから呼ぶとき、
- * frontend が持っているのは `name@host` だけで emoji の id を知らない。既存の
- * 管理画面からの呼び出しは emoji オブジェクトを持っているので、モーダルの props は
- * そちらに揃えてある。メタデータの取得はモーダル側が `emojiId` で行う。
- *
- * `nameWithHost` は `foo@example.com` 形式 (前後のコロンは含まない)。ローカル
- * 絵文字は呼び出し側で除外すること。
- */
-type RemoteEmojiMeta = {
+export type RemoteEmojiMeta = {
 	fetched: boolean;
 	reason?: 'unsupported' | 'notFound' | 'error';
 	emojiId: string;
@@ -42,18 +27,32 @@ function api<T>(endpoint: string, params: Record<string, unknown> = {}): Promise
 	return misskeyApi(endpoint as never, params as never) as unknown as Promise<T>;
 }
 
-export async function importRemoteEmoji(nameWithHost: string): Promise<void> {
-	const at = nameWithHost.lastIndexOf('@');
-	if (at <= 0) return;
-	const name = nameWithHost.slice(0, at);
-	const host = nameWithHost.slice(at + 1);
-	if (name === '' || host === '' || host === '.') return;
+/**
+ * mk-go: リモート絵文字をその場からインポートする (#2698)。
+ *
+ * 投稿本文中の絵文字とリアクションの**両方**から呼ぶので、ここに集約する。
+ * CherryPick は本文からはモーダルを出し、リアクションからは endpoint を直接
+ * 叩いていて挙動が揃っていない。そこは踏襲しない。
+ *
+ * **`name` と `host` を別々に受ける。** `MkCustomEmoji` は
+ * `name`（ホスト無しの裸の名前）と `host` を別の prop で受け取るので、
+ * `name@host` の形をここで組み立てさせると呼び出し側が壊れる。
+ *
+ * **取得はここで 1 回だけ行い、結果をモーダルへ渡す。** モーダル側でも取ると
+ * 1 回のインポートで相手へ 2 リクエスト出ることになる。
+ */
+export async function importRemoteEmoji(name: string, host: string | null | undefined): Promise<void> {
+	if (name === '' || host == null || host === '' || host === '.') return;
+	// `MkCustomEmoji` は `name` に `@host` を含めないが、リアクション側の
+	// `getEmojiNameFromReaction` は `name@host` を返す。両方を受けられるようにする。
+	const bare = name.includes('@') ? name.slice(0, name.lastIndexOf('@')) : name;
+	if (bare === '') return;
 
 	// **取得に失敗しても id と画像 URL は返る**ので、そのままモーダルを開いて
 	// 手で埋めてもらう。ここで弾くと「取り込めない絵文字」ができてしまう。
 	let res: RemoteEmojiMeta;
 	try {
-		res = await api<RemoteEmojiMeta>('admin/emoji/fetch-remote-meta', { name, host });
+		res = await api<RemoteEmojiMeta>('admin/emoji/fetch-remote-meta', { name: bare, host });
 	} catch {
 		os.alert({ type: 'error', text: i18n.ts.somethingHappened });
 		return;
@@ -67,6 +66,7 @@ export async function importRemoteEmoji(nameWithHost: string): Promise<void> {
 			license: res.license ?? null,
 			url: res.originalUrl,
 		},
+		meta: res,
 	}, {
 		closed: () => dispose(),
 	});

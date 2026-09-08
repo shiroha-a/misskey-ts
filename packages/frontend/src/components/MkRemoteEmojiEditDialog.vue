@@ -48,10 +48,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 					本番の実測では、リモート絵文字 19,129 件のうちそれらは 1 件も
 					連合で入っていなかった。
 				-->
-				<MkInfo v-if="fetchState === 'fetching'">{{ i18n.ts.fetchingAsApObject }}</MkInfo>
-				<MkInfo v-else-if="fetchState === 'unsupported'" warn>{{ i18n.ts._remoteEmojiImport.unsupported }}</MkInfo>
+				<MkInfo v-if="fetchState === 'unsupported'" warn>{{ i18n.ts._remoteEmojiImport.unsupported }}</MkInfo>
 				<MkInfo v-else-if="fetchState === 'failed'" warn>{{ i18n.ts._remoteEmojiImport.fetchFailed }}</MkInfo>
 
+				<!--
+					**編集フォームはインポート導線のときだけ出す。** 管理画面の「詳細」は
+					従来「見て copy するだけ」の経路で、そこにフォームを出すと初期値が
+					空のまま Import されて既存のカテゴリ・エイリアスが消える
+					(この props は id / name / host / license / url しか持たない)。
+				-->
+				<template v-if="editable">
 				<MkInput v-model="category">
 					<template #label>{{ i18n.ts.category }}</template>
 				</MkInput>
@@ -63,10 +69,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<template #label>{{ i18n.ts.license }}</template>
 				</MkTextarea>
 				<MkSwitch v-model="isSensitive">{{ i18n.ts.markAsSensitive }}</MkSwitch>
+				</template>
+
+				<MkKeyValue v-else>
+					<template #key>{{ i18n.ts.license }}</template>
+					<template #value>{{ license }}</template>
+				</MkKeyValue>
 			</div>
 		</div>
 		<div :class="$style.footer">
-			<MkButton primary rounded style="margin: 0 auto;" :disabled="fetchState === 'fetching'" @click="done">
+			<MkButton primary rounded style="margin: 0 auto;" @click="done">
 				<i class="ti ti-plus"></i> {{ i18n.ts.import }}
 			</MkButton>
 		</div>
@@ -75,7 +87,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import MkKeyValue from '@/components/MkKeyValue.vue';
 import MkButton from '@/components/MkButton.vue';
 import MkInfo from '@/components/MkInfo.vue';
@@ -86,7 +98,7 @@ import MkWindow from '@/components/MkWindow.vue';
 import { emptyStrToEmptyArray } from '@/pages/admin/custom-emojis-manager.impl.js';
 import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
-import { misskeyApi } from '@/utility/misskey-api.js';
+import type { RemoteEmojiMeta } from '@/utility/import-remote-emoji.js';
 
 const props = defineProps<{
 	emoji: {
@@ -96,6 +108,15 @@ const props = defineProps<{
 		license: string | null,
 		url: string
 	},
+	/**
+	 * mk-go: 取得済みのリモートメタデータ (#2698)。
+	 *
+	 * **渡されなければ取りに行かない。** 管理画面の「詳細」からもこのモーダルを
+	 * 開くので、ここで自動取得すると**見るだけのつもりの操作が相手サーバーへの
+	 * リクエストになる** (一覧で何行も開けばその数だけ出ていく)。取得はインポート
+	 * 導線 (`importRemoteEmoji`) 側で 1 回だけ行い、結果をここへ渡す。
+	 */
+	meta?: RemoteEmojiMeta | null,
 }>();
 
 const emit = defineEmits<{
@@ -119,47 +140,40 @@ const isSensitive = ref(false);
 
 // 取得の状態。`unsupported` は相手に per-name endpoint が無い場合 (Mastodon 系)。
 // **失敗を異常として扱わない** — 手で埋めれば取り込めるので、理由を出して続行させる。
-const fetchState = ref<'fetching' | 'done' | 'unsupported' | 'failed'>('fetching');
+// `none` は取得を伴わない経路 (管理画面の「詳細」) で、案内も出さない。
+// 取得結果を渡された経路 (= インポート導線) でだけ編集させる。
+const editable = computed(() => props.meta != null);
 
-onMounted(async () => {
-	try {
-		// mk-go 独自のエンドポイントなので misskey-js の型集合には無い。
-		// signup-applications.vue と同じ理由の cast。
-		const res = await (misskeyApi('admin/emoji/fetch-remote-meta' as never, { emojiId: props.emoji.id } as never) as unknown as Promise<{
-			fetched: boolean;
-			reason?: string;
-			category?: string;
-			aliases?: string[];
-			license?: string;
-			isSensitive?: boolean;
-		}>);
-		if (!res.fetched) {
-			fetchState.value = res.reason === 'unsupported' ? 'unsupported' : 'failed';
-			return;
-		}
-		// **返ってきたキーだけを反映する。** 取れなかった項目はキーごと無いので、
-		// ここで既存値 (license など) を消さない。
-		if (res.category != null) category.value = res.category;
-		if (res.aliases != null) aliases.value = res.aliases.join(' ');
-		if (res.license != null) license.value = res.license;
-		if (res.isSensitive != null) isSensitive.value = res.isSensitive;
-		fetchState.value = 'done';
-	} catch {
-		fetchState.value = 'failed';
-	}
+const fetchState = computed<'none' | 'done' | 'unsupported' | 'failed'>(() => {
+	if (props.meta == null) return 'none';
+	if (props.meta.fetched) return 'done';
+	return props.meta.reason === 'unsupported' ? 'unsupported' : 'failed';
 });
+
+// **返ってきたキーだけを反映する。** 取れなかった項目はキーごと無いので、
+// ここで既存値 (license など) を消さない。
+if (props.meta?.fetched) {
+	if (props.meta.category != null) category.value = props.meta.category;
+	if (props.meta.aliases != null) aliases.value = props.meta.aliases.join(' ');
+	if (props.meta.license != null) license.value = props.meta.license;
+	if (props.meta.isSensitive != null) isSensitive.value = props.meta.isSensitive;
+}
 
 async function done() {
 	// **上書き項目は mk-go が足した additive パラメータ** (#2698) なので、
 	// misskey-js の autogen 型 (`{ emojiId: string }`) には無い。upstream の
 	// paramDef は emojiId のみ必須で、足しても既存の呼び出しは通る。
-	await os.apiWithDialog('admin/emoji/copy' as never, {
-		emojiId: props.emoji.id,
-		category: category.value,
-		aliases: emptyStrToEmptyArray(aliases.value),
-		license: license.value,
-		isSensitive: isSensitive.value,
-	} as never);
+	// **編集していない経路では上書きを送らない。** 送ると src の値が空で
+	// 潰れる (この props は category / aliases / isSensitive を持たないため、
+	// フォームの初期値が空になる)。
+	const params: Record<string, unknown> = { emojiId: props.emoji.id };
+	if (editable.value) {
+		params.category = category.value;
+		params.aliases = emptyStrToEmptyArray(aliases.value);
+		params.license = license.value;
+		params.isSensitive = isSensitive.value;
+	}
+	await os.apiWithDialog('admin/emoji/copy' as never, params as never);
 
 	emit('done');
 	windowEl.value?.close();

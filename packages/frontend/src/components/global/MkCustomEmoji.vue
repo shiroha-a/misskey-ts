@@ -162,7 +162,10 @@ function onClick(ev: PointerEvent) {
 				text: i18n.ts.import,
 				icon: 'ti ti-plus',
 				action: () => {
-					importRemoteEmoji(customEmojiName.value);
+					// **`name` と `host` は別の prop。** `customEmojiName` は
+					// ホスト無しの裸の名前なので、ここで `name@host` を組もうとすると
+					// 何も起きない (`MkMfm` は host を別に渡す)。
+					importRemoteEmoji(customEmojiName.value, props.host);
 				},
 			});
 		}
