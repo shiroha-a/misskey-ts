@@ -7,7 +7,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 <div ref="rootEl" :class="$style.root" role="group" :aria-expanded="opened">
 	<MkStickyContainer>
 		<template #header>
-			<button :class="[$style.header, { [$style.opened]: opened, [$style.static]: !props.canCollapse }]" class="_button" role="button" data-testid="folder-header" @click="onHeaderClick">
+			<!--
+				畳めないときは見出しごと出さない (mk-go, #2868)。開閉するための
+				ものなので、畳めない状態では chevron も見出しも役に立たない。
+				通報の 1 件表示では、見出しが持つ情報 (対象 / 通報者 / コメント /
+				日時) が本体にすべて出るので丸ごと重複していた。
+			-->
+			<button v-if="props.canCollapse" :class="[$style.header, { [$style.opened]: opened }]" class="_button" role="button" data-testid="folder-header" @click="toggle">
 				<div :class="$style.headerIcon"><slot name="icon"></slot></div>
 				<div :class="$style.headerText">
 					<div :class="$style.headerTextMain">
@@ -19,11 +25,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</div>
 				<div :class="$style.headerRight">
 					<span :class="$style.headerRightText"><slot name="suffix"></slot></span>
-					<template v-if="props.canCollapse">
-						<i v-if="asPage" class="ti ti-chevron-right icon"></i>
-						<i v-else-if="opened" class="ti ti-chevron-up icon"></i>
-						<i v-else class="ti ti-chevron-down icon"></i>
-					</template>
+					<i v-if="asPage" class="ti ti-chevron-right icon"></i>
+					<i v-else-if="opened" class="ti ti-chevron-up icon"></i>
+					<i v-else class="ti ti-chevron-down icon"></i>
 				</div>
 			</button>
 		</template>
@@ -116,8 +120,9 @@ const props = withDefaults(defineProps<{
 	/**
 	 * Allow the user to collapse this folder (mk-go, #2868).
 	 *
-	 * false にすると常に開いたままになり、ヘッダのクリックと chevron が
-	 * 消える。**1 件だけを表示する画面で折りたたむ意味が無い**ときに使う。
+	 * false にすると見出し (ラベル / caption / suffix / chevron) を出さず、
+	 * 常に開いた状態で中身だけを描画する。**1 件だけを表示する画面**では
+	 * 折りたたむ意味が無く、見出しの情報も本体と重複する。
 	 */
 	canCollapse?: boolean;
 }>(), {
@@ -182,11 +187,6 @@ function afterLeave(el: Element) {
 let pageId = pageFolderTeleportCount.value;
 pageFolderTeleportCount.value += 1000;
 
-function onHeaderClick(ev: PointerEvent) {
-	if (!props.canCollapse) return;
-	void toggle(ev);
-}
-
 async function toggle(ev: PointerEvent) {
 	if (asPage && !opened.value) {
 		pageId++;
@@ -250,15 +250,6 @@ watch(opened, (isOpened) => {
 
 .root {
 	display: block;
-}
-
-/* 畳めないときはクリックできる見た目にしない (mk-go, #2868)。 */
-.static {
-	cursor: default;
-
-	&:hover, &:active {
-		background: none;
-	}
 }
 
 .header {
