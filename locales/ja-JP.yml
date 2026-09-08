@@ -3670,6 +3670,13 @@ _signatureCapability:
   inboundObservedAt: "受信した署名"
   ldSignatureSeenAt: "LD-Signatureの受信"
 
+_mkgoRolePolicy:
+  canUseChunkedUpload: "分割アップロードを許可"
+  canUseChunkedUpload_caption: "大きなファイルを分割して送る方式を、このロールのメンバーに許可します。サーバー全体の設定 (コントロールパネル → ファイル) が無効なら、ここで許可しても使えません。"
+  chunkedUploadMaxConcurrentSessions: "分割アップロードの同時セッション数"
+  chunkedUploadMaxPendingMb: "分割アップロードの保留容量"
+  chunkedUploadLimits_caption: "サーバー全体の設定が上限になります。ここに大きい値を入れても、サーバー設定を超えることはできません。0 は無制限です。"
+
 _mkgoNotification:
   abuseReport: "通報がありました"
   abuseReportFrom: "{name}さんから通報がありました"

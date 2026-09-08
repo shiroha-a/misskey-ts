@@ -13692,6 +13692,28 @@ export interface Locale extends ILocale {
          */
         "ldSignatureSeenAt": string;
     };
+    "_mkgoRolePolicy": {
+        /**
+         * 分割アップロードを許可
+         */
+        "canUseChunkedUpload": string;
+        /**
+         * 大きなファイルを分割して送る方式を、このロールのメンバーに許可します。サーバー全体の設定 (コントロールパネル → ファイル) が無効なら、ここで許可しても使えません。
+         */
+        "canUseChunkedUpload_caption": string;
+        /**
+         * 分割アップロードの同時セッション数
+         */
+        "chunkedUploadMaxConcurrentSessions": string;
+        /**
+         * 分割アップロードの保留容量
+         */
+        "chunkedUploadMaxPendingMb": string;
+        /**
+         * サーバー全体の設定が上限になります。ここに大きい値を入れても、サーバー設定を超えることはできません。0 は無制限です。
+         */
+        "chunkedUploadLimits_caption": string;
+    };
     "_mkgoNotification": {
         /**
          * 通報がありました

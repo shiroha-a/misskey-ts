@@ -213,6 +213,38 @@ SPDX-License-Identifier: AGPL-3.0-only
 			複数のロールに属している利用者は全ロールで切られている種類だけが届かなくなる
 			(他の policy と同じく緩い方に倒す)。
 		-->
+		<!-- 分割アップロード (#2313) の policy (#2900)。mk-go 独自。 -->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canUseChunkedUpload, 'canUseChunkedUpload'])" v-model:policyMeta="canUseChunkedUploadMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload }}</template>
+			<template #valueText>{{ canUseChunkedUpload ? i18n.ts.yes : i18n.ts.no }}</template>
+			<template #default="{ disabled }">
+				<MkSwitch v-model="canUseChunkedUpload" :disabled="disabled">
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload_caption }}</template>
+				</MkSwitch>
+			</template>
+		</XFolder>
+
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.chunkedUploadMaxConcurrentSessions, 'chunkedUploadMaxConcurrentSessions'])" v-model:policyMeta="chunkedUploadMaxConcurrentSessionsMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.chunkedUploadMaxConcurrentSessions }}</template>
+			<template #valueText>{{ chunkedUploadMaxConcurrentSessions }}</template>
+			<template #default="{ disabled }">
+				<MkInput v-model="chunkedUploadMaxConcurrentSessions" type="number" :min="0" :disabled="disabled">
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.chunkedUploadLimits_caption }}</template>
+				</MkInput>
+			</template>
+		</XFolder>
+
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.chunkedUploadMaxPendingMb, 'chunkedUploadMaxPendingMb'])" v-model:policyMeta="chunkedUploadMaxPendingMbMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.chunkedUploadMaxPendingMb }}</template>
+			<template #valueText>{{ chunkedUploadMaxPendingMb }}MB</template>
+			<template #default="{ disabled }">
+				<MkInput v-model="chunkedUploadMaxPendingMb" type="number" :min="0" :disabled="disabled">
+					<template #suffix>MB</template>
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.chunkedUploadLimits_caption }}</template>
+				</MkInput>
+			</template>
+		</XFolder>
+
 		<XFolder v-if="matchQuery([i18n.ts._mkgoNotification.optOutNotificationTypes, 'optOutNotificationTypes'])" v-model:policyMeta="optOutPolicyMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoNotification.optOutNotificationTypes }}</template>
 			<template #valueText>{{ optOutTypes.length === 0 ? i18n.ts.none : optOutTypes.length }}</template>
@@ -498,7 +530,13 @@ watch(() => props.rolePolicies, () => {
  *
  * roles.editor.vue の同名の一覧と対になっている。片方だけ直すと同じ症状が残る。
  */
-const mkGoPolicyMetaKeys: string[] = [...Misskey.rolePolicies, 'optOutNotificationTypes'];
+const mkGoPolicyMetaKeys: string[] = [
+	...Misskey.rolePolicies,
+	'optOutNotificationTypes',
+	'canUseChunkedUpload',
+	'chunkedUploadMaxConcurrentSessions',
+	'chunkedUploadMaxPendingMb',
+];
 
 function setPolicyMeta(incoming: Partial<PolicyMetaRecord> | undefined): PolicyMetaRecord {
 	const meta = {} as Record<string, PolicyMeta>;
@@ -521,22 +559,51 @@ watch(() => props.policiesMeta, () => {
 }, { deep: true });
 
 /**
- * mk-go 独自 policy は misskey-js の autogen 型に無いので、ここで受ける (#2898)。
+ * mk-go 独自 policy の値を読み書きする (#2898 / #2900)。
  *
  * **autogen を書き換えない。** あちらは openapi から再生成されるので、足しても
  * 次の生成で消える。mk-go 独自 endpoint を `as never` で呼ぶのと同じ扱い。
+ *
+ * キーが増えるたびに computed を手書きすると、キャストが散らばって片側だけ
+ * 直す形の穴ができる。読み書きはここに閉じ込める。
  */
+function mkGoPolicyValue<T>(key: string, fallback: T) {
+	return computed<T>({
+		get: () => {
+			const v = (valuesModel.value as unknown as Record<string, unknown>)[key];
+			return (v === undefined || v === null ? fallback : v) as T;
+		},
+		set: (v) => {
+			(valuesModel.value as unknown as Record<string, unknown>)[key] = v;
+		},
+	});
+}
+
+/** mk-go 独自 policy の meta (useDefault / priority) を読み書きする。 */
+function mkGoPolicyMeta(key: string) {
+	return computed<PolicyMeta>({
+		get: () => (policyMetaModel.value as unknown as Record<string, PolicyMeta | undefined>)[key] ?? { useDefault: true, priority: 0 },
+		set: (v) => {
+			(policyMetaModel.value as unknown as Record<string, PolicyMeta | undefined>)[key] = v;
+		},
+	});
+}
+
 const optOutTypes = computed<string[]>(() => {
 	const v = (valuesModel.value as unknown as Record<string, unknown>).optOutNotificationTypes;
 	return Array.isArray(v) ? v as string[] : [];
 });
 
-const optOutPolicyMeta = computed<PolicyMeta>({
-	get: () => (policyMetaModel.value as unknown as Record<string, PolicyMeta | undefined>).optOutNotificationTypes ?? { useDefault: true, priority: 0 },
-	set: (v) => {
-		(policyMetaModel.value as unknown as Record<string, PolicyMeta | undefined>).optOutNotificationTypes = v;
-	},
-});
+const optOutPolicyMeta = mkGoPolicyMeta('optOutNotificationTypes');
+
+// 分割アップロード (#2313) の policy (#2900)。既定は backend の
+// internal/effectivepolicy/validation.go と揃える。
+const canUseChunkedUpload = mkGoPolicyValue('canUseChunkedUpload', true);
+const canUseChunkedUploadMeta = mkGoPolicyMeta('canUseChunkedUpload');
+const chunkedUploadMaxConcurrentSessions = mkGoPolicyValue('chunkedUploadMaxConcurrentSessions', 4);
+const chunkedUploadMaxConcurrentSessionsMeta = mkGoPolicyMeta('chunkedUploadMaxConcurrentSessions');
+const chunkedUploadMaxPendingMb = mkGoPolicyValue('chunkedUploadMaxPendingMb', 1024);
+const chunkedUploadMaxPendingMbMeta = mkGoPolicyMeta('chunkedUploadMaxPendingMb');
 
 /**
  * Add or remove one notification type from the opt-out list (#2898).

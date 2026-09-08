@@ -136,7 +136,13 @@ const props = defineProps<{
  * `instance.policies` は `/api/meta` 由来で固有キーも持つので、既定値の
  * 引き当てはそのまま通る。
  */
-const mkGoRolePolicyKeys: string[] = [...Misskey.rolePolicies, 'optOutNotificationTypes'];
+const mkGoRolePolicyKeys: string[] = [
+	...Misskey.rolePolicies,
+	'optOutNotificationTypes',
+	'canUseChunkedUpload',
+	'chunkedUploadMaxConcurrentSessions',
+	'chunkedUploadMaxPendingMb',
+];
 
 const role = ref((() => {
 	const base = deepClone(props.modelValue);
