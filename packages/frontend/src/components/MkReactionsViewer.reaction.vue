@@ -163,8 +163,6 @@ async function toggleReaction() {
 async function menu(ev: PointerEvent) {
 	let menuItems: MenuItem[] = [];
 
-
-
 	if (isLocalCustomEmoji.value) {
 		menuItems.push({
 			text: i18n.ts.info,
