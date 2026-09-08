@@ -45,7 +45,7 @@ import { customEmojisMap } from '@/custom-emojis.js';
 import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
-import { importRemoteEmoji } from '@/utility/import-remote-emoji.js';
+import { importRemoteEmoji, hasLocalEmojiWithSameName } from '@/utility/import-remote-emoji.js';
 import { i18n } from '@/i18n.js';
 import MkCustomEmojiDetailedDialog from '@/components/MkCustomEmojiDetailedDialog.vue';
 import { $i } from '@/i.js';
@@ -159,7 +159,7 @@ function onClick(ev: PointerEvent) {
 		// **同名のローカル絵文字が既にあるときも出さない (#2903)。** 押しても
 		// admin/emoji/copy が重複で弾くだけで、押してみるまで分からなかった。
 		// customEmojisMap は裸の名前がキー。
-		if (!isLocal.value && !customEmojisMap.has(customEmojiName.value) && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
+		if (!isLocal.value && !hasLocalEmojiWithSameName(customEmojiName.value) && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
 			menuItems.push({
 				type: 'divider',
 			}, {

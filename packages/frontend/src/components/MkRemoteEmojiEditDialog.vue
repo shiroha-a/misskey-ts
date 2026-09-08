@@ -108,7 +108,9 @@ const props = defineProps<{
 		name: string,
 		host: string,
 		license: string | null,
-		url: string
+		// **null を取りうる。** backend は emojiRepo 未配線のとき originalUrl
+		// キー自体を返さない (emoji_remote_meta.go)。
+		url: string | null
 	},
 	/**
 	 * mk-go: 取得済みのリモートメタデータ (#2698)。
@@ -143,7 +145,10 @@ const host = computed(() => props.emoji.host);
  */
 const imgUrl = computed(() => {
 	if (props.emoji.url == null) return null;
-	const proxied = getProxiedImageUrl(props.emoji.url, 'emoji', false, true);
+	// **noFallback は渡さない。** MkCustomEmoji は @error で `:name:` に落とすが、
+	// このモーダルには受け皿が無く、allowlist が 403 を返すと 4 タイルすべてが
+	// 壊れ画像アイコンになって理由も出ない。プロキシ側の fallback に任せる。
+	const proxied = getProxiedImageUrl(props.emoji.url, 'emoji');
 	return prefer.s.disableShowingAnimatedImages ? getStaticImageUrl(proxied) : proxied;
 });
 

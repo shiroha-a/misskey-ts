@@ -26,7 +26,7 @@ import MkCustomEmojiDetailedDialog from './MkCustomEmojiDetailedDialog.vue';
 import type { MenuItem } from '@/types/menu';
 import XDetails from '@/components/MkReactionsViewer.details.vue';
 import MkReactionIcon from '@/components/MkReactionIcon.vue';
-import { importRemoteEmoji } from '@/utility/import-remote-emoji.js';
+import { importRemoteEmoji, hasLocalEmojiWithSameName } from '@/utility/import-remote-emoji.js';
 import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { useTooltip } from '@/composables/use-tooltip.js';
@@ -163,11 +163,7 @@ async function toggleReaction() {
 async function menu(ev: PointerEvent) {
 	let menuItems: MenuItem[] = [];
 
-	// 同名のローカル絵文字が既にあるか (#2903)。リアクションの emojiName は
-	// `name@host` 形式で、customEmojisMap は裸の名前がキーなので host を落とす。
-	const atPos = emojiName.value.lastIndexOf('@');
-	const bareName = atPos > 0 ? emojiName.value.slice(0, atPos) : emojiName.value;
-	const hasSameNameLocalEmoji = bareName !== '' && customEmojisMap.has(bareName);
+
 
 	if (isLocalCustomEmoji.value) {
 		menuItems.push({
@@ -191,7 +187,7 @@ async function menu(ev: PointerEvent) {
 	//
 	// リモートのカスタム絵文字は `:name@host:` の形。ローカルは `@.` を含む
 	// (`isLocalCustomEmojiReaction`)。Unicode 絵文字はコロンで始まらない。
-	if (props.reaction.startsWith(':') && !isLocalCustomEmoji.value && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
+	if (props.reaction.startsWith(':') && !isLocalCustomEmoji.value && !hasLocalEmojiWithSameName(emojiName.value) && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
 		menuItems.push({
 			text: i18n.ts.import,
 			icon: 'ti ti-plus',
