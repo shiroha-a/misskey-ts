@@ -31,6 +31,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				[$style.t_createToken]: notification.type === 'createToken',
 				[$style.t_chatRoomInvitationReceived]: notification.type === 'chatRoomInvitationReceived',
 				[$style.t_roleAssigned]: notification.type === 'roleAssigned' && notification.role.iconUrl == null,
+				[$style.t_abuseReport]: isMkGoType(notification, 'abuseReport'),
 			}]"
 		>
 			<i v-if="notification.type === 'follow'" class="ti ti-plus"></i>
@@ -48,6 +49,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<i v-else-if="notification.type === 'login'" class="ti ti-login-2"></i>
 			<i v-else-if="notification.type === 'createToken'" class="ti ti-key"></i>
 			<i v-else-if="notification.type === 'chatRoomInvitationReceived'" class="ti ti-messages"></i>
+			<!-- mk-go 固有 (#2868)。upstream は通報を通知欄に出さない。 -->
+			<i v-else-if="isMkGoType(notification, 'abuseReport')" class="ti ti-exclamation-circle"></i>
 			<template v-else-if="notification.type === 'roleAssigned'">
 				<img v-if="notification.role.iconUrl" style="height: 1.3em; vertical-align: -22%;" :src="notification.role.iconUrl" alt=""/>
 				<i v-else class="ti ti-badges"></i>
@@ -79,6 +82,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<span v-else-if="notification.type === 'reaction:grouped'">{{ i18n.tsx._notification.reactedBySomeUsers({ n: getActualReactedUsersCount(notification) }) }}</span>
 			<span v-else-if="notification.type === 'renote:grouped'">{{ i18n.tsx._notification.renotedBySomeUsers({ n: notification.users.length }) }}</span>
 			<span v-else-if="notification.type === 'app'">{{ notification.header }}</span>
+			<span v-else-if="isMkGoType(notification, 'abuseReport')">{{ i18n.ts._mkgoNotification.abuseReport }}</span>
+			<!--
+				**未知の型の受け皿 (#2898)。** ここが無いと、mk-go 固有の通知や
+				upstream が後から足した型がヘッダも本文も空で描画される
+				(pollVote が実際にそうなっていた)。型名だけでも出しておけば、
+				何が届いたのか分かる。
+			-->
+			<span v-else>{{ i18n.tsx._mkgoNotification.unknownType({ type: mkGoTypeName(notification) }) }}</span>
 			<MkTime v-if="withTime" :time="notification.createdAt" :class="$style.headerTime"/>
 		</header>
 		<div>
@@ -151,6 +162,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<span v-else-if="notification.type === 'app'" :class="$style.text">
 				<Mfm :text="notification.body" :nowrap="false"/>
 			</span>
+			<!--
+				通報 (#2868)。本文をそのまま出し、管理画面の該当通報へ飛べるように
+				する。**リンクが要点** — 通知欄で本文だけ見えても、対処するには
+				結局どの通報かを探すことになる。
+			-->
+			<MkA v-else-if="isMkGoType(notification, 'abuseReport')" :class="$style.text" :to="`/admin/abuses?reportId=${mkGoExtra(notification, 'reportId')}`" :title="i18n.ts._mkgoNotification.openModeration">
+				<i class="ti ti-quote" :class="$style.quote"></i>
+				{{ mkGoExtra(notification, 'comment') }}
+				<i class="ti ti-quote" :class="$style.quote"></i>
+			</MkA>
 
 			<div v-if="notification.type === 'reaction:grouped'">
 				<div v-for="reaction of notification.reactions" :key="reaction.user.id + reaction.reaction" :class="$style.reactionsItem">
@@ -231,6 +252,41 @@ const rejectFollowRequest = () => {
 function getActualReactedUsersCount(notification: Misskey.entities.Notification) {
 	if (notification.type !== 'reaction:grouped') return 0;
 	return new Set(notification.reactions.map((reaction) => reaction.user.id)).size;
+}
+
+/**
+ * mk-go 固有の通知タイプを判定する (#2898)。
+ *
+ * misskey-js の autogen 型は upstream の通知タイプしか知らないので、
+ * `notification.type === 'abuseReport'` と直接書くと型エラーになる。
+ * 実行時は素の文字列比較で足りるため、ここで 1 箇所に閉じ込める
+ * (mk-go 独自 endpoint を `as never` で呼ぶのと同じ理由)。
+ */
+function isMkGoType(notification: Misskey.entities.Notification, type: string): boolean {
+	return (notification as { type: string }).type === type;
+}
+
+/**
+ * Return a notification's raw type name.
+ *
+ * 全ての既知タイプを分岐で尽くした後の v-else では、autogen 型の narrowing で
+ * `notification` が `never` になり `notification.type` が読めない。実行時には
+ * 値が入っているので、型を外して読む。
+ */
+function mkGoTypeName(notification: Misskey.entities.Notification): string {
+	return (notification as unknown as { type: string }).type;
+}
+
+/**
+ * Read one field out of a mk-go specific notification's extra payload.
+ *
+ * mk-go は固有の通知の付随データを notification 直下へ spread する
+ * (entity 側の Extra spread)。autogen 型には無いのでここで受ける。
+ * 値が無い / 文字列でないときは空文字を返し、テンプレート側を壊さない。
+ */
+function mkGoExtra(notification: Misskey.entities.Notification, key: string): string {
+	const v = (notification as unknown as Record<string, unknown>)[key];
+	return typeof v === 'string' ? v : '';
 }
 </script>
 
@@ -376,6 +432,13 @@ function getActualReactedUsersCount(notification: Misskey.entities.Notification)
 
 .t_roleAssigned {
 	background: var(--eventOther);
+	pointer-events: none;
+}
+
+/* 通報 (#2868)。既存の警告系と同じ色を使う。 */
+.t_abuseReport {
+	padding: 3px;
+	background: var(--MI_THEME-warn);
 	pointer-events: none;
 }
 

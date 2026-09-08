@@ -13692,6 +13692,32 @@ export interface Locale extends ILocale {
          */
         "ldSignatureSeenAt": string;
     };
+    "_mkgoNotification": {
+        /**
+         * 新しい通報
+         */
+        "abuseReport": string;
+        /**
+         * {name} への通報
+         */
+        "abuseReportAgainst": ParameterizedString<"name">;
+        /**
+         * 管理画面で確認
+         */
+        "openModeration": string;
+        /**
+         * 通知 ({type})
+         */
+        "unknownType": ParameterizedString<"type">;
+        /**
+         * 受け取らない通知
+         */
+        "optOutNotificationTypes": string;
+        /**
+         * このロールのメンバーが受け取らない通知の種類。複数のロールに属している場合は、すべてのロールで切られている種類だけが届かなくなります。
+         */
+        "optOutNotificationTypes_caption": string;
+    };
     "_mkgoUnsupported": {
         /**
          * mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。

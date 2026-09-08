@@ -3670,6 +3670,14 @@ _signatureCapability:
   inboundObservedAt: "受信した署名"
   ldSignatureSeenAt: "LD-Signatureの受信"
 
+_mkgoNotification:
+  abuseReport: "新しい通報"
+  abuseReportAgainst: "{name} への通報"
+  openModeration: "管理画面で確認"
+  unknownType: "通知 ({type})"
+  optOutNotificationTypes: "受け取らない通知"
+  optOutNotificationTypes_caption: "このロールのメンバーが受け取らない通知の種類。複数のロールに属している場合は、すべてのロールで切られている種類だけが届かなくなります。"
+
 _mkgoUnsupported:
   remoteMediaCache: "mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。"
   cleanRemoteFiles: "mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。"

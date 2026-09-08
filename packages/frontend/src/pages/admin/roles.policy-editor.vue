@@ -208,6 +208,30 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</template>
 		</XFolder>
 
+		<!--
+			mk-go 固有 (#2898)。ロール単位で通知を切る。**集約は intersection** なので、
+			複数のロールに属している利用者は全ロールで切られている種類だけが届かなくなる
+			(他の policy と同じく緩い方に倒す)。
+		-->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoNotification.optOutNotificationTypes, 'optOutNotificationTypes'])" v-model:policyMeta="optOutPolicyMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoNotification.optOutNotificationTypes }}</template>
+			<template #valueText>{{ optOutTypes.length === 0 ? i18n.ts.none : optOutTypes.length }}</template>
+			<template #default="{ disabled }">
+				<div class="_gaps_s">
+					<MkSwitch
+						v-for="type in mkGoOptOutTargetTypes"
+						:key="type"
+						:modelValue="optOutTypes.includes(type)"
+						:disabled="disabled"
+						@update:modelValue="v => toggleOptOutNotificationType(type, v)"
+					>
+						{{ mkGoNotificationTypeLabel(type) }}
+					</MkSwitch>
+					<MkInfo>{{ i18n.ts._mkgoNotification.optOutNotificationTypes_caption }}</MkInfo>
+				</div>
+			</template>
+		</XFolder>
+
 		<XFolder v-if="matchQuery([i18n.ts._role._options.alwaysMarkNsfw, 'alwaysMarkNsfw'])" v-model:policyMeta="policyMetaModel.alwaysMarkNsfw" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._role._options.alwaysMarkNsfw }}</template>
 			<template #valueText>{{ valuesModel.alwaysMarkNsfw ? i18n.ts.yes : i18n.ts.no }}</template>
@@ -424,6 +448,17 @@ import MkTextarea from '@/components/MkTextarea.vue';
 import MkRange from '@/components/MkRange.vue';
 import MkSwitch from '@/components/MkSwitch.vue';
 import MkSelect from '@/components/MkSelect.vue';
+import MkInfo from '@/components/MkInfo.vue';
+
+/**
+ * Notification types the opt-out policy can target (#2898).
+ *
+ * mk-go 固有の型 (abuseReport) を含むので misskey-js の notificationTypes を
+ * そのまま使えない。**利用者が自分では切れない型に絞っている** — 個人設定の
+ * notificationRecieveConfig で切れるものはそちらでよく、ロールで一括して切りたいのは
+ * 運営向けに配られる通知のほう。
+ */
+const mkGoOptOutTargetTypes = ['abuseReport'] as const;
 
 const props = defineProps<{
 	isBaseRole: boolean;
@@ -464,6 +499,49 @@ watch(policyMetaModel, (newVal) => {
 watch(() => props.policiesMeta, () => {
 	policyMetaModel.value = setPolicyMeta(props.policiesMeta);
 }, { deep: true });
+
+/**
+ * mk-go 独自 policy は misskey-js の autogen 型に無いので、ここで受ける (#2898)。
+ *
+ * **autogen を書き換えない。** あちらは openapi から再生成されるので、足しても
+ * 次の生成で消える。mk-go 独自 endpoint を `as never` で呼ぶのと同じ扱い。
+ */
+const optOutTypes = computed<string[]>(() => {
+	const v = (valuesModel.value as unknown as Record<string, unknown>).optOutNotificationTypes;
+	return Array.isArray(v) ? v as string[] : [];
+});
+
+const optOutPolicyMeta = computed<PolicyMeta>({
+	get: () => (policyMetaModel.value as unknown as Record<string, PolicyMeta | undefined>).optOutNotificationTypes ?? { useDefault: true, priority: 0 },
+	set: (v) => {
+		(policyMetaModel.value as unknown as Record<string, PolicyMeta | undefined>).optOutNotificationTypes = v;
+	},
+});
+
+/**
+ * Add or remove one notification type from the opt-out list (#2898).
+ *
+ * 参照を差し替えて deep watch を発火させる。
+ */
+function toggleOptOutNotificationType(type: string, enabled: boolean): void {
+	const current = optOutTypes.value;
+	const next = enabled
+		? (current.includes(type) ? current : [...current, type])
+		: current.filter(t => t !== type);
+	(valuesModel.value as unknown as Record<string, unknown>).optOutNotificationTypes = next;
+}
+
+/**
+ * Label for a notification type in the opt-out switch list.
+ *
+ * mk-go 固有の型は upstream の `_notification._types` に無いので、専用の文言へ
+ * 落とす。どちらにも無ければ型名をそのまま出す (空ラベルより読める)。
+ */
+function mkGoNotificationTypeLabel(type: string): string {
+	if (type === 'abuseReport') return i18n.ts._mkgoNotification.abuseReport;
+	const table = i18n.ts._notification._types as unknown as Record<string, string | undefined>;
+	return table[type] ?? type;
+}
 
 function matchQuery(keywords: string[]): boolean {
 	if (props.roleQuery == null || props.roleQuery.trim().length === 0) return true;
