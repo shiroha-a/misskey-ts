@@ -458,7 +458,6 @@ function mkGoExtra(notification: Misskey.entities.Notification, key: string): st
 	(本番で「実績になっている」と指摘された)。対応が要るものなのでエラー色にする。
 */
 .t_abuseReport {
-	padding: 3px;
 	background: var(--MI_THEME-error);
 	pointer-events: none;
 }
