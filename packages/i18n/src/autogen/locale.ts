@@ -13710,6 +13710,14 @@ export interface Locale extends ILocale {
          */
         "unknownType": ParameterizedString<"type">;
         /**
+         * 通知から開いた 1 件だけを表示しています。
+         */
+        "showingSingleReport": string;
+        /**
+         * すべての通報を表示
+         */
+        "backToAllReports": string;
+        /**
          * 受け取らない通知
          */
         "optOutNotificationTypes": string;

@@ -481,15 +481,29 @@ watch(() => props.rolePolicies, () => {
 	valuesModel.value = props.rolePolicies;
 }, { deep: true });
 
+/**
+ * Policy keys this editor tracks metadata for, including mk-go specific ones.
+ *
+ * **misskey-js の rolePolicies だけでは足りない (#2898)。** 固有キーの meta が
+ * 毎回落ちると、保存済みの override を開き直したときに「ベース値を使用」と
+ * 表示されスイッチが無効になる。さらに再編集のため useDefault を off にすると、
+ * 捏造された `{useDefault:true, priority:0}` が起点になり**保存済みの priority が
+ * 黙って 0 に戻る**。
+ *
+ * roles.editor.vue の同名の一覧と対になっている。片方だけ直すと同じ症状が残る。
+ */
+const mkGoPolicyMetaKeys: string[] = [...Misskey.rolePolicies, 'optOutNotificationTypes'];
+
 function setPolicyMeta(incoming: Partial<PolicyMetaRecord> | undefined): PolicyMetaRecord {
-	const meta: PolicyMetaRecord = {} as PolicyMetaRecord;
-	for (const ROLE_POLICY of Misskey.rolePolicies) {
-		meta[ROLE_POLICY] = incoming?.[ROLE_POLICY] ?? {
+	const meta = {} as Record<string, PolicyMeta>;
+	const src = (incoming ?? {}) as Record<string, PolicyMeta | undefined>;
+	for (const ROLE_POLICY of mkGoPolicyMetaKeys) {
+		meta[ROLE_POLICY] = src[ROLE_POLICY] ?? {
 			useDefault: true,
 			priority: 0,
 		};
 	}
-	return meta;
+	return meta as PolicyMetaRecord;
 }
 
 const policyMetaModel = ref(setPolicyMeta(props.policiesMeta));

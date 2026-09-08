@@ -15,7 +15,18 @@ SPDX-License-Identifier: AGPL-3.0-only
 				{{ i18n.ts._abuseUserReport.resolveTutorial }}
 			</MkTip>
 
-			<div :class="$style.inputs" class="_gaps">
+			<!--
+				通知から 1 件を開いているとき (#2868)。フィルタは効かないので出さず、
+				一覧へ戻る導線を代わりに置く。**出したまま無反応にしない** —
+				`computedParams` が reportId だけを返す分岐に入るので、操作しても
+				再取得すら起きない。
+			-->
+			<MkInfo v-if="showingSingleReport" :class="$style.inputs">
+				{{ i18n.ts._mkgoNotification.showingSingleReport }}
+				<MkA to="/admin/abuses" class="_link">{{ i18n.ts._mkgoNotification.backToAllReports }}</MkA>
+			</MkInfo>
+
+			<div v-else :class="$style.inputs" class="_gaps">
 				<MkSelect v-model="state" :items="stateDef" style="margin: 0; flex: 1;">
 					<template #label>{{ i18n.ts.state }}</template>
 				</MkSelect>
@@ -57,6 +68,8 @@ import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import MkButton from '@/components/MkButton.vue';
+import MkInfo from '@/components/MkInfo.vue';
+import MkA from '@/components/global/MkA.vue';
 import { store } from '@/store.js';
 import { Paginator } from '@/utility/paginator.js';
 
@@ -108,9 +121,11 @@ const props = defineProps<{
 	reportId?: string;
 }>();
 
+const showingSingleReport = computed(() => props.reportId != null && props.reportId !== '');
+
 const paginator = markRaw(new Paginator('admin/abuse-user-reports', {
 	limit: 10,
-	computedParams: computed(() => (props.reportId != null && props.reportId !== '' ? {
+	computedParams: computed(() => (showingSingleReport.value ? {
 		reportId: props.reportId,
 	} : {
 		state: state.value,

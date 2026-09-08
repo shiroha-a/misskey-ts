@@ -3675,6 +3675,8 @@ _mkgoNotification:
   abuseReportFrom: "{name} からの通報"
   openModeration: "管理画面で確認"
   unknownType: "通知 ({type})"
+  showingSingleReport: "通知から開いた 1 件だけを表示しています。"
+  backToAllReports: "すべての通報を表示"
   optOutNotificationTypes: "受け取らない通知"
   optOutNotificationTypes_caption: "このロールのメンバーが受け取らない通知の種類。複数のロールに属している場合は、すべてのロールで切られている種類だけが届かなくなります。"
 
