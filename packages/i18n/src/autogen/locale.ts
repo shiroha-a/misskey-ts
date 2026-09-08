@@ -13698,7 +13698,7 @@ export interface Locale extends ILocale {
          */
         "canUseChunkedUpload": string;
         /**
-         * 大きなファイルを分割して送る方式を、このロールのメンバーに許可します。サーバー全体の設定 (コントロールパネル → ファイル) が無効なら、ここで許可しても使えません。
+         * 大きなファイルを分割して送る方式を、このロールのメンバーに許可します。サーバー全体の設定 (コントロールパネル → オブジェクトストレージ) が無効なら、ここで許可しても使えません。
          */
         "canUseChunkedUpload_caption": string;
         /**
@@ -13710,7 +13710,7 @@ export interface Locale extends ILocale {
          */
         "chunkedUploadMaxPendingMb": string;
         /**
-         * サーバー全体の設定が上限になります。ここに大きい値を入れても、サーバー設定を超えることはできません。0 は無制限です。
+         * サーバー全体の上限が優先されます。ここに大きい値を入れても超えられません。0 を入れるとサーバー全体の値がそのまま使われます (無制限にはなりません)。サーバー全体の上限は現在コントロールパネルに出ていないため、変更するには admin/update-meta を直接呼ぶ必要があります。
          */
         "chunkedUploadLimits_caption": string;
     };

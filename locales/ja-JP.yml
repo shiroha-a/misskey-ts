@@ -3675,7 +3675,7 @@ _mkgoRolePolicy:
   canUseChunkedUpload_caption: "大きなファイルを分割して送る方式を、このロールのメンバーに許可します。サーバー全体の設定 (コントロールパネル → オブジェクトストレージ) が無効なら、ここで許可しても使えません。"
   chunkedUploadMaxConcurrentSessions: "分割アップロードの同時セッション数"
   chunkedUploadMaxPendingMb: "分割アップロードの保留容量"
-  chunkedUploadLimits_caption: "サーバー全体の設定 (コントロールパネル → オブジェクトストレージ) が上限になります。ここに大きい値を入れても超えられません。0 を入れるとサーバー全体の設定値がそのまま使われます (無制限にはなりません)。"
+  chunkedUploadLimits_caption: "サーバー全体の上限が優先されます。ここに大きい値を入れても超えられません。0 を入れるとサーバー全体の値がそのまま使われます (無制限にはなりません)。サーバー全体の上限は現在コントロールパネルに出ていないため、変更するには admin/update-meta を直接呼ぶ必要があります。"
 
 _mkgoNotification:
   abuseReport: "通報がありました"
