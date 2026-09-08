@@ -13694,15 +13694,15 @@ export interface Locale extends ILocale {
     };
     "_mkgoNotification": {
         /**
-         * 新しい通報
+         * 通報がありました
          */
         "abuseReport": string;
         /**
-         * {name} からの通報
+         * {name}さんから通報がありました
          */
         "abuseReportFrom": ParameterizedString<"name">;
         /**
-         * 管理画面で確認
+         * 通報を確認
          */
         "openModeration": string;
         /**

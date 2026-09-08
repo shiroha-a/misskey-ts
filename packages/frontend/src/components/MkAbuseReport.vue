@@ -4,7 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 -->
 
 <template>
-<MkFolder>
+<MkFolder :defaultOpen="props.defaultOpen ?? false">
 	<template #icon>
 		<i v-if="report.resolved && report.resolvedAs === 'accept'" class="ti ti-check" style="color: var(--MI_THEME-success)"></i>
 		<i v-else-if="report.resolved && report.resolvedAs === 'reject'" class="ti ti-x" style="color: var(--MI_THEME-error)"></i>
@@ -94,6 +94,13 @@ import { createRouter } from '@/router.js';
 
 const props = defineProps<{
 	report: Misskey.entities.AdminAbuseUserReportsResponse[number];
+	/**
+	 * Open the folder by default (#2868).
+	 *
+	 * 通知から 1 件だけを開いたときは畳む意味が無い。既定 (一覧) では
+	 * 従来どおり畳む。
+	 */
+	defaultOpen?: boolean;
 }>();
 
 const emit = defineEmits<{

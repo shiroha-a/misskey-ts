@@ -51,7 +51,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 			<MkPagination v-slot="{items}" :paginator="paginator">
 				<div class="_gaps">
-					<XAbuseReport v-for="report in items" :key="report.id" :report="report" @resolved="resolved"/>
+					<XAbuseReport v-for="report in items" :key="report.id" :report="report" :defaultOpen="showingSingleReport" @resolved="resolved"/>
 				</div>
 			</MkPagination>
 		</div>
@@ -125,6 +125,9 @@ const showingSingleReport = computed(() => props.reportId != null && props.repor
 
 const paginator = markRaw(new Paginator('admin/abuse-user-reports', {
 	limit: 10,
+	// **1 件表示のときはページングしない (#2868)。** backend は reportId 指定時に
+	// cursor を無視するので、「もっと見る」を押すと同じ 1 件が返り続ける。
+	noPaging: props.reportId != null && props.reportId !== '',
 	computedParams: computed(() => (showingSingleReport.value ? {
 		reportId: props.reportId,
 	} : {

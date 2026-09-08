@@ -3671,9 +3671,9 @@ _signatureCapability:
   ldSignatureSeenAt: "LD-Signatureの受信"
 
 _mkgoNotification:
-  abuseReport: "新しい通報"
-  abuseReportFrom: "{name} からの通報"
-  openModeration: "管理画面で確認"
+  abuseReport: "通報がありました"
+  abuseReportFrom: "{name}さんから通報がありました"
+  openModeration: "通報を確認"
   unknownType: "通知 ({type})"
   showingSingleReport: "通知から開いた 1 件だけを表示しています。"
   backToAllReports: "すべての通報を表示"

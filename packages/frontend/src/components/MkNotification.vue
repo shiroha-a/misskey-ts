@@ -168,15 +168,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<Mfm :text="notification.body" :nowrap="false"/>
 			</span>
 			<!--
-				通報 (#2868)。本文をそのまま出し、管理画面の該当通報へ飛べるように
-				する。**リンクが要点** — 通知欄で本文だけ見えても、対処するには
-				結局どの通報かを探すことになる。
+				通報 (#2868)。**本文は出さない。** 通報コメントは定型フォームの
+				全文 (違反カテゴリ / 対象 / 該当 URL / 詳細) が入るので、通知欄に
+				そのまま出すと長すぎて読めない。誰からの通報かだけ伝え、中身は
+				ボタンから管理画面で見る。
 			-->
-			<MkA v-else-if="isMkGoType(notification, 'abuseReport')" :class="$style.text" :to="`/admin/abuses?reportId=${mkGoExtra(notification, 'reportId')}`" :title="i18n.ts._mkgoNotification.openModeration">
-				<i class="ti ti-quote" :class="$style.quote"></i>
-				{{ mkGoExtra(notification, 'comment') }}
-				<i class="ti ti-quote" :class="$style.quote"></i>
-			</MkA>
+			<div v-else-if="isMkGoType(notification, 'abuseReport') && full && mkGoExtra(notification, 'reportId') !== ''" :class="$style.abuseReportCommands">
+				<MkButton :class="$style.abuseReportCommandButton" type="routerLink" :to="`/admin/abuses?reportId=${mkGoExtra(notification, 'reportId')}`" rounded primary><i class="ti ti-exclamation-circle"></i> {{ i18n.ts._mkgoNotification.openModeration }}</MkButton>
+			</div>
 
 			<div v-if="notification.type === 'reaction:grouped'">
 				<div v-for="reaction of notification.reactions" :key="reaction.user.id + reaction.reaction" :class="$style.reactionsItem">
@@ -453,11 +452,25 @@ function mkGoExtra(notification: Misskey.entities.Notification, key: string): st
 	pointer-events: none;
 }
 
-/* 通報 (#2868)。既存の警告系と同じ色を使う。 */
+/*
+	通報 (#2868)。**警告色 (--MI_THEME-warn) は使わない** — 実績の
+	--eventAchievement (#cb9a11) とほぼ同じ黄色で、通知一覧で見分けが付かない
+	(本番で「実績になっている」と指摘された)。対応が要るものなのでエラー色にする。
+*/
 .t_abuseReport {
 	padding: 3px;
-	background: var(--MI_THEME-warn);
+	background: var(--MI_THEME-error);
 	pointer-events: none;
+}
+
+.abuseReportCommands {
+	display: flex;
+	gap: 8px;
+	margin-top: 6px;
+}
+
+.abuseReportCommandButton {
+	font-size: 0.9em;
 }
 
 .t_login {
