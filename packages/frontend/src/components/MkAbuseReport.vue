@@ -4,7 +4,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 -->
 
 <template>
-<MkFolder :defaultOpen="props.defaultOpen ?? false">
+<MkFolder :canCollapse="props.collapsible ?? true">
 	<template #icon>
 		<i v-if="report.resolved && report.resolvedAs === 'accept'" class="ti ti-check" style="color: var(--MI_THEME-success)"></i>
 		<i v-else-if="report.resolved && report.resolvedAs === 'reject'" class="ti ti-x" style="color: var(--MI_THEME-error)"></i>
@@ -95,12 +95,12 @@ import { createRouter } from '@/router.js';
 const props = defineProps<{
 	report: Misskey.entities.AdminAbuseUserReportsResponse[number];
 	/**
-	 * Open the folder by default (#2868).
+	 * Allow collapsing this report (#2868).
 	 *
-	 * 通知から 1 件だけを開いたときは畳む意味が無い。既定 (一覧) では
-	 * 従来どおり畳む。
+	 * 通知から 1 件だけを開いたときは畳む意味が無いので false を渡す。
+	 * 既定 (一覧) では従来どおり畳める。
 	 */
-	defaultOpen?: boolean;
+	collapsible?: boolean;
 }>();
 
 const emit = defineEmits<{

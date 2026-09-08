@@ -51,7 +51,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 			<MkPagination v-slot="{items}" :paginator="paginator">
 				<div class="_gaps">
-					<XAbuseReport v-for="report in items" :key="report.id" :report="report" :defaultOpen="showingSingleReport" @resolved="resolved"/>
+					<XAbuseReport v-for="report in items" :key="report.id" :report="report" :collapsible="!showingSingleReport" @resolved="resolved"/>
 				</div>
 			</MkPagination>
 		</div>

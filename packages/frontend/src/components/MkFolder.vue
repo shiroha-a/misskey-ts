@@ -7,7 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 <div ref="rootEl" :class="$style.root" role="group" :aria-expanded="opened">
 	<MkStickyContainer>
 		<template #header>
-			<button :class="[$style.header, { [$style.opened]: opened }]" class="_button" role="button" data-testid="folder-header" @click="toggle">
+			<button :class="[$style.header, { [$style.opened]: opened, [$style.static]: !props.canCollapse }]" class="_button" role="button" data-testid="folder-header" @click="onHeaderClick">
 				<div :class="$style.headerIcon"><slot name="icon"></slot></div>
 				<div :class="$style.headerText">
 					<div :class="$style.headerTextMain">
@@ -19,9 +19,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</div>
 				<div :class="$style.headerRight">
 					<span :class="$style.headerRightText"><slot name="suffix"></slot></span>
-					<i v-if="asPage" class="ti ti-chevron-right icon"></i>
-					<i v-else-if="opened" class="ti ti-chevron-up icon"></i>
-					<i v-else class="ti ti-chevron-down icon"></i>
+					<template v-if="props.canCollapse">
+						<i v-if="asPage" class="ti ti-chevron-right icon"></i>
+						<i v-else-if="opened" class="ti ti-chevron-up icon"></i>
+						<i v-else class="ti ti-chevron-down icon"></i>
+					</template>
 				</div>
 			</button>
 		</template>
@@ -111,8 +113,16 @@ const props = withDefaults(defineProps<{
 	spacerMin?: number;
 	spacerMax?: number;
 	canPage?: boolean;
+	/**
+	 * Allow the user to collapse this folder (mk-go, #2868).
+	 *
+	 * false にすると常に開いたままになり、ヘッダのクリックと chevron が
+	 * 消える。**1 件だけを表示する画面で折りたたむ意味が無い**ときに使う。
+	 */
+	canCollapse?: boolean;
 }>(), {
 	defaultOpen: false,
+	canCollapse: true,
 	maxHeight: null,
 	withSpacer: true,
 	spacerMin: 14,
@@ -128,7 +138,9 @@ const emit = defineEmits<{
 const rootEl = useTemplateRef('rootEl');
 const asPage = props.canPage && deviceKind === 'smartphone' && prefer.s['experimental.enableFolderPageView'];
 const bgSame = ref(false);
-const opened = ref(asPage ? false : props.defaultOpen);
+// canCollapse=false は「畳めない」= 常に開いている状態なので、defaultOpen を
+// 見ない (閉じたまま開けなくなると中身に到達できない、mk-go #2868)。
+const opened = ref(asPage ? false : (!props.canCollapse || props.defaultOpen));
 const openedAtLeastOnce = ref(opened.value);
 
 //#region interpolate-sizeに対応していないブラウザ向け（TODO: 主要ブラウザが対応したら消す）
@@ -169,6 +181,11 @@ function afterLeave(el: Element) {
 
 let pageId = pageFolderTeleportCount.value;
 pageFolderTeleportCount.value += 1000;
+
+function onHeaderClick(ev: PointerEvent) {
+	if (!props.canCollapse) return;
+	void toggle(ev);
+}
 
 async function toggle(ev: PointerEvent) {
 	if (asPage && !opened.value) {
@@ -233,6 +250,15 @@ watch(opened, (isOpened) => {
 
 .root {
 	display: block;
+}
+
+/* 畳めないときはクリックできる見た目にしない (mk-go, #2868)。 */
+.static {
+	cursor: default;
+
+	&:hover, &:active {
+		background: none;
+	}
 }
 
 .header {
