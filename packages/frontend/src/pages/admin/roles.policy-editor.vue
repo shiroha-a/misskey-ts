@@ -209,16 +209,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</XFolder>
 
 		<!--
-			mk-go 固有 (#2898)。ロール単位で通知を切る。**集約は intersection** なので、
-			複数のロールに属している利用者は全ロールで切られている種類だけが届かなくなる
-			(他の policy と同じく緩い方に倒す)。
+			分割アップロード (#2313) の policy (#2900)。mk-go 独自。
+			**集約は他の bool / 数値 policy と同じ** (bool は OR、数値は max)。
+			intersection なのは下の optOutNotificationTypes だけ。
 		-->
-		<!-- 分割アップロード (#2313) の policy (#2900)。mk-go 独自。 -->
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canUseChunkedUpload, 'canUseChunkedUpload'])" v-model:policyMeta="canUseChunkedUploadMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload }}</template>
 			<template #valueText>{{ canUseChunkedUpload ? i18n.ts.yes : i18n.ts.no }}</template>
 			<template #default="{ disabled }">
 				<MkSwitch v-model="canUseChunkedUpload" :disabled="disabled">
+					<template #label>{{ i18n.ts.enable }}</template>
 					<template #caption>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload_caption }}</template>
 				</MkSwitch>
 			</template>
@@ -245,6 +245,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</template>
 		</XFolder>
 
+		<!--
+			mk-go 固有 (#2898)。ロール単位で通知を切る。**集約は intersection** なので、
+			複数のロールに属している利用者は全ロールで切られている種類だけが届かなくなる
+			(他の policy と同じく緩い方に倒す)。
+		-->
 		<XFolder v-if="matchQuery([i18n.ts._mkgoNotification.optOutNotificationTypes, 'optOutNotificationTypes'])" v-model:policyMeta="optOutPolicyMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoNotification.optOutNotificationTypes }}</template>
 			<template #valueText>{{ optOutTypes.length === 0 ? i18n.ts.none : optOutTypes.length }}</template>
