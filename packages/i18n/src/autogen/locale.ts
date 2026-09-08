@@ -13733,6 +13733,10 @@ export interface Locale extends ILocale {
          * このロールのメンバーが受け取らない通知の種類。複数のロールに属している場合は、すべてのロールで切られている種類だけが届かなくなります。
          */
         "optOutNotificationTypes_caption": string;
+        /**
+         * 通報の通知は、モデレーター権限を持つ利用者と初期ユーザーにのみ届きます。権限を持たないロールでこれを切っても変わりません。
+         */
+        "abuseReportModeratorOnly": string;
     };
     "_mkgoUnsupported": {
         /**

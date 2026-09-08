@@ -3681,6 +3681,7 @@ _mkgoNotification:
   backToAllReports: "すべての通報を表示"
   optOutNotificationTypes: "受け取らない通知"
   optOutNotificationTypes_caption: "このロールのメンバーが受け取らない通知の種類。複数のロールに属している場合は、すべてのロールで切られている種類だけが届かなくなります。"
+  abuseReportModeratorOnly: "通報の通知は、モデレーター権限を持つ利用者と初期ユーザーにのみ届きます。権限を持たないロールでこれを切っても変わりません。"
 
 _mkgoUnsupported:
   remoteMediaCache: "mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。"

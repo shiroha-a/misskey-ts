@@ -226,6 +226,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 						@update:modelValue="v => toggleOptOutNotificationType(type, v)"
 					>
 						{{ mkGoNotificationTypeLabel(type) }}
+						<!--
+							**届く相手が限られる型は明記する (#2868)。** この folder は
+							全てのロールに出るので、権限を持たないロールでも「切れる」
+							ように見え、通報の通知を一般利用者も受け取ると誤解される。
+						-->
+						<template v-if="type === 'abuseReport'" #caption>{{ i18n.ts._mkgoNotification.abuseReportModeratorOnly }}</template>
 					</MkSwitch>
 					<MkInfo>{{ i18n.ts._mkgoNotification.optOutNotificationTypes_caption }}</MkInfo>
 				</div>
