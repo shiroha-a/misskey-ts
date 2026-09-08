@@ -125,15 +125,30 @@ const props = defineProps<{
 	readonly?: boolean;
 }>();
 
+/**
+ * Policy keys this editor fills in, including mk-go specific ones (#2898).
+ *
+ * **misskey-js の rolePolicies だけでは足りない。** あちらは upstream の
+ * キーしか持たないので、mk-go 固有 policy の枠が `role.policies` に作られず、
+ * 下の setter が `!= null` ガードで**黙って書き込みを捨てる**。編集しても
+ * 保存されず、エラーも出ない状態になっていた。
+ *
+ * `instance.policies` は `/api/meta` 由来で固有キーも持つので、既定値の
+ * 引き当てはそのまま通る。
+ */
+const mkGoRolePolicyKeys: string[] = [...Misskey.rolePolicies, 'optOutNotificationTypes'];
+
 const role = ref((() => {
 	const base = deepClone(props.modelValue);
 	// fill missing policy
-	for (const ROLE_POLICY of Misskey.rolePolicies) {
+	for (const ROLE_POLICY of mkGoRolePolicyKeys) {
 		if (base.policies[ROLE_POLICY] == null) {
 			base.policies[ROLE_POLICY] = {
 				useDefault: true,
 				priority: 0,
-				value: instance.policies[ROLE_POLICY],
+				// mk-go 固有キーは autogen 型に無いので index できない。
+				// 実体 (/api/meta の policies) には入っている。
+				value: (instance.policies as Record<string, unknown>)[ROLE_POLICY],
 			};
 		}
 	}

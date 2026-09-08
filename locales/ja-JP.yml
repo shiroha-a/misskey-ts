@@ -3672,7 +3672,7 @@ _signatureCapability:
 
 _mkgoNotification:
   abuseReport: "新しい通報"
-  abuseReportAgainst: "{name} への通報"
+  abuseReportFrom: "{name} からの通報"
   openModeration: "管理画面で確認"
   unknownType: "通知 ({type})"
   optOutNotificationTypes: "受け取らない通知"

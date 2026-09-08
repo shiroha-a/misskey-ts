@@ -82,6 +82,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<span v-else-if="notification.type === 'reaction:grouped'">{{ i18n.tsx._notification.reactedBySomeUsers({ n: getActualReactedUsersCount(notification) }) }}</span>
 			<span v-else-if="notification.type === 'renote:grouped'">{{ i18n.tsx._notification.renotedBySomeUsers({ n: notification.users.length }) }}</span>
 			<span v-else-if="notification.type === 'app'">{{ notification.header }}</span>
+			<!--
+				**「誰からの」を出す (#2868)。** アバターと名前は通報者のものなので、
+				ヘッダが「新しい通報」だけだと通報された側と読み違えやすい。
+			-->
+			<span v-else-if="isMkGoType(notification, 'abuseReport') && mkGoNotifierName(notification) !== ''">{{ i18n.tsx._mkgoNotification.abuseReportFrom({ name: mkGoNotifierName(notification) }) }}</span>
 			<span v-else-if="isMkGoType(notification, 'abuseReport')">{{ i18n.ts._mkgoNotification.abuseReport }}</span>
 			<!--
 				**未知の型の受け皿 (#2898)。** ここが無いと、mk-go 固有の通知や
@@ -275,6 +280,19 @@ function isMkGoType(notification: Misskey.entities.Notification, type: string): 
  */
 function mkGoTypeName(notification: Misskey.entities.Notification): string {
 	return (notification as unknown as { type: string }).type;
+}
+
+/**
+ * Display name of a mk-go specific notification's notifier.
+ *
+ * 既知タイプを分岐で尽くした後では autogen 型の narrowing で `notification` が
+ * `never` になり `user` が読めない。実行時には入っているので型を外して読む。
+ * notifier を持たない型では空文字を返す。
+ */
+function mkGoNotifierName(notification: Misskey.entities.Notification): string {
+	const u = (notification as unknown as { user?: { name?: string | null; username?: string } }).user;
+	if (u == null) return '';
+	return u.name ?? u.username ?? '';
 }
 
 /**

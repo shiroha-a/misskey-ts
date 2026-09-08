@@ -96,9 +96,23 @@ const {
 const searchUsername = ref('');
 const searchHost = ref('');
 
+/**
+ * Show a single report when opened from its notification (#2868).
+ *
+ * **絞り込みを送らない。** state の初期値が `unresolved` なので、他の
+ * モデレーターが先に解決済みにした通報はそのままでは一覧に出ず、通知の
+ * リンクが役に立たない。backend 側も reportId 指定時は state / origin /
+ * cursor を無視する。
+ */
+const props = defineProps<{
+	reportId?: string;
+}>();
+
 const paginator = markRaw(new Paginator('admin/abuse-user-reports', {
 	limit: 10,
-	computedParams: computed(() => ({
+	computedParams: computed(() => (props.reportId != null && props.reportId !== '' ? {
+		reportId: props.reportId,
+	} : {
 		state: state.value,
 		reporterOrigin: reporterOrigin.value,
 		targetUserOrigin: targetUserOrigin.value,

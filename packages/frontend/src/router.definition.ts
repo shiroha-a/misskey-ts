@@ -472,6 +472,10 @@ export const ROUTE_DEF = [{
 		path: '/abuses',
 		name: 'abuses',
 		component: page(() => import('@/pages/admin/abuses.vue')),
+		// 通報の通知から該当の 1 件へ飛ぶ (#2868)。
+		query: {
+			reportId: 'reportId',
+		},
 	}, {
 		path: '/modlog',
 		name: 'modlog',

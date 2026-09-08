@@ -13698,9 +13698,9 @@ export interface Locale extends ILocale {
          */
         "abuseReport": string;
         /**
-         * {name} への通報
+         * {name} からの通報
          */
-        "abuseReportAgainst": ParameterizedString<"name">;
+        "abuseReportFrom": ParameterizedString<"name">;
         /**
          * 管理画面で確認
          */
