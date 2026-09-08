@@ -31,7 +31,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 				[$style.t_createToken]: notification.type === 'createToken',
 				[$style.t_chatRoomInvitationReceived]: notification.type === 'chatRoomInvitationReceived',
 				[$style.t_roleAssigned]: notification.type === 'roleAssigned' && notification.role.iconUrl == null,
-				[$style.t_abuseReport]: isMkGoType(notification, 'abuseReport'),
+				[$style.t_abuseReport]: isMkGoType(notification, 'abuseReport') && !mkGoResolved(notification),
+				[$style.t_abuseReportResolved]: isMkGoType(notification, 'abuseReport') && mkGoResolved(notification),
 			}]"
 		>
 			<i v-if="notification.type === 'follow'" class="ti ti-plus"></i>
@@ -50,6 +51,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<i v-else-if="notification.type === 'createToken'" class="ti ti-key"></i>
 			<i v-else-if="notification.type === 'chatRoomInvitationReceived'" class="ti ti-messages"></i>
 			<!-- mk-go 固有 (#2868)。upstream は通報を通知欄に出さない。 -->
+			<i v-else-if="isMkGoType(notification, 'abuseReport') && mkGoResolved(notification)" class="ti ti-check"></i>
 			<i v-else-if="isMkGoType(notification, 'abuseReport')" class="ti ti-exclamation-circle"></i>
 			<template v-else-if="notification.type === 'roleAssigned'">
 				<img v-if="notification.role.iconUrl" style="height: 1.3em; vertical-align: -22%;" :src="notification.role.iconUrl" alt=""/>
@@ -86,7 +88,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 				**「誰からの」を出す (#2868)。** アバターと名前は通報者のものなので、
 				ヘッダが「新しい通報」だけだと通報された側と読み違えやすい。
 			-->
-			<span v-else-if="isMkGoType(notification, 'abuseReport') && mkGoNotifierName(notification) !== ''">{{ i18n.tsx._mkgoNotification.abuseReportFrom({ name: mkGoNotifierName(notification) }) }}</span>
+			<span v-else-if="isMkGoType(notification, 'abuseReport') && mkGoNotifierName(notification) !== ''">
+				{{ i18n.tsx._mkgoNotification.abuseReportFrom({ name: mkGoNotifierName(notification) }) }}
+				<!--
+					**対処済みは read 時に引き直した状態 (#2868)。** 通知は作成時点しか
+					持たないので、これが無いと他のモデレーターが対処済みの通報に
+					二重で当たる。
+				-->
+				<span v-if="mkGoResolved(notification)" :class="$style.abuseReportResolved">{{ i18n.ts._mkgoNotification.abuseReportResolved }}</span>
+			</span>
 			<span v-else-if="isMkGoType(notification, 'abuseReport')">{{ i18n.ts._mkgoNotification.abuseReport }}</span>
 			<!--
 				**未知の型の受け皿 (#2898)。** ここが無いと、mk-go 固有の通知や
@@ -174,7 +184,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				ボタンから管理画面で見る。
 			-->
 			<div v-else-if="isMkGoType(notification, 'abuseReport') && full && mkGoExtra(notification, 'reportId') !== ''" :class="$style.abuseReportCommands">
-				<MkButton :class="$style.abuseReportCommandButton" type="routerLink" :to="`/admin/abuses?reportId=${mkGoExtra(notification, 'reportId')}`" rounded primary><i class="ti ti-exclamation-circle"></i> {{ i18n.ts._mkgoNotification.openModeration }}</MkButton>
+				<MkButton :class="$style.abuseReportCommandButton" type="routerLink" :to="`/admin/abuses?reportId=${mkGoExtra(notification, 'reportId')}`" rounded :primary="!mkGoResolved(notification)"><i class="ti ti-exclamation-circle"></i> {{ i18n.ts._mkgoNotification.openModeration }}</MkButton>
 			</div>
 
 			<div v-if="notification.type === 'reaction:grouped'">
@@ -279,6 +289,16 @@ function isMkGoType(notification: Misskey.entities.Notification, type: string): 
  */
 function mkGoTypeName(notification: Misskey.entities.Notification): string {
 	return (notification as unknown as { type: string }).type;
+}
+
+/**
+ * Whether the report behind an abuseReport notification is already resolved.
+ *
+ * サーバーが read 時に引き直して `resolved` を載せる (#2868)。autogen 型には
+ * 無いので型を外して読む。
+ */
+function mkGoResolved(notification: Misskey.entities.Notification): boolean {
+	return (notification as unknown as Record<string, unknown>).resolved === true;
 }
 
 /**
@@ -460,6 +480,21 @@ function mkGoExtra(notification: Misskey.entities.Notification, key: string): st
 .t_abuseReport {
 	background: var(--MI_THEME-error);
 	pointer-events: none;
+}
+
+/* 対処済みは目立たせない (#2868)。未対応と並んだときに区別が付けばよい。 */
+.t_abuseReportResolved {
+	background: var(--eventOther);
+	pointer-events: none;
+}
+
+.abuseReportResolved {
+	margin-left: 6px;
+	padding: 1px 6px;
+	border-radius: 4px;
+	font-size: 0.8em;
+	background: var(--MI_THEME-buttonBg);
+	opacity: 0.8;
 }
 
 .abuseReportCommands {

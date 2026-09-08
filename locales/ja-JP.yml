@@ -3674,6 +3674,8 @@ _mkgoNotification:
   abuseReport: "通報がありました"
   abuseReportFrom: "{name}さんから通報がありました"
   openModeration: "通報を確認"
+  abuseReportResolved: "対処済み"
+  abuseReportResolvedBySomeone: "他のモデレーターが対処しました"
   unknownType: "通知 ({type})"
   showingSingleReport: "通知から開いた 1 件だけを表示しています。"
   backToAllReports: "すべての通報を表示"

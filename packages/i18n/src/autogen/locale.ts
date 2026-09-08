@@ -13706,6 +13706,14 @@ export interface Locale extends ILocale {
          */
         "openModeration": string;
         /**
+         * 対処済み
+         */
+        "abuseReportResolved": string;
+        /**
+         * 他のモデレーターが対処しました
+         */
+        "abuseReportResolvedBySomeone": string;
+        /**
          * 通知 ({type})
          */
         "unknownType": ParameterizedString<"type">;
