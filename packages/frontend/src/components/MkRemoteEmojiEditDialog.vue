@@ -40,14 +40,33 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<template #key>{{ i18n.ts.host }}</template>
 					<template #value>{{ host }}</template>
 				</MkKeyValue>
-				<MkKeyValue>
-					<template #key>{{ i18n.ts.license }}</template>
-					<template #value>{{ license }}</template>
-				</MkKeyValue>
+
+				<!--
+					mk-go: 取得した値を編集できるようにした (#2698)。AP の Emoji tag は
+					`name` / `icon` / `_misskey_license.freeText` しか運ばないので、
+					カテゴリ・エイリアス・センシティブは相手の REST API から取る。
+					本番の実測では、リモート絵文字 19,129 件のうちそれらは 1 件も
+					連合で入っていなかった。
+				-->
+				<MkInfo v-if="fetchState === 'fetching'">{{ i18n.ts.fetchingAsApObject }}</MkInfo>
+				<MkInfo v-else-if="fetchState === 'unsupported'" warn>{{ i18n.ts._remoteEmojiImport.unsupported }}</MkInfo>
+				<MkInfo v-else-if="fetchState === 'failed'" warn>{{ i18n.ts._remoteEmojiImport.fetchFailed }}</MkInfo>
+
+				<MkInput v-model="category">
+					<template #label>{{ i18n.ts.category }}</template>
+				</MkInput>
+				<MkInput v-model="aliases">
+					<template #label>{{ i18n.ts.tags }}</template>
+					<template #caption>{{ i18n.ts._remoteEmojiImport.aliasesCaption }}</template>
+				</MkInput>
+				<MkTextarea v-model="license">
+					<template #label>{{ i18n.ts.license }}</template>
+				</MkTextarea>
+				<MkSwitch v-model="isSensitive">{{ i18n.ts.markAsSensitive }}</MkSwitch>
 			</div>
 		</div>
 		<div :class="$style.footer">
-			<MkButton primary rounded style="margin: 0 auto;" @click="done">
+			<MkButton primary rounded style="margin: 0 auto;" :disabled="fetchState === 'fetching'" @click="done">
 				<i class="ti ti-plus"></i> {{ i18n.ts.import }}
 			</MkButton>
 		</div>
@@ -56,14 +75,18 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef } from 'vue';
+import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import MkKeyValue from '@/components/MkKeyValue.vue';
 import MkButton from '@/components/MkButton.vue';
+import MkInfo from '@/components/MkInfo.vue';
 import MkInput from '@/components/MkInput.vue';
+import MkSwitch from '@/components/MkSwitch.vue';
 import MkTextarea from '@/components/MkTextarea.vue';
 import MkWindow from '@/components/MkWindow.vue';
+import { emptyStrToEmptyArray } from '@/pages/admin/custom-emojis-manager.impl.js';
 import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
+import { misskeyApi } from '@/utility/misskey-api.js';
 
 const props = defineProps<{
 	emoji: {
@@ -85,13 +108,58 @@ const windowEl = useTemplateRef('windowEl');
 
 const name = computed(() => props.emoji.name);
 const host = computed(() => props.emoji.host);
-const license = computed(() => props.emoji.license);
 const imgUrl = computed(() => props.emoji.url);
 
+// 編集できる項目。**AP 経由で入っているのは license だけ**なので、他は空から始めて
+// 取得結果で埋める。
+const category = ref('');
+const aliases = ref('');
+const license = ref(props.emoji.license ?? '');
+const isSensitive = ref(false);
+
+// 取得の状態。`unsupported` は相手に per-name endpoint が無い場合 (Mastodon 系)。
+// **失敗を異常として扱わない** — 手で埋めれば取り込めるので、理由を出して続行させる。
+const fetchState = ref<'fetching' | 'done' | 'unsupported' | 'failed'>('fetching');
+
+onMounted(async () => {
+	try {
+		// mk-go 独自のエンドポイントなので misskey-js の型集合には無い。
+		// signup-applications.vue と同じ理由の cast。
+		const res = await (misskeyApi('admin/emoji/fetch-remote-meta' as never, { emojiId: props.emoji.id } as never) as unknown as Promise<{
+			fetched: boolean;
+			reason?: string;
+			category?: string;
+			aliases?: string[];
+			license?: string;
+			isSensitive?: boolean;
+		}>);
+		if (!res.fetched) {
+			fetchState.value = res.reason === 'unsupported' ? 'unsupported' : 'failed';
+			return;
+		}
+		// **返ってきたキーだけを反映する。** 取れなかった項目はキーごと無いので、
+		// ここで既存値 (license など) を消さない。
+		if (res.category != null) category.value = res.category;
+		if (res.aliases != null) aliases.value = res.aliases.join(' ');
+		if (res.license != null) license.value = res.license;
+		if (res.isSensitive != null) isSensitive.value = res.isSensitive;
+		fetchState.value = 'done';
+	} catch {
+		fetchState.value = 'failed';
+	}
+});
+
 async function done() {
-	await os.apiWithDialog('admin/emoji/copy', {
+	// **上書き項目は mk-go が足した additive パラメータ** (#2698) なので、
+	// misskey-js の autogen 型 (`{ emojiId: string }`) には無い。upstream の
+	// paramDef は emojiId のみ必須で、足しても既存の呼び出しは通る。
+	await os.apiWithDialog('admin/emoji/copy' as never, {
 		emojiId: props.emoji.id,
-	});
+		category: category.value,
+		aliases: emptyStrToEmptyArray(aliases.value),
+		license: license.value,
+		isSensitive: isSensitive.value,
+	} as never);
 
 	emit('done');
 	windowEl.value?.close();

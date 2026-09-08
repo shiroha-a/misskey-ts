@@ -2347,6 +2347,11 @@ _aboutMkGo:
   contributors: "コントリビューター"
   allContributors: "全てのコントリビューター"
 
+_remoteEmojiImport:
+  unsupported: "相手のサーバーからは詳細を取得できないため、カテゴリやタグは手で入力してください。"
+  fetchFailed: "相手のサーバーから詳細を取得できませんでした。手で入力するか、時間をおいて試してください。"
+  aliasesCaption: "スペース区切りで入力します。"
+
 _displayOfSensitiveMedia:
   respect: "センシティブ設定されたメディアを隠す"
   ignore: "センシティブ設定されたメディアを隠さない"

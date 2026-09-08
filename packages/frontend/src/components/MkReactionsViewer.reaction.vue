@@ -26,6 +26,7 @@ import MkCustomEmojiDetailedDialog from './MkCustomEmojiDetailedDialog.vue';
 import type { MenuItem } from '@/types/menu';
 import XDetails from '@/components/MkReactionsViewer.details.vue';
 import MkReactionIcon from '@/components/MkReactionIcon.vue';
+import { importRemoteEmoji } from '@/utility/import-remote-emoji.js';
 import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { useTooltip } from '@/composables/use-tooltip.js';
@@ -174,6 +175,22 @@ async function menu(ev: PointerEvent) {
 				}, {
 					closed: () => dispose(),
 				});
+			},
+		});
+	}
+
+	// mk-go: リモート絵文字をその場からインポートする (#2698)。**本文中の絵文字
+	// (`MkCustomEmoji`) と同じモーダルを出す。** CherryPick はリアクションからだけ
+	// endpoint を直接叩いていて挙動が揃っていないが、そこは踏襲しない。
+	//
+	// リモートのカスタム絵文字は `:name@host:` の形。ローカルは `@.` を含む
+	// (`isLocalCustomEmojiReaction`)。Unicode 絵文字はコロンで始まらない。
+	if (props.reaction.startsWith(':') && !isLocalCustomEmoji.value && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
+		menuItems.push({
+			text: i18n.ts.import,
+			icon: 'ti ti-plus',
+			action: () => {
+				importRemoteEmoji(emojiName.value);
 			},
 		});
 	}

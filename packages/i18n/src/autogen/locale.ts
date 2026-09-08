@@ -8975,6 +8975,20 @@ export interface Locale extends ILocale {
          */
         "allContributors": string;
     };
+    "_remoteEmojiImport": {
+        /**
+         * 相手のサーバーからは詳細を取得できないため、カテゴリやタグは手で入力してください。
+         */
+        "unsupported": string;
+        /**
+         * 相手のサーバーから詳細を取得できませんでした。手で入力するか、時間をおいて試してください。
+         */
+        "fetchFailed": string;
+        /**
+         * スペース区切りで入力します。
+         */
+        "aliasesCaption": string;
+    };
     "_displayOfSensitiveMedia": {
         /**
          * センシティブ設定されたメディアを隠す

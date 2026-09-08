@@ -2296,6 +2296,11 @@ _aboutMkGo:
   contributors: "Contributors"
   allContributors: "All contributors"
 
+_remoteEmojiImport:
+  unsupported: "The origin server does not expose emoji details, so please fill in the category and tags by hand."
+  fetchFailed: "Could not fetch details from the origin server. Fill them in by hand, or try again later."
+  aliasesCaption: "Separate with spaces."
+
 _displayOfSensitiveMedia:
   respect: "Hide media marked as sensitive"
   ignore: "Display media marked as sensitive"

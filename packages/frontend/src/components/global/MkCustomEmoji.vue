@@ -45,6 +45,7 @@ import { customEmojisMap } from '@/custom-emojis.js';
 import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
+import { importRemoteEmoji } from '@/utility/import-remote-emoji.js';
 import { i18n } from '@/i18n.js';
 import MkCustomEmojiDetailedDialog from '@/components/MkCustomEmojiDetailedDialog.vue';
 import { $i } from '@/i.js';
@@ -147,6 +148,21 @@ function onClick(ev: PointerEvent) {
 					}, {
 						closed: () => dispose(),
 					});
+				},
+			});
+		}
+
+		// mk-go: リモート絵文字をその場からインポートする (#2698)。管理画面を
+		// 開かなくても、見つけた絵文字をすぐ取り込めるようにするのが目的。
+		// **ローカルには出さない** (既に手元にある) し、権限が無ければ出さない。
+		if (!isLocal.value && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
+			menuItems.push({
+				type: 'divider',
+			}, {
+				text: i18n.ts.import,
+				icon: 'ti ti-plus',
+				action: () => {
+					importRemoteEmoji(customEmojiName.value);
 				},
 			});
 		}
