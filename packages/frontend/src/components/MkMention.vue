@@ -19,7 +19,6 @@ import { computed } from 'vue';
 import { host as localHost } from '@@/js/config.js';
 import type { MkABehavior } from '@/components/global/MkA.vue';
 import { $i } from '@/i.js';
-import { getStaticImageUrl } from '@/utility/media-proxy.js';
 import { prefer } from '@/preferences.js';
 
 const props = defineProps<{
@@ -36,10 +35,21 @@ const isMe = $i && (
 	`@${props.username}@${toUnicode(props.host)}`.toLowerCase() === `@${$i.username}@${toUnicode(localHost)}`.toLowerCase()
 );
 
-const avatarUrl = computed(() => prefer.s.disableShowingAnimatedImages || prefer.s.dataSaver.avatar
-	? getStaticImageUrl(`/avatar/@${props.username}@${props.host}`)
-	: `/avatar/@${props.username}@${props.host}`,
-);
+/**
+ * Avatar URL for the mention chip (#2908).
+ *
+ * **`getStaticImageUrl` に通さない。** あれは `/avatar/` を知らないので
+ * `<mediaProxy>/static.webp?url=<instance>/avatar/@u@h&static=1` を組み立てるが、
+ * mk-go の media proxy は open proxy ではなく allowlist が DB に実在する URL だけを
+ * 通すため、この URL は 403 + `max-age=86400` になる (静止画になるどころか 1 日壊れる)。
+ * `/avatar/` 側が `?static=1` を受けて署名付きプロキシ URL へ 302 する。
+ */
+const avatarUrl = computed(() => {
+	const base = `/avatar/@${props.username}@${props.host}`;
+	return prefer.s.disableShowingAnimatedImages || prefer.s.dataSaver.avatar
+		? `${base}?static=1`
+		: base;
+});
 </script>
 
 <style lang="scss" module>
