@@ -155,7 +155,11 @@ function onClick(ev: PointerEvent) {
 		// mk-go: リモート絵文字をその場からインポートする (#2698)。管理画面を
 		// 開かなくても、見つけた絵文字をすぐ取り込めるようにするのが目的。
 		// **ローカルには出さない** (既に手元にある) し、権限が無ければ出さない。
-		if (!isLocal.value && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
+		//
+		// **同名のローカル絵文字が既にあるときも出さない (#2903)。** 押しても
+		// admin/emoji/copy が重複で弾くだけで、押してみるまで分からなかった。
+		// customEmojisMap は裸の名前がキー。
+		if (!isLocal.value && !customEmojisMap.has(customEmojiName.value) && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
 			menuItems.push({
 				type: 'divider',
 			}, {

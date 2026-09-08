@@ -99,6 +99,8 @@ import { emptyStrToEmptyArray } from '@/pages/admin/custom-emojis-manager.impl.j
 import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
 import type { RemoteEmojiMeta } from '@/utility/import-remote-emoji.js';
+import { getProxiedImageUrl, getStaticImageUrl } from '@/utility/media-proxy.js';
+import { prefer } from '@/preferences.js';
 
 const props = defineProps<{
 	emoji: {
@@ -129,7 +131,21 @@ const windowEl = useTemplateRef('windowEl');
 
 const name = computed(() => props.emoji.name);
 const host = computed(() => props.emoji.host);
-const imgUrl = computed(() => props.emoji.url);
+/**
+ * Image URL for the preview, routed through the media proxy (#2903).
+ *
+ * **raw の originalUrl をそのまま `<img src>` に入れると表示されない。**
+ * originalUrl は相手サーバー上の URL で、mk-go の CSP は
+ * `img-src 'self' data: blob:` なのでブロックされる。通常の絵文字表示
+ * (MkCustomEmoji) は media proxy を通しており、モーダルだけが raw を使っていた。
+ *
+ * 静止画設定 (disableShowingAnimatedImages) の扱いも MkCustomEmoji に揃える。
+ */
+const imgUrl = computed(() => {
+	if (props.emoji.url == null) return null;
+	const proxied = getProxiedImageUrl(props.emoji.url, 'emoji', false, true);
+	return prefer.s.disableShowingAnimatedImages ? getStaticImageUrl(proxied) : proxied;
+});
 
 // 編集できる項目。**AP 経由で入っているのは license だけ**なので、他は空から始めて
 // 取得結果で埋める。

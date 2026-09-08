@@ -163,6 +163,12 @@ async function toggleReaction() {
 async function menu(ev: PointerEvent) {
 	let menuItems: MenuItem[] = [];
 
+	// 同名のローカル絵文字が既にあるか (#2903)。リアクションの emojiName は
+	// `name@host` 形式で、customEmojisMap は裸の名前がキーなので host を落とす。
+	const atPos = emojiName.value.lastIndexOf('@');
+	const bareName = atPos > 0 ? emojiName.value.slice(0, atPos) : emojiName.value;
+	const hasSameNameLocalEmoji = bareName !== '' && customEmojisMap.has(bareName);
+
 	if (isLocalCustomEmoji.value) {
 		menuItems.push({
 			text: i18n.ts.info,
