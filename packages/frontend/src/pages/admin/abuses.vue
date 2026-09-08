@@ -21,7 +21,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				`computedParams` が reportId だけを返す分岐に入るので、操作しても
 				再取得すら起きない。
 			-->
-			<MkInfo v-if="showingSingleReport" :class="$style.inputs">
+			<MkInfo v-if="showingSingleReport">
 				{{ i18n.ts._mkgoNotification.showingSingleReport }}
 				<MkA to="/admin/abuses" class="_link">{{ i18n.ts._mkgoNotification.backToAllReports }}</MkA>
 			</MkInfo>
