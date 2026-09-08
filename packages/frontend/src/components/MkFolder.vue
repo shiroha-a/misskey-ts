@@ -145,7 +145,10 @@ const asPage = props.canPage && deviceKind === 'smartphone' && prefer.s['experim
 const bgSame = ref(false);
 // canCollapse=false は「畳めない」= 常に開いている状態なので、defaultOpen を
 // 見ない (閉じたまま開けなくなると中身に到達できない、mk-go #2868)。
-const opened = ref(asPage ? false : (!props.canCollapse || props.defaultOpen));
+// canCollapse=false は「畳めない」= 常に開いている状態。**asPage より優先する** —
+// asPage は header button から開く前提だが、畳めないときはその button を出さない
+// ので、asPage を先に見ると開く手段が無くなる (mk-go #2898 / #2868)。
+const opened = ref(!props.canCollapse || (asPage ? false : props.defaultOpen));
 const openedAtLeastOnce = ref(opened.value);
 
 //#region interpolate-sizeに対応していないブラウザ向け（TODO: 主要ブラウザが対応したら消す）

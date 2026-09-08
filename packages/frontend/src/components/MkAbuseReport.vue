@@ -30,6 +30,22 @@ SPDX-License-Identifier: AGPL-3.0-only
 	</template>
 
 	<div class="_gaps_s">
+		<!--
+			**見出しを出さないときの受け皿 (#2868)。** canCollapse=false では
+			header slot (アイコン = 対処状況、suffix = 日時) が描画されないが、
+			日時と resolvedAs は本体のどこにも出ないので、ここで補う。
+		-->
+		<div v-if="props.collapsible === false" :class="$style.standaloneMeta">
+			<span :class="$style.standaloneState">
+				<i v-if="report.resolved && report.resolvedAs === 'accept'" class="ti ti-check" style="color: var(--MI_THEME-success)"></i>
+				<i v-else-if="report.resolved && report.resolvedAs === 'reject'" class="ti ti-x" style="color: var(--MI_THEME-error)"></i>
+				<i v-else-if="report.resolved" class="ti ti-slash"></i>
+				<i v-else class="ti ti-exclamation-circle" style="color: var(--MI_THEME-warn)"></i>
+				{{ report.resolved ? i18n.ts.resolved : i18n.ts.unresolved }}
+			</span>
+			<MkTime :time="report.createdAt"/>
+		</div>
+
 		<MkFolder :withSpacer="false">
 			<template #icon><MkAvatar :user="report.targetUser" style="width: 18px; height: 18px;"/></template>
 			<template #label>{{ i18n.ts.target }}: <MkAcct :user="report.targetUser"/></template>
@@ -157,6 +173,22 @@ function showMenu(ev: PointerEvent) {
 </script>
 
 <style lang="scss" module>
+/* 見出しを出さないときの状態 + 日時 (#2868)。 */
+.standaloneMeta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	opacity: 0.8;
+	font-size: 0.9em;
+}
+
+.standaloneState {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
 .caption,
 .commentBody {
 	white-space: pre-wrap;
