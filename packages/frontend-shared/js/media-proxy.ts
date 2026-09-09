@@ -49,6 +49,19 @@ export class MediaProxy {
 			return u.href;
 		}
 
+		// mk-go: identicon は生成した PNG なのでアニメーションしない。しかも
+		// proxy に通すと allowlist に無いので **403 + max-age=86400** になり、
+		// 静止画になるどころか 1 日壊れる (#2913)。mk-go の proxy は upstream と
+		// 違い open proxy ではなく、DB に実在する URL だけを通す。
+		//
+		// アバター未設定の利用者の `avatarUrl` は相対の `/identicon/<username>` な
+		// ので、`MkAvatar` が静止画設定でここを通していた。**同一オリジン限定**に
+		// するのが要点 — 他インスタンスの `/identicon/` はこちらの生成物ではない
+		// ので、従来どおりプロキシに通す。
+		if (u.href.startsWith(`${this.url}/identicon/`)) {
+			return u.href;
+		}
+
 		if (u.href.startsWith(this.serverMetadata.mediaProxy + '/')) {
 			// もう既にproxyっぽそうだったらsearchParams付けるだけ
 			u.searchParams.set('static', '1');
