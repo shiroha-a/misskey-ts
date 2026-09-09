@@ -67,7 +67,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 								<template #caption>{{ i18n.ts.moderationNoteDescription }}</template>
 							</MkTextarea>
 							<div v-else>
-								<MkButton small @click="editModerationNote = true">{{ i18n.ts.addModerationNote }}</MkButton>
+								<MkButton class="moderationNoteButton" small @click="editModerationNote = true">{{ i18n.ts.addModerationNote }}</MkButton>
 							</div>
 						</div>
 						<div v-if="isEditingMemo || memoDraft" class="memo" :class="{'no-memo': !memoDraft}">
@@ -707,6 +707,18 @@ onDeactivated(disposeBannerParallaxResizeObserver);
 
 				> .moderationNote {
 					margin: 16px 16px 0 16px;
+
+					// MkButton の root は display: block; width: max-content なので、
+					// 親に text-align: center を足しても動かない。ボタン自身に
+					// margin: 0 auto を掛ける。.moderationNote 全体を flex にしないのは、
+					// 編集中に入る MkTextarea が幅いっぱいでなくなるため。
+					// セレクタは > div > .moderationNoteButton で足りるが、CherryPick の
+					// acccc705b9 と一致させてある (将来の突き合わせのため)。
+					div {
+						> .moderationNoteButton {
+							margin: 0 auto;
+						}
+					}
 				}
 
 				> .memo {
