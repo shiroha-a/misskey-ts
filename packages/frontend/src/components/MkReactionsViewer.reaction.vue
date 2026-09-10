@@ -18,7 +18,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, inject, onMounted, useTemplateRef, watch } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted, useTemplateRef, watch } from 'vue';
 import * as Misskey from 'misskey-js';
 import { getUnicodeEmojiOrNull } from '@@/js/emojilist.js';
 import { getEmojiNameFromReaction, isLocalCustomEmojiReaction } from '@@/js/emoji-name.js';
@@ -27,6 +27,7 @@ import type { MenuItem } from '@/types/menu';
 import XDetails from '@/components/MkReactionsViewer.details.vue';
 import MkReactionIcon from '@/components/MkReactionIcon.vue';
 import { importRemoteEmoji, hasLocalEmojiWithSameName } from '@/utility/import-remote-emoji.js';
+import { bindLongPress } from '@/utility/long-press.js';
 import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { useTooltip } from '@/composables/use-tooltip.js';
@@ -160,7 +161,10 @@ async function toggleReaction() {
 	}
 }
 
-async function menu(ev: PointerEvent) {
+// mk-go: 長押しから呼ぶときのために anchorElement を受けられるようにした (#2932)。
+// **`ev.currentTarget` は setTimeout 越しでは null になる** (dispatch が終わると
+// 消える) ので、長押し側は要素を明示で渡す。右クリックからの呼び出しは従来どおり。
+async function menu(ev: PointerEvent | null, anchorElement?: HTMLElement) {
 	let menuItems: MenuItem[] = [];
 
 	if (isLocalCustomEmoji.value) {
@@ -238,7 +242,7 @@ async function menu(ev: PointerEvent) {
 		});
 	}
 
-	os.popupMenu(menuItems, ev.currentTarget ?? ev.target);
+	os.popupMenu(menuItems, anchorElement ?? ev?.currentTarget ?? ev?.target);
 }
 
 function anime() {
@@ -256,8 +260,26 @@ watch(() => props.count, (newCount, oldCount) => {
 	if (oldCount < newCount) anime();
 });
 
+// mk-go: 長押しでもメニューを開く (#2932)。**iOS Safari は button の長押しで
+// contextmenu を発火しない**ので、`@contextmenu` だけだとリモート絵文字の
+// インポート導線 (#2698) に iOS から到達できない。タップは `toggleReaction()` に
+// 取られているため代わりの入口が無い。
+//
+// **後続の click は bindLongPress が握り潰す。** 潰さないと、メニューを開いた指を
+// 離した瞬間にリアクションが付け外しされる。
+let disposeLongPress: (() => void) | null = null;
+
 onMounted(() => {
 	if (!props.isInitial) anime();
+
+	if (!mock && buttonEl.value != null) {
+		disposeLongPress = bindLongPress(buttonEl.value, () => menu(null, buttonEl.value ?? undefined));
+	}
+});
+
+onBeforeUnmount(() => {
+	disposeLongPress?.();
+	disposeLongPress = null;
 });
 
 if (!mock) {
@@ -289,6 +311,11 @@ if (!mock) {
 .root {
 	display: inline-flex;
 	height: 42px;
+	// mk-go: 長押しでメニューを開く (#2932)。iOS は img を含む要素の長押しで
+	// 「画像を保存」の吹き出しを出すので止める。**user-select は足さない** —
+	// style.scss の html:not(.forceSelectableAll) から既に継承されており、
+	// 足すと「全てのテキスト要素を選択可能にする」設定だけを打ち消す。
+	-webkit-touch-callout: none;
 	padding: 0 6px;
 	font-size: 1.5em;
 	border-radius: 6px;
