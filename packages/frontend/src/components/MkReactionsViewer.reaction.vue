@@ -6,9 +6,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 <template>
 <button
 	ref="buttonEl"
-	v-ripple="canToggle"
+	v-ripple="canReact"
 	class="_button"
-	:class="[$style.root, { [$style.reacted]: myReaction == reaction, [$style.canToggle]: canToggle, [$style.small]: prefer.s.reactionsDisplaySize === 'small', [$style.large]: prefer.s.reactionsDisplaySize === 'large' }]"
+	:class="[$style.root, { [$style.reacted]: myReaction == reaction, [$style.canToggle]: canReact, [$style.small]: prefer.s.reactionsDisplaySize === 'small', [$style.large]: prefer.s.reactionsDisplaySize === 'large' }]"
 	@click="toggleReaction()"
 	@contextmenu.prevent.stop="menu"
 >
@@ -26,8 +26,9 @@ import MkCustomEmojiDetailedDialog from './MkCustomEmojiDetailedDialog.vue';
 import type { MenuItem } from '@/types/menu';
 import XDetails from '@/components/MkReactionsViewer.details.vue';
 import MkReactionIcon from '@/components/MkReactionIcon.vue';
-import { importRemoteEmoji, hasLocalEmojiWithSameName } from '@/utility/import-remote-emoji.js';
+import { importRemoteEmoji, hasLocalEmojiWithSameName, bareEmojiName } from '@/utility/import-remote-emoji.js';
 import { bindLongPress } from '@/utility/long-press.js';
+import { localAlternativeReaction } from '@/utility/reaction-alternative.js';
 import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { useTooltip } from '@/composables/use-tooltip.js';
@@ -36,7 +37,7 @@ import MkReactionEffect from '@/components/MkReactionEffect.vue';
 import { i18n } from '@/i18n.js';
 import * as sound from '@/utility/sound.js';
 // import { checkReactionPermissions } from '@/utility/check-reaction-permissions.js';
-import { customEmojisMap } from '@/custom-emojis.js';
+import { customEmojis, customEmojisMap } from '@/custom-emojis.js';
 import { prefer } from '@/preferences.js';
 import { DI } from '@/di.js';
 import { noteEvents } from '@/composables/use-note-capture.js';
@@ -73,8 +74,35 @@ const canToggle = computed(() => {
 	return $i != null && emoji != null;
 });
 
+// mk-go: リモートのリアクションにローカルの同名絵文字で相乗りする (#2697)。
+//
+// **backend は変更しない。** リモート利用者が送ってくる `:foo@their.host:` は
+// そのホストの絵文字を指しているので、backend を「ローカル優先」に変えると AP の
+// 受信側が別の絵文字として記録する。相乗りは**送る側の話**で、送るショートコードを
+// frontend が選び直せば足りる。
+//
+// **数は合算されない。** リアクションは文字列キーで持つので、`:foo@host:` を押すと
+// `:foo@.:` のチップが別に増える (既にローカルの同名チップがあればそちらが増える)。
+// **`customEmojis` を読んで reactive 依存を作る。** 判定の中で使う
+// `customEmojisMap` は素の `Map` なので、これが無いと #2698 の導線でその場で
+// 絵文字をインポートしてもリロードするまでチップが押せるようにならない。
+const localAlternative = computed(() => {
+	if (!prefer.s.reactableRemoteReactionEnabled) return null;
+	void customEmojis.value;
+	return localAlternativeReaction(props.reaction);
+});
+
+// **`$i` を見る。** 見ないと未ログインでも押せる見た目になるが、`toggleReaction` は
+// `$i == null` で抜けるので押しても何も起きない (設定はアカウントに紐付かない
+// localStorage なので、on にして sign out したブラウザで踏む)。
+const canReact = computed(() => canToggle.value || ($i != null && localAlternative.value != null));
+
+// 実際に送るリアクションと、その絵文字名。相乗りのときだけ `props.reaction` と違う。
+const sendingReaction = computed(() => localAlternative.value ?? props.reaction);
+const sendingEmojiName = computed(() => getEmojiNameFromReaction(sendingReaction.value));
+
 async function toggleReaction() {
-	if (!canToggle.value) return;
+	if (!canReact.value) return;
 	if ($i == null) return;
 
 	const me = $i;
@@ -83,17 +111,23 @@ async function toggleReaction() {
 	if (oldReaction) {
 		const confirm = await os.confirm({
 			type: 'warning',
-			text: oldReaction !== props.reaction ? i18n.ts.changeReactionConfirm : i18n.ts.cancelReactionConfirm,
+			text: oldReaction !== sendingReaction.value ? i18n.ts.changeReactionConfirm : i18n.ts.cancelReactionConfirm,
 		});
 		if (confirm.canceled) return;
 
-		if (oldReaction !== props.reaction) {
+		if (oldReaction !== sendingReaction.value) {
 			sound.playMisskeySfx('reaction');
 			haptic();
 		}
 
 		if (mock) {
-			emit('reactionToggled', props.reaction, (props.count - 1));
+			// **相乗りのときは emit しない。** 親は emit されたキーでチップを
+			// 引き当てて delta を計算するので (`MkReactionsViewer.vue` の
+			// `onMockToggleReaction`)、押したチップと送るキーが違う相乗りでは
+			// 別のチップの count を動かすか no-op になる。mock を渡すのは
+			// `MkTutorialDialog.*` = **実利用者が通るチュートリアル**で、example note の
+			// reactions は空から始まるので相乗りできるチップは出ないが、契約を壊さない。
+			if (localAlternative.value == null) emit('reactionToggled', sendingReaction.value, (props.count - 1));
 			return;
 		}
 
@@ -104,18 +138,18 @@ async function toggleReaction() {
 				userId: me.id,
 				reaction: oldReaction,
 			});
-			if (oldReaction !== props.reaction) {
+			if (oldReaction !== sendingReaction.value) {
 				misskeyApi('notes/reactions/create', {
 					noteId: props.noteId,
-					reaction: props.reaction,
+					reaction: sendingReaction.value,
 				}).then(() => {
-					const emoji = customEmojisMap.get(emojiName.value);
-					if (emoji == null && getUnicodeEmojiOrNull(props.reaction) == null) {
+					const emoji = customEmojisMap.get(sendingEmojiName.value);
+					if (emoji == null && getUnicodeEmojiOrNull(sendingReaction.value) == null) {
 						return;
 					}
 					noteEvents.emit(`reacted:${props.noteId}`, {
 						userId: me.id,
-						reaction: props.reaction,
+						reaction: sendingReaction.value,
 						emoji: emoji,
 					});
 				});
@@ -125,7 +159,7 @@ async function toggleReaction() {
 		if (prefer.s.confirmOnReact) {
 			const confirm = await os.confirm({
 				type: 'question',
-				text: i18n.tsx.reactAreYouSure({ emoji: props.reaction.replace('@.', '') }),
+				text: i18n.tsx.reactAreYouSure({ emoji: sendingReaction.value.replace('@.', '') }),
 			});
 
 			if (confirm.canceled) return;
@@ -135,22 +169,22 @@ async function toggleReaction() {
 		haptic();
 
 		if (mock) {
-			emit('reactionToggled', props.reaction, (props.count + 1));
+			if (localAlternative.value == null) emit('reactionToggled', sendingReaction.value, (props.count + 1));
 			return;
 		}
 
 		misskeyApi('notes/reactions/create', {
 			noteId: props.noteId,
-			reaction: props.reaction,
+			reaction: sendingReaction.value,
 		}).then(() => {
-			const emoji = customEmojisMap.get(emojiName.value);
-			if (emoji == null && getUnicodeEmojiOrNull(props.reaction) == null) {
+			const emoji = customEmojisMap.get(sendingEmojiName.value);
+			if (emoji == null && getUnicodeEmojiOrNull(sendingReaction.value) == null) {
 				return;
 			}
 
 			noteEvents.emit(`reacted:${props.noteId}`, {
 				userId: me.id,
-				reaction: props.reaction,
+				reaction: sendingReaction.value,
 				emoji: emoji,
 			});
 		});
@@ -232,12 +266,19 @@ async function menu(ev: PointerEvent | null, anchorElement?: HTMLElement) {
 		});
 	}
 
-	if (canToggle.value) {
+	if (canReact.value) {
 		menuItems.push({
 			text: i18n.ts.addToEmojiPalette,
 			icon: 'ti ti-palette',
 			action: () => {
-				addToEmojiPalette(isLocalCustomEmoji.value ? `:${emojiName.value}:` : props.reaction);
+				// mk-go: 相乗りできるものは**ローカルの裸の名前**を入れる (#2697)。
+				// `props.reaction` を入れると `:foo@host:` が永続化され、パレットから
+				// 押したときだけリモートのキーを送る (mk-go は受理して合算するが、
+				// 純正 TS の `isCustomEmojiRegexp` は任意 host を受けず ❤ に落ちる)。
+				// `MkCustomEmoji` も `:${props.name}:` の裸の形を入れている。
+				addToEmojiPalette(isLocalCustomEmoji.value || localAlternative.value != null
+					? `:${bareEmojiName(emojiName.value)}:`
+					: props.reaction);
 			},
 		});
 	}

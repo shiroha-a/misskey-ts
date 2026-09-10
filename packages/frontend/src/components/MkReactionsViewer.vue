@@ -32,6 +32,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import * as Misskey from 'misskey-js';
 import { inject, watch, ref } from 'vue';
 import { TransitionGroup } from 'vue';
+import { localAlternativeReaction } from '@/utility/reaction-alternative.js';
 import { isSupportedEmoji } from '@@/js/emojilist.js';
 import { getEmojiNameFromReaction, isLocalCustomEmojiReaction } from '@@/js/emoji-name.js';
 import XReaction from '@/components/MkReactionsViewer.reaction.vue';
@@ -77,9 +78,12 @@ function onMockToggleReaction(emoji: string, count: number) {
 function canReact(reaction: string) {
 	if (!$i) return false;
 	// TODO: CheckPermissions
-	return isLocalCustomEmojiReaction(reaction)
-		? customEmojisMap.has(getEmojiNameFromReaction(reaction))
-		: isSupportedEmoji(reaction);
+	if (isLocalCustomEmojiReaction(reaction)) return customEmojisMap.has(getEmojiNameFromReaction(reaction));
+	if (isSupportedEmoji(reaction)) return true;
+	// mk-go: ローカルの同名絵文字で相乗りできるものも「押せる」側に数える (#2697)。
+	// ここを揃えないと、`showAvailableReactionsFirstInNote` が押せるチップを
+	// 押せない側として後ろへ並べる。
+	return prefer.s.reactableRemoteReactionEnabled && localAlternativeReaction(reaction) != null;
 }
 
 watch([() => props.reactions, () => props.maxNumber], ([newSource, maxNumber]) => {

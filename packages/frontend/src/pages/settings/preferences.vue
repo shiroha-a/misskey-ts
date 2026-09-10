@@ -221,6 +221,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 									</MkPreferenceContainer>
 								</SearchMarker>
 
+								<!-- mk-go 独自 (#2697)。リモートのリアクションにローカルの同名絵文字で相乗りする。 -->
+								<SearchMarker :keywords="['reaction', 'remote', 'emoji']">
+									<MkPreferenceContainer k="reactableRemoteReactionEnabled">
+										<MkSwitch v-model="reactableRemoteReactionEnabled">
+											<template #label><SearchLabel>{{ i18n.ts.reactableRemoteReaction }}</SearchLabel></template>
+											<template #caption><SearchText>{{ i18n.ts.reactableRemoteReactionDescription }}</SearchText></template>
+										</MkSwitch>
+									</MkPreferenceContainer>
+								</SearchMarker>
+
 								<SearchMarker :keywords="['image', 'photo', 'picture', 'media', 'thumbnail', 'quality', 'raw', 'attachment']">
 									<MkPreferenceContainer k="loadRawImages">
 										<MkSwitch v-model="loadRawImages">
@@ -923,6 +933,8 @@ const useGroupedNotifications = prefer.model('useGroupedNotifications');
 const alwaysConfirmFollow = prefer.model('alwaysConfirmFollow');
 const confirmWhenRevealingSensitiveMedia = prefer.model('confirmWhenRevealingSensitiveMedia');
 const confirmOnReact = prefer.model('confirmOnReact');
+// mk-go 独自 (#2697)
+const reactableRemoteReactionEnabled = prefer.model('reactableRemoteReactionEnabled');
 const defaultNoteVisibility = prefer.model('defaultNoteVisibility');
 const defaultNoteLocalOnly = prefer.model('defaultNoteLocalOnly');
 const rememberNoteVisibility = prefer.model('rememberNoteVisibility');

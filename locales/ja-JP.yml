@@ -1349,6 +1349,8 @@ federationDisabled: "このサーバーは連合が無効化されています�
 draft: "下書き"
 draftsAndScheduledNotes: "下書きと予約投稿"
 confirmOnReact: "リアクションする際に確認する"
+reactableRemoteReaction: "リモートのカスタム絵文字のリアクションでも、このサーバーに同じ名前の絵文字があればリアクションできるようにする"
+reactableRemoteReactionDescription: "押すとこのサーバーの絵文字でリアクションします。リモートのリアクションの数には加算されず、別に表示されます。"
 reactAreYouSure: "\" {emoji} \" をリアクションしますか？"
 markAsSensitiveConfirm: "このメディアをセンシティブとして設定しますか？"
 unmarkAsSensitiveConfirm: "このメディアのセンシティブ指定を解除しますか？"

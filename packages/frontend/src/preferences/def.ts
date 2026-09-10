@@ -381,6 +381,12 @@ export const PREF_DEF = definePreferences({
 	confirmOnReact: {
 		default: false,
 	},
+	// mk-go 独自 (#2697)。リモートのリアクションにローカルの同名絵文字で相乗りする。
+	// **既定は false** — 押せなかったものが押せるようになるので、誤タップで
+	// リアクションが付く挙動を全員に既定で入れない。CherryPick は true。
+	reactableRemoteReactionEnabled: {
+		default: false,
+	},
 	defaultFollowWithReplies: {
 		default: false,
 	},

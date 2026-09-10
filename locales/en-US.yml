@@ -1337,6 +1337,8 @@ federationDisabled: "Federation is disabled on this server. You cannot interact 
 draft: "Drafts"
 draftsAndScheduledNotes: "Drafts and scheduled notes"
 confirmOnReact: "Confirm when reacting"
+reactableRemoteReaction: "Allow reacting to remote custom emoji reactions when this server has an emoji with the same name"
+reactableRemoteReactionDescription: "Reacts with this server's emoji. It is not added to the remote reaction's count and is shown separately."
 reactAreYouSure: "Would you like to add a \"{emoji}\" reaction?"
 markAsSensitiveConfirm: "Do you want to set this media as sensitive?"
 unmarkAsSensitiveConfirm: "Do you want to remove the sensitive designation for this media?"
