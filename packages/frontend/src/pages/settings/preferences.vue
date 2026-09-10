@@ -226,7 +226,6 @@ SPDX-License-Identifier: AGPL-3.0-only
 									<MkPreferenceContainer k="reactableRemoteReactionEnabled">
 										<MkSwitch v-model="reactableRemoteReactionEnabled">
 											<template #label><SearchLabel>{{ i18n.ts.reactableRemoteReaction }}</SearchLabel></template>
-											<template #caption><SearchText>{{ i18n.ts.reactableRemoteReactionDescription }}</SearchText></template>
 										</MkSwitch>
 									</MkPreferenceContainer>
 								</SearchMarker>

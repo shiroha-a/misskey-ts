@@ -5409,13 +5409,9 @@ export interface Locale extends ILocale {
      */
     "confirmOnReact": string;
     /**
-     * リモートのカスタム絵文字のリアクションでも、このサーバーに同じ名前の絵文字があればリアクションできるようにする
+     * リアクションの相乗りをできるようにする
      */
     "reactableRemoteReaction": string;
-    /**
-     * 押すとこのサーバーの絵文字でリアクションします。リモートのリアクションの数には加算されず、別に表示されます。
-     */
-    "reactableRemoteReactionDescription": string;
     /**
      * " {emoji} " をリアクションしますか？
      */
