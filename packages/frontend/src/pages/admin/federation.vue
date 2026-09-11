@@ -4,37 +4,55 @@ SPDX-License-Identifier: AGPL-3.0-only
 -->
 
 <template>
-<PageWithHeader :actions="headerActions" :tabs="headerTabs">
+<PageWithHeader v-model:tab="tab" :actions="headerActions" :tabs="headerTabs">
 	<div class="_spacer" style="--MI_SPACER-w: 900px;">
+		<!--
+			サーバープラグインの描画先 (mk-go #2543)。連合の状態を見に来る
+			のはこのページなので、概要は検索欄より前に置く。**タブの外に置く** —
+			中に入れると instances タブ限定になり、タブを行き来するたびに
+			unmount されてプラグイン側の状態も飛ぶ (#2944)。
+		-->
 		<div class="_gaps">
 			<!--
-				サーバープラグインの描画先 (mk-go #2543)。連合の状態を見に来る
-				のはこのページなので、概要は検索欄より前に置く。
+				**_gaps で包む。** MkPluginSlot の root は display: contents で自分の箱を
+				持たないので、flex/gap のある親の直下でないとプラグイン出力どうし・
+				下のコンテンツとの余白が 0 になる。_spacer は padding しか持たない。
 			-->
 			<MkPluginSlot name="admin:federation"/>
 
-			<div>
-				<MkInput v-model="host" :debounce="true" class="">
-					<template #prefix><i class="ti ti-search"></i></template>
-					<template #label>{{ i18n.ts.host }}</template>
-				</MkInput>
-				<FormSplit style="margin-top: var(--MI-margin);">
-					<MkSelect v-model="state" :items="stateDef">
-						<template #label>{{ i18n.ts.state }}</template>
-					</MkSelect>
-					<MkSelect v-model="sort" :items="sortDef">
-						<template #label>{{ i18n.ts.sort }}</template>
-					</MkSelect>
-				</FormSplit>
+			<div v-if="tab === 'instances'" class="_gaps">
+				<div>
+					<MkInput v-model="host" :debounce="true" class="">
+						<template #prefix><i class="ti ti-search"></i></template>
+						<template #label>{{ i18n.ts.host }}</template>
+					</MkInput>
+					<FormSplit style="margin-top: var(--MI-margin);">
+						<MkSelect v-model="state" :items="stateDef">
+							<template #label>{{ i18n.ts.state }}</template>
+						</MkSelect>
+						<MkSelect v-model="sort" :items="sortDef">
+							<template #label>{{ i18n.ts.sort }}</template>
+						</MkSelect>
+					</FormSplit>
+				</div>
+
+				<MkPagination v-slot="{items}" :key="host + state" :paginator="paginator">
+					<div :class="$style.instances">
+						<MkA v-for="instance in items" :key="instance.id" v-tooltip.mfm="`Status: ${getStatus(instance)}`" :class="$style.instance" :to="`/instance-info/${instance.host}`">
+							<MkInstanceCardMini :instance="instance"/>
+						</MkA>
+					</div>
+				</MkPagination>
 			</div>
 
-			<MkPagination v-slot="{items}" :key="host + state" :paginator="paginator">
-				<div :class="$style.instances">
-					<MkA v-for="instance in items" :key="instance.id" v-tooltip.mfm="`Status: ${getStatus(instance)}`" :class="$style.instance" :to="`/instance-info/${instance.host}`">
-						<MkInstanceCardMini :instance="instance"/>
-					</MkA>
-				</div>
-			</MkPagination>
+			<!--
+				配送の健全性 (mk-go #2944)。**名簿 (instances) と観測 (deliver /
+				inbox) を同じページに置く。** 出どころが DB と Redis で違い、
+				「一覧に無い = 正常」ではない点を取り違えやすいので、行き来できる
+				ところに並べて注意書きを添える。host は共有して、調べている相手を
+				タブ間で持ち越す。
+			-->
+			<XFederationHealth v-else :key="tab" v-model:host="host" :direction="tab"/>
 		</div>
 	</div>
 </PageWithHeader>
@@ -48,12 +66,14 @@ import MkSelect from '@/components/MkSelect.vue';
 import MkPagination from '@/components/MkPagination.vue';
 import MkInstanceCardMini from '@/components/MkInstanceCardMini.vue';
 import MkPluginSlot from '@/components/MkPluginSlot.vue';
+import XFederationHealth from '@/pages/admin/federation.health.vue';
 import FormSplit from '@/components/form/split.vue';
 import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import { Paginator } from '@/utility/paginator.js';
 
+const tab = ref<'instances' | 'deliver' | 'inbox'>('instances');
 const host = ref('');
 const {
 	model: state,
@@ -128,7 +148,19 @@ function getStatus(instance: Misskey.entities.FederationInstance) {
 
 const headerActions = computed(() => []);
 
-const headerTabs = computed(() => []);
+const headerTabs = computed(() => [{
+	key: 'instances',
+	title: i18n.ts.instances,
+}, {
+	// 連合ジョブの画面と同じ名前にする (federation-job-queue.vue も i18n を
+	// 通さず Deliver / Inbox のまま)。運営者が同じものを 2 つの言葉で
+	// 覚えることにならないようにする。
+	key: 'deliver',
+	title: 'Deliver',
+}, {
+	key: 'inbox',
+	title: 'Inbox',
+}]);
 
 definePage(() => ({
 	title: i18n.ts.federation,

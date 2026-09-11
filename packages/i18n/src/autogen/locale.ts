@@ -8979,6 +8979,174 @@ export interface Locale extends ILocale {
          */
         "allContributors": string;
     };
+    "_federationHealth": {
+        /**
+         * 配送の健全性を取得できませんでした。この backend が対応していないか、権限がありません。
+         */
+        "unavailable": string;
+        /**
+         * 成功率
+         */
+        "successRate": string;
+        /**
+         * 対象ホスト
+         */
+        "hosts": string;
+        /**
+         * この期間に通信した相手のみ
+         */
+        "hostsCaption": string;
+        /**
+         * 失敗している相手
+         */
+        "degraded": string;
+        /**
+         * 集計する期間
+         */
+        "window": string;
+        /**
+         * 5分
+         */
+        "last5m": string;
+        /**
+         * 15分
+         */
+        "last15m": string;
+        /**
+         * 1時間
+         */
+        "last1h": string;
+        /**
+         * 失敗がある
+         */
+        "stateFailing": string;
+        /**
+         * 成功率95%未満
+         */
+        "stateDegraded": string;
+        /**
+         * 問題なし
+         */
+        "stateHealthy": string;
+        /**
+         * 失敗の多い順
+         */
+        "sortFailure": string;
+        /**
+         * 成功率の低い順
+         */
+        "sortRate": string;
+        /**
+         * p95の遅い順
+         */
+        "sortP95": string;
+        /**
+         * 通信量の多い順
+         */
+        "sortVolume": string;
+        /**
+         * 成功
+         */
+        "succeeded": string;
+        /**
+         * 失敗
+         */
+        "failed": string;
+        /**
+         * 超過
+         */
+        "overflow": string;
+        /**
+         * 応答なし
+         */
+        "noResponse": string;
+        /**
+         * この期間に失敗はありません。
+         */
+        "noFailures": string;
+        /**
+         * 期間外
+         */
+        "outsideWindow": string;
+        /**
+         * 失敗はありますが、直近のエラーが記録されていません。
+         */
+        "noRecordedError": string;
+        /**
+         * 条件に合う相手がいません。
+         */
+        "noHosts": string;
+        /**
+         * 集計の上限に達しているため、この一覧は全体の一部です（{n}件が対象外）。
+         */
+        "evicted": ParameterizedString<"n">;
+        /**
+         * 連合先の名簿ではありません。この期間に配送した相手だけが出ます。沈黙している相手は現れないので、一覧に無いことは正常を意味しません。
+         */
+        "deliverNote": string;
+        /**
+         * 連合先の名簿ではありません。この期間に受信した相手だけが出ます。沈黙している相手は現れないので、一覧に無いことは正常を意味しません。ブロックしたホストからの受信は意図した拒否ですが、成功率には失敗として数えます。
+         */
+        "inboxNote": string;
+        "_hints": {
+            /**
+             * 正常に受理されています。
+             */
+            "success": string;
+            /**
+             * 相手がもう存在しません。再送しません。
+             */
+            "gone": string;
+            /**
+             * 相手は健在で、流量を絞っているだけです。再送で吸収されます。
+             */
+            "rateLimited": string;
+            /**
+             * 投函が受理されていません。署名や形式のほか、相手のbot対策で弾かれている場合もあります。再送しません。
+             */
+            "clientError": string;
+            /**
+             * 相手側の一時障害です。再送します。続くようなら相手に連絡してください。
+             */
+            "serverError": string;
+            /**
+             * HTTP応答に至っていません。DNS・TCP・TLS・タイムアウトのいずれかです。再送します。
+             */
+            "transport": string;
+            /**
+             * 受理しました。
+             */
+            "accepted": string;
+            /**
+             * こちらが対応していない種類の活動です。相手は正しく送っているので異常ではありません。
+             */
+            "unsupported": string;
+            /**
+             * 処理済みの活動が再送されました。正常な二重配送でも起きますが、急に増えたら再投函を試されている合図です。
+             */
+            "duplicate": string;
+            /**
+             * HTTP署名を検証できませんでした。相手の鍵が変わったか、署名の実装が壊れています。
+             */
+            "signatureFailed": string;
+            /**
+             * 管理者がブロックしているホストです。意図した拒否ですが、成功率には失敗として数えます。
+             */
+            "blocked": string;
+            /**
+             * 署名者と本文のactorが食い違っています。なりすまし対策で拒否しました。
+             */
+            "actorUnauthorized": string;
+            /**
+             * LD-Signatureを検証できませんでした。
+             */
+            "ldSignatureFailed": string;
+            /**
+             * 処理中に失敗しました。再試行されます。
+             */
+            "processingError": string;
+        };
+    };
     "_remoteEmojiImport": {
         /**
          * 相手のサーバーからは詳細を取得できないため、カテゴリやタグは手で入力してください。
