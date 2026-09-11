@@ -4,7 +4,6 @@
  */
 
 import { watch, version as vueVersion } from 'vue';
-import { compareVersions } from 'compare-versions';
 import { version, lang, isSafeMode } from '@@/js/config.js';
 import defaultLightTheme from '@@/themes/l-light.json5';
 import defaultDarkTheme from '@@/themes/d-green-lime.json5';
@@ -23,6 +22,7 @@ import { updateDeviceKind } from '@/utility/device-kind.js';
 import { reloadChannel } from '@/utility/unison-reload.js';
 import { getUrlWithoutLoginId } from '@/utility/login-id.js';
 import { getAccountFromId } from '@/utility/get-account-from-id.js';
+import { resolveClientUpdate } from '@/utility/check-client-update.js';
 import { deckStore } from '@/ui/deck/deck-store.js';
 import { analytics, initAnalytics } from '@/analytics.js';
 import { miLocalStorage } from '@/local-storage.js';
@@ -65,18 +65,35 @@ export async function common(createVue: () => Promise<App<Element>>) {
 		});
 	}
 
-	let isClientUpdated = false;
-
 	//#region クライアントが更新されたかチェック
+	// **mk-go の版で判定する (#2939)。** Misskey 側の版は upstream 追従のときしか
+	// 動かないので、fork の変更 (mk.8f / mk.9 など) を何度重ねてもここは一度も
+	// 成立せず、ダイアログが出たことが無かった。
+	//
+	// instance は SSR 埋め込み (`misskey_meta`) から**同期的に**埋まるので、
+	// fetchInstance() の完了を待つ必要が無い。mk-go は data-generated-at に
+	// time.Now() を入れるため通常は cache より新しいが、比較は厳密不等
+	// (`providedAt > cachedAt`) なので、端末の時計がサーバーより進んでいると
+	// cache が採られる。その場合ダイアログが 1 回分遅れるだけで誤検知はしない。
 	const lastVersion = miLocalStorage.getItem('lastVersion');
-	if (lastVersion !== version) {
-		miLocalStorage.setItem('lastVersion', version);
+	const lastMkGoVersion = miLocalStorage.getItem('lastMkGoVersion');
+	const mkGoVersion = (instance as typeof instance & { mkGoVersion?: string }).mkGoVersion ?? null;
 
-		try { // 変なバージョン文字列来るとcompareVersionsでエラーになるため
-			if (lastVersion != null && compareVersions(version, lastVersion) === 1) {
-				isClientUpdated = true;
-			}
-		} catch (err) { /* empty */ }
+	const clientUpdate = resolveClientUpdate({
+		misskeyVersion: version,
+		mkGoVersion,
+		lastMisskeyVersion: lastVersion,
+		lastMkGoVersion,
+	});
+	const isClientUpdated = clientUpdate.updated;
+
+	// **どのキーをいつ書くかは resolveClientUpdate が決める。** ここに条件を
+	// 書くと、反転させても型もテストも通ってしまう — `!==` を `===` にするだけで
+	// lastMkGoVersion が永久に更新されず、**全利用者にページ遷移のたびに
+	// ダイアログが出続ける**のに、どの検査も赤くならない (敵対的レビューで実測)。
+	// 判断を純関数へ寄せて vitest で固定し、ここは書くだけにしてある。
+	for (const [key, value] of clientUpdate.persist) {
+		miLocalStorage.setItem(key, value);
 	}
 	//#endregion
 
@@ -339,6 +356,9 @@ export async function common(createVue: () => Promise<App<Element>>) {
 
 	return {
 		isClientUpdated,
+		// ダイアログの表示とリンク先は判定に使った版で決まる。呼び出し側で
+		// instance を読み直すと、判定した版と表示する版が食い違いうる。
+		clientUpdate,
 		lastVersion,
 		app,
 	};

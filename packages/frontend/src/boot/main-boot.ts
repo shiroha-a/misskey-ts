@@ -32,7 +32,7 @@ import { unisonReload } from '@/utility/unison-reload.js';
 import { isBirthday } from '@/utility/is-birthday.js';
 
 export async function mainBoot() {
-	const { isClientUpdated, lastVersion } = await common(async () => {
+	const { isClientUpdated, clientUpdate, lastVersion } = await common(async () => {
 		let uiStyle = ui;
 		const searchParams = new URLSearchParams(window.location.search);
 
@@ -66,7 +66,12 @@ export async function mainBoot() {
 	emojiPicker.init();
 
 	if (isClientUpdated && $i) {
-		const { dispose } = popup(defineAsyncComponent(() => import('@/components/MkUpdated.vue')), {}, {
+		// 判定に使った版をそのまま渡す。ダイアログ側で instance を読み直すと
+		// 判定した版と表示する版が食い違いうる (#2939)。
+		const { dispose } = popup(defineAsyncComponent(() => import('@/components/MkUpdated.vue')), {
+			isMkGo: clientUpdate.isMkGo,
+			updatedVersion: clientUpdate.version,
+		}, {
 			closed: () => dispose(),
 		});
 	}

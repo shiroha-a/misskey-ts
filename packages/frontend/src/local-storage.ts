@@ -6,6 +6,10 @@
 export type Keys = (
 	'v' |
 	'lastVersion' |
+	// mk-go のリリース版。**lastVersion と混ぜない** — 版体系が別なので、
+	// 同じキーに入れると compareVersions('2026.9.0', '1.3.0') === 1 で
+	// backend を差し替えただけで更新と誤検知する (#2939)。
+	'lastMkGoVersion' |
 	'instance' |
 	'instanceCachedAt' |
 	'account' |

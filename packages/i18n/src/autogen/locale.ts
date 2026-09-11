@@ -3705,6 +3705,10 @@ export interface Locale extends ILocale {
      */
     "misskeyUpdated": string;
     /**
+     * mk-goが更新されました！
+     */
+    "mkGoUpdated": string;
+    /**
      * 更新情報を見る
      */
     "whatIsNew": string;
