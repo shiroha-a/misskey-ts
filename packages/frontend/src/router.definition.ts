@@ -230,6 +230,13 @@ export const ROUTE_DEF = [{
 	path: '/about-mkgo',
 	component: page(() => import('@/pages/about-mkgo.vue')),
 }, {
+	// mk-go: カスタム絵文字の登録申請 (#2934)。**loginRequired にする** —
+	// 申請も一覧も自分のアカウントに紐づくので、ログアウト状態で開いても
+	// 何も出せない。
+	path: '/emoji-request',
+	component: page(() => import('@/pages/emoji-request.vue')),
+	loginRequired: true,
+}, {
 	path: '/invite',
 	name: 'invite',
 	component: page(() => import('@/pages/invite.vue')),

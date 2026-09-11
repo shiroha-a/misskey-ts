@@ -13870,6 +13870,14 @@ export interface Locale extends ILocale {
     };
     "_mkgoRolePolicy": {
         /**
+         * カスタム絵文字の登録を申請できる
+         */
+        "canRequestCustomEmojis": string;
+        /**
+         * 自作の絵文字の登録をモデレーターに申請できます。実際に登録されるのは承認された後です。
+         */
+        "canRequestCustomEmojis_caption": string;
+        /**
          * 分割アップロードを許可
          */
         "canUseChunkedUpload": string;
@@ -13912,6 +13920,14 @@ export interface Locale extends ILocale {
          */
         "abuseReportResolvedBySomeone": string;
         /**
+         * 絵文字 :{name}: の申請が承認されました
+         */
+        "emojiApplicationApproved": ParameterizedString<"name">;
+        /**
+         * 絵文字 :{name}: の申請は却下されました
+         */
+        "emojiApplicationRejected": ParameterizedString<"name">;
+        /**
          * 通知 ({type})
          */
         "unknownType": ParameterizedString<"type">;
@@ -13945,5 +13961,203 @@ export interface Locale extends ILocale {
          * mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。
          */
         "cleanRemoteFiles": string;
+    };
+    "_emojiApplication": {
+        /**
+         * カスタム絵文字の登録申請
+         */
+        "title": string;
+        /**
+         * 申請
+         */
+        "tabTitle": string;
+        /**
+         * 申請する
+         */
+        "tabApply": string;
+        /**
+         * 自分の申請
+         */
+        "tabMine": string;
+        /**
+         * 登録を申請すると、モデレーターの承認後にサーバーのカスタム絵文字として使えるようになります。権利を持たない画像は申請しないでください。
+         */
+        "applyNote": string;
+        /**
+         * 画像を選ぶ
+         */
+        "chooseImage": string;
+        /**
+         * PNG / GIF / WebP。一辺128px以上を推奨します。
+         */
+        "imageHint": string;
+        /**
+         * 本文ではこう表示されます
+         */
+        "inlinePreview": string;
+        /**
+         * たとえばこんなふうに
+         */
+        "inlineSampleText": string;
+        /**
+         * 半角英数字とアンダースコアのみ。本文では :名前: で呼び出します。
+         */
+        "nameCaption": string;
+        /**
+         * 名前に使えるのは半角英数字とアンダースコアだけです。
+         */
+        "nameInvalid": string;
+        /**
+         * 検索用の別名。スペース区切りで入力します。
+         */
+        "aliasesCaption": string;
+        /**
+         * 出典や利用条件。申請では必須です。後から辿れないと、問題が起きたときに削除するしかなくなります。
+         */
+        "licenseCaption": string;
+        /**
+         * モデレーターへの補足
+         */
+        "comment": string;
+        /**
+         * どこで使いたいか、権利関係の補足など。
+         */
+        "commentCaption": string;
+        /**
+         * 申請する
+         */
+        "submit": string;
+        /**
+         * 申請しました。結果は通知で届きます。
+         */
+        "submitted": string;
+        /**
+         * 申請はまだありません。
+         */
+        "noneOfMine": string;
+        /**
+         * 審査日時
+         */
+        "processedAt": string;
+        /**
+         * 登録されました。本文で :{name}: と書くと使えます。
+         */
+        "approvedNote": ParameterizedString<"name">;
+        /**
+         * 申請を取り下げる
+         */
+        "cancel": string;
+        /**
+         * この申請を取り下げますか？
+         */
+        "cancelConfirm": string;
+        /**
+         * 審査中
+         */
+        "statusPending": string;
+        /**
+         * 承認
+         */
+        "statusApproved": string;
+        /**
+         * 却下
+         */
+        "statusRejected": string;
+        /**
+         * 取り下げ
+         */
+        "statusCanceled": string;
+        /**
+         * 同じ名前のカスタム絵文字が既にあります。別の名前にしてください。
+         */
+        "errorDuplicateName": string;
+        /**
+         * 同じ名前で審査中の申請があります。
+         */
+        "errorAlreadyRequested": string;
+        /**
+         * 画像を選んでください。
+         */
+        "errorNoFile": string;
+        /**
+         * この申請は既に処理されています。一覧を読み込み直してください。
+         */
+        "errorAlreadyProcessed": string;
+        /**
+         * この画像の形式では絵文字にできません。
+         */
+        "errorUnsupportedType": string;
+        /**
+         * 申請された画像が見つかりません。申請者が削除した可能性があります。
+         */
+        "errorFileGone": string;
+        /**
+         * この申請は見つかりません。
+         */
+        "errorNoSuchApplication": string;
+        /**
+         * 現在のロールではカスタム絵文字の登録を申請できません。
+         */
+        "errorNotAllowed": string;
+        /**
+         * 入力が長すぎます。ライセンスやカテゴリを短くしてください。
+         */
+        "errorTooLong": string;
+        /**
+         * 審査待ち
+         */
+        "filterPending": string;
+        /**
+         * 処理済み
+         */
+        "filterProcessed": string;
+        /**
+         * 該当する申請はありません。
+         */
+        "noApplications": string;
+        /**
+         * 申請者
+         */
+        "applicant": string;
+        /**
+         * 同じ名前の絵文字が既にあります。承認するとエラーになるので、名前を変えてもらうか却下してください。（{name}）
+         */
+        "nameConflict": ParameterizedString<"name">;
+        /**
+         * 同じ名前の絵文字があるか確認できませんでした。承認する前に手動で確認してください。
+         */
+        "nameConflictUnknown": string;
+        /**
+         * 同じ名前の絵文字が既にあります。このまま承認すると失敗します。続けますか？（{name}）
+         */
+        "nameConflictConfirm": ParameterizedString<"name">;
+        /**
+         * 画像がありません
+         */
+        "imageGone": string;
+        /**
+         * 画像を確認できませんでした。承認する前にもう一度読み込んでください。
+         */
+        "imageUnknown": string;
+        /**
+         * 承認して登録
+         */
+        "approve": string;
+        /**
+         * 却下
+         */
+        "reject": string;
+        /**
+         * 却下の理由
+         */
+        "rejectReason": string;
+        /**
+         * 申請者にそのまま伝わります。
+         */
+        "rejectReasonCaption": string;
+        /**
+         * 却下の理由を入力してください。申請者にはこの文面しか届きません。
+         */
+        "rejectReasonRequired": string;
     };
 }

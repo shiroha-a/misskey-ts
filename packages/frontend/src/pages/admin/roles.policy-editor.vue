@@ -213,6 +213,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 			**集約は他の bool / 数値 policy と同じ** (bool は OR、数値は max)。
 			intersection なのは下の optOutNotificationTypes だけ。
 		-->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canRequestCustomEmojis, 'canRequestCustomEmojis'])" v-model:policyMeta="canRequestCustomEmojisMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.canRequestCustomEmojis }}</template>
+			<template #valueText>{{ canRequestCustomEmojis ? i18n.ts.yes : i18n.ts.no }}</template>
+			<template #default="{ disabled }">
+				<MkSwitch v-model="canRequestCustomEmojis" :disabled="disabled">
+					<template #label>{{ i18n.ts.enable }}</template>
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.canRequestCustomEmojis_caption }}</template>
+				</MkSwitch>
+			</template>
+		</XFolder>
+
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canUseChunkedUpload, 'canUseChunkedUpload'])" v-model:policyMeta="canUseChunkedUploadMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload }}</template>
 			<template #valueText>{{ canUseChunkedUpload ? i18n.ts.yes : i18n.ts.no }}</template>
@@ -538,6 +549,7 @@ watch(() => props.rolePolicies, () => {
 const mkGoPolicyMetaKeys: string[] = [
 	...Misskey.rolePolicies,
 	'optOutNotificationTypes',
+	'canRequestCustomEmojis',
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
@@ -603,6 +615,10 @@ const optOutPolicyMeta = mkGoPolicyMeta('optOutNotificationTypes');
 
 // 分割アップロード (#2313) の policy (#2900)。既定は backend の
 // internal/effectivepolicy/validation.go と揃える。
+// 絵文字の登録申請 (#2934)。既定 true — 登録は必ず承認を通るので、申請
+// そのものを既定で塞がない。effectivepolicy の default と揃えること。
+const canRequestCustomEmojis = mkGoPolicyValue('canRequestCustomEmojis', true);
+const canRequestCustomEmojisMeta = mkGoPolicyMeta('canRequestCustomEmojis');
 const canUseChunkedUpload = mkGoPolicyValue('canUseChunkedUpload', true);
 const canUseChunkedUploadMeta = mkGoPolicyMeta('canUseChunkedUpload');
 const chunkedUploadMaxConcurrentSessions = mkGoPolicyValue('chunkedUploadMaxConcurrentSessions', 4);

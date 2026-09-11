@@ -124,6 +124,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 		<hr>
 
+		<!--
+			カスタム絵文字の登録申請 (#2934)。**policy を持たない人には出さない** —
+			開いても申請できないページへ誘導することになる。一覧と取り下げは
+			policy で塞いでいないが、この導線は「申請する」ための入口なので
+			申請できる人にだけ見せる。
+		-->
+		<FormLink v-if="canRequestCustomEmojis" to="/emoji-request">
+			<template #icon><i class="ti ti-mood-plus"></i></template>
+			{{ i18n.ts._emojiApplication.title }}
+		</FormLink>
+
 		<FormLink to="/registry"><template #icon><i class="ti ti-adjustments"></i></template>{{ i18n.ts.registry }}</FormLink>
 
 		<hr>
@@ -170,6 +181,13 @@ import { suggestReload } from '@/utility/reload-suggest.js';
 import { cloudBackup } from '@/preferences/utility.js';
 
 const $i = ensureSignin();
+
+// **policy を持たない人には導線を出さない。** 開いても申請できない
+// ページへ誘導することになる。canManageCustomEmojis を持つ人は申請では
+// なく直接登録できるので、そちらでも出さない。
+const canRequestCustomEmojis = computed(() => !$i.isModerator
+	&& !($i.policies as Record<string, unknown>).canManageCustomEmojis
+	&& ($i.policies as Record<string, unknown>).canRequestCustomEmojis === true);
 
 const storagePersisted = await getStoragePersistenceStatusRef();
 

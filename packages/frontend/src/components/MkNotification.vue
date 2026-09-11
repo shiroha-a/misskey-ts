@@ -7,7 +7,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 <div :class="[$style.root, { [$style.contentVisibilityAuto]: contentVisibilityAuto }]">
 	<div :class="$style.head">
 		<MkAvatar v-if="['pollEnded', 'note'].includes(notification.type) && 'note' in notification" :class="$style.icon" :user="notification.note.user" link preview/>
-		<MkAvatar v-else-if="['roleAssigned', 'achievementEarned', 'exportCompleted', 'login', 'createToken', 'scheduledNotePosted', 'scheduledNotePostFailed'].includes(notification.type)" :class="$style.icon" :user="$i" link preview/>
+		<MkAvatar v-else-if="['roleAssigned', 'achievementEarned', 'exportCompleted', 'login', 'createToken', 'scheduledNotePosted', 'scheduledNotePostFailed', 'emojiApplicationProcessed'].includes(notification.type)" :class="$style.icon" :user="$i" link preview/>
 		<div v-else-if="notification.type === 'reaction:grouped' && notification.note.reactionAcceptance === 'likeOnly'" :class="[$style.icon, $style.icon_reactionGroupHeart]"><i class="ti ti-heart" style="line-height: 1;"></i></div>
 		<div v-else-if="notification.type === 'reaction:grouped'" :class="[$style.icon, $style.icon_reactionGroup]"><i class="ti ti-plus" style="line-height: 1;"></i></div>
 		<div v-else-if="notification.type === 'renote:grouped'" :class="[$style.icon, $style.icon_renoteGroup]"><i class="ti ti-repeat" style="line-height: 1;"></i></div>
@@ -31,6 +31,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 				[$style.t_createToken]: notification.type === 'createToken',
 				[$style.t_chatRoomInvitationReceived]: notification.type === 'chatRoomInvitationReceived',
 				[$style.t_roleAssigned]: notification.type === 'roleAssigned' && notification.role.iconUrl == null,
+				[$style.t_emojiApplicationApproved]: isMkGoType(notification, 'emojiApplicationProcessed') && mkGoEmojiApplicationStatus(notification) === 'approved',
+				[$style.t_emojiApplicationRejected]: isMkGoType(notification, 'emojiApplicationProcessed') && mkGoEmojiApplicationStatus(notification) !== 'approved',
 				[$style.t_abuseReport]: isMkGoType(notification, 'abuseReport') && !mkGoResolved(notification),
 				[$style.t_abuseReportResolved]: isMkGoType(notification, 'abuseReport') && mkGoResolved(notification),
 			}]"
@@ -51,6 +53,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<i v-else-if="notification.type === 'createToken'" class="ti ti-key"></i>
 			<i v-else-if="notification.type === 'chatRoomInvitationReceived'" class="ti ti-messages"></i>
 			<!-- mk-go 固有 (#2868)。upstream は通報を通知欄に出さない。 -->
+			<i v-else-if="isMkGoType(notification, 'emojiApplicationProcessed') && mkGoEmojiApplicationStatus(notification) === 'approved'" class="ti ti-mood-check"></i>
+			<i v-else-if="isMkGoType(notification, 'emojiApplicationProcessed')" class="ti ti-mood-sad"></i>
 			<i v-else-if="isMkGoType(notification, 'abuseReport') && mkGoResolved(notification)" class="ti ti-check"></i>
 			<i v-else-if="isMkGoType(notification, 'abuseReport')" class="ti ti-exclamation-circle"></i>
 			<template v-else-if="notification.type === 'roleAssigned'">
@@ -96,6 +100,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 					二重で当たる。
 				-->
 				<span v-if="mkGoResolved(notification)" :class="$style.abuseReportResolved">{{ i18n.ts._mkgoNotification.abuseReportResolved }}</span>
+			</span>
+			<span v-else-if="isMkGoType(notification, 'emojiApplicationProcessed')">
+				<template v-if="mkGoEmojiApplicationStatus(notification) === 'approved'">
+					{{ i18n.tsx._mkgoNotification.emojiApplicationApproved({ name: mkGoEmojiApplicationName(notification) }) }}
+				</template>
+				<template v-else>
+					{{ i18n.tsx._mkgoNotification.emojiApplicationRejected({ name: mkGoEmojiApplicationName(notification) }) }}
+					<!--
+						**却下理由をここで出す。** 申請一覧を開かないと分からない形だと、
+						通知は「駄目でした」としか伝えず、直して出し直す手がかりにならない。
+					-->
+					<div v-if="mkGoEmojiApplicationReason(notification) !== ''" :class="$style.emojiApplicationReason">
+						{{ mkGoEmojiApplicationReason(notification) }}
+					</div>
+				</template>
 			</span>
 			<span v-else-if="isMkGoType(notification, 'abuseReport')">{{ i18n.ts._mkgoNotification.abuseReport }}</span>
 			<!--
@@ -292,6 +311,30 @@ function mkGoTypeName(notification: Misskey.entities.Notification): string {
 }
 
 /**
+ * Read-time state of an emojiApplicationProcessed notification (#2934).
+ *
+ * backend が Extra["applicationId"] から引き直して `emojiApplication` として
+ * 載せる。**通知そのものには結果を積んでいない** ので、ここに無ければ
+ * 通知自体が届かない (backend が drop する)。
+ */
+function mkGoEmojiApplication(notification: Misskey.entities.Notification): Record<string, unknown> | null {
+	const v = (notification as unknown as Record<string, unknown>).emojiApplication;
+	return (v != null && typeof v === 'object') ? v as Record<string, unknown> : null;
+}
+
+function mkGoEmojiApplicationStatus(notification: Misskey.entities.Notification): string {
+	return String(mkGoEmojiApplication(notification)?.status ?? '');
+}
+
+function mkGoEmojiApplicationName(notification: Misskey.entities.Notification): string {
+	return String(mkGoEmojiApplication(notification)?.name ?? '');
+}
+
+function mkGoEmojiApplicationReason(notification: Misskey.entities.Notification): string {
+	return String(mkGoEmojiApplication(notification)?.rejectReason ?? '');
+}
+
+/**
  * Whether the report behind an abuseReport notification is already resolved.
  *
  * サーバーが read 時に引き直して `resolved` を載せる (#2868)。autogen 型には
@@ -482,10 +525,36 @@ function mkGoExtra(notification: Misskey.entities.Notification, key: string): st
 	pointer-events: none;
 }
 
+/*
+	絵文字の登録申請の結果 (#2934)。**背景を必ず指定する** — 既定は
+	`background: var(--MI_THEME-panel); color: #fff` なので、light テーマ
+	(panel が白系) では白地に白アイコンになって何も見えない (#2868 で同種の
+	指摘が出ている)。承認と却下で色を分け、中身を読まなくても結果が分かるようにする。
+*/
+.t_emojiApplicationApproved {
+	background: var(--MI_THEME-success);
+	pointer-events: none;
+}
+
+.t_emojiApplicationRejected {
+	background: var(--MI_THEME-error);
+	pointer-events: none;
+}
+
 /* 対処済みは目立たせない (#2868)。未対応と並んだときに区別が付けばよい。 */
 .t_abuseReportResolved {
 	background: var(--eventOther);
 	pointer-events: none;
+}
+
+.emojiApplicationReason {
+	margin-top: 4px;
+	padding: 6px 8px;
+	border-radius: var(--MI-radius-xs);
+	background: var(--MI_THEME-buttonBg);
+	font-size: 0.9em;
+	white-space: pre-wrap;
+	word-break: break-word;
 }
 
 .abuseReportResolved {

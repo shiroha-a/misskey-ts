@@ -139,6 +139,7 @@ const props = defineProps<{
 const mkGoRolePolicyKeys: string[] = [
 	...Misskey.rolePolicies,
 	'optOutNotificationTypes',
+	'canRequestCustomEmojis',
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
