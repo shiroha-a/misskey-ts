@@ -46,6 +46,7 @@ import * as os from '@/os.js';
 import { misskeyApi, misskeyApiGet } from '@/utility/misskey-api.js';
 import { copyToClipboard } from '@/utility/copy-to-clipboard.js';
 import { importRemoteEmoji, hasLocalEmojiWithSameName } from '@/utility/import-remote-emoji.js';
+import { requestRemoteEmojiImport } from '@/utility/request-remote-emoji.js';
 import { i18n } from '@/i18n.js';
 import MkCustomEmojiDetailedDialog from '@/components/MkCustomEmojiDetailedDialog.vue';
 import { $i } from '@/i.js';
@@ -159,19 +160,39 @@ function onClick(ev: PointerEvent) {
 		// **同名のローカル絵文字が既にあるときも出さない (#2903)。** 押しても
 		// admin/emoji/copy が重複で弾くだけで、押してみるまで分からなかった。
 		// customEmojisMap は裸の名前がキー。
-		if (!isLocal.value && !hasLocalEmojiWithSameName(customEmojiName.value) && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
-			menuItems.push({
-				type: 'divider',
-			}, {
-				text: i18n.ts.import,
-				icon: 'ti ti-plus',
-				action: () => {
-					// **`name` と `host` は別の prop。** `customEmojiName` は
-					// ホスト無しの裸の名前なので、ここで `name@host` を組もうとすると
-					// 何も起きない (`MkMfm` は host を別に渡す)。
-					importRemoteEmoji(customEmojiName.value, props.host);
-				},
-			});
+		//
+		// **権限が無い人には「申請」を出す (#2935)。** 条件 (ローカルでない /
+		// 同名が無い / ログイン済み) は同じで、**押した先が違うだけ**。権限で
+		// 導線ごと消すと、欲しい絵文字を見つけても頼む手段が無い。
+		if (!isLocal.value && !hasLocalEmojiWithSameName(customEmojiName.value) && $i != null) {
+			const canImport = $i.isModerator || $i.policies.canManageCustomEmojis;
+			// policies は mk-go 独自キーを含むので型を外して読む。
+			const canRequest = ($i.policies as Record<string, unknown>).canRequestCustomEmojis === true;
+
+			if (canImport) {
+				menuItems.push({
+					type: 'divider',
+				}, {
+					text: i18n.ts.import,
+					icon: 'ti ti-plus',
+					action: () => {
+						// **`name` と `host` は別の prop。** `customEmojiName` は
+						// ホスト無しの裸の名前なので、ここで `name@host` を組もうとすると
+						// 何も起きない (`MkMfm` は host を別に渡す)。
+						importRemoteEmoji(customEmojiName.value, props.host);
+					},
+				});
+			} else if (canRequest) {
+				menuItems.push({
+					type: 'divider',
+				}, {
+					text: i18n.ts._emojiApplication.requestImport,
+					icon: 'ti ti-mood-plus',
+					action: () => {
+						requestRemoteEmojiImport(customEmojiName.value, props.host);
+					},
+				});
+			}
 		}
 
 		if (isMuted.value) {

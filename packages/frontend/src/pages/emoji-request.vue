@@ -69,13 +69,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<MkInfo v-else-if="mine.length === 0">{{ i18n.ts._emojiApplication.noneOfMine }}</MkInfo>
 			<div v-else class="_gaps_s">
 				<MkFolder v-for="app in mine" :key="app.id" :defaultOpen="app.status === 'rejected'">
-					<template #icon><i class="ti ti-mood-smile"></i></template>
+					<template #icon><i :class="app.remoteHost ? 'ti ti-world-download' : 'ti ti-mood-smile'"></i></template>
 					<template #label><span class="_monospace">:{{ app.name }}:</span></template>
 					<template #suffix>
 						<span :class="[$style.status, $style[app.status]]">{{ statusLabel(app.status) }}</span>
 					</template>
 
 					<div class="_gaps_s">
+						<MkKeyValue v-if="app.remoteHost" oneline>
+							<template #key>{{ i18n.ts._emojiApplication.remoteSource }}</template>
+							<template #value><span class="_monospace">:{{ app.remoteName }}:@{{ app.remoteHost }}</span></template>
+						</MkKeyValue>
 						<MkKeyValue oneline>
 							<template #key>{{ i18n.ts.createdAt }}</template>
 							<template #value><MkTime :time="app.createdAt" mode="detail"/></template>
@@ -128,6 +132,9 @@ type Application = {
 	rejectReason?: string;
 	createdAt: string;
 	processedAt: string | null;
+	// kind = remote (#2935) のときだけ入る。
+	remoteHost?: string;
+	remoteName?: string;
 };
 
 // upstream の admin/emoji/add と同じ制約。**申請側で先に弾く** — 承認まで
@@ -206,6 +213,9 @@ function submitErrorText(err: unknown): string {
 		// policy を持たない人が URL 直打ちで開いた場合。導線は設定側で隠して
 		// いるが、ページ自体には gate が無い。
 		case 'ROLE_PERMISSION_DENIED': return i18n.ts._emojiApplication.errorNotAllowed;
+		// **レート制限は新しく到達可能になった (レビュー R2-M3)。** 汎用の
+		// 「何かがおかしいようです」に潰すと、待てば通ることが分からない。
+		case 'RATE_LIMIT_EXCEEDED': return i18n.ts._emojiApplication.errorRateLimited;
 		default: return i18n.ts.somethingHappened;
 	}
 }

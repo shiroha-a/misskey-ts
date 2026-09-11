@@ -27,6 +27,7 @@ import type { MenuItem } from '@/types/menu';
 import XDetails from '@/components/MkReactionsViewer.details.vue';
 import MkReactionIcon from '@/components/MkReactionIcon.vue';
 import { importRemoteEmoji, hasLocalEmojiWithSameName, bareEmojiName } from '@/utility/import-remote-emoji.js';
+import { requestRemoteEmojiImport } from '@/utility/request-remote-emoji.js';
 import { bindLongPress } from '@/utility/long-press.js';
 import { localAlternativeReaction } from '@/utility/reaction-alternative.js';
 import * as os from '@/os.js';
@@ -223,17 +224,35 @@ async function menu(ev: PointerEvent | null, anchorElement?: HTMLElement) {
 	//
 	// リモートのカスタム絵文字は `:name@host:` の形。ローカルは `@.` を含む
 	// (`isLocalCustomEmojiReaction`)。Unicode 絵文字はコロンで始まらない。
-	if (props.reaction.startsWith(':') && !isLocalCustomEmoji.value && !hasLocalEmojiWithSameName(emojiName.value) && $i != null && ($i.isModerator || $i.policies.canManageCustomEmojis)) {
-		menuItems.push({
-			text: i18n.ts.import,
-			icon: 'ti ti-plus',
-			action: () => {
-				// リアクションの `emojiName` は `name@host` 形式。
-				const at = emojiName.value.lastIndexOf('@');
-				if (at <= 0) return;
-				importRemoteEmoji(emojiName.value.slice(0, at), emojiName.value.slice(at + 1));
-			},
-		});
+	//
+	// **権限が無い人には「申請」を出す (#2935)。** 条件は同じで押した先だけが
+	// 違う。**本文とリアクションの両方に出す** — #2698 が「両方から呼ぶので
+	// ここに集約する」と揃えた経緯があり、片方だけだと「リアクションからは
+	// 頼めない」という気付きにくい非対称になる。
+	if (props.reaction.startsWith(':') && !isLocalCustomEmoji.value && !hasLocalEmojiWithSameName(emojiName.value) && $i != null) {
+		// リアクションの `emojiName` は `name@host` 形式。
+		const at = emojiName.value.lastIndexOf('@');
+		const canImport = $i.isModerator || $i.policies.canManageCustomEmojis;
+		// policies は mk-go 独自キーを含むので型を外して読む。
+		const canRequest = ($i.policies as Record<string, unknown>).canRequestCustomEmojis === true;
+
+		if (at > 0 && canImport) {
+			menuItems.push({
+				text: i18n.ts.import,
+				icon: 'ti ti-plus',
+				action: () => {
+					importRemoteEmoji(emojiName.value.slice(0, at), emojiName.value.slice(at + 1));
+				},
+			});
+		} else if (at > 0 && canRequest) {
+			menuItems.push({
+				text: i18n.ts._emojiApplication.requestImport,
+				icon: 'ti ti-mood-plus',
+				action: () => {
+					requestRemoteEmojiImport(emojiName.value.slice(0, at), emojiName.value.slice(at + 1));
+				},
+			});
+		}
 	}
 
 	if (isEmojiMuted(props.reaction).value) {

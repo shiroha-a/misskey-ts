@@ -14104,6 +14104,34 @@ export interface Locale extends ILocale {
          */
         "errorTooLong": string;
         /**
+         * この絵文字の追加を申請
+         */
+        "requestImport": string;
+        /**
+         * この絵文字の出典や利用条件。分かる範囲で構いません。空のままにすると、取り込み元の絵文字が持っている情報がそのまま使われます。
+         */
+        "licenseCaptionRemote": string;
+        /**
+         * この絵文字の情報がサーバーに残っていません。もう一度その絵文字を見かけてから申請してください。
+         */
+        "errorRemoteGone": string;
+        /**
+         * 取り込み元にありません
+         */
+        "remoteGoneShort": string;
+        /**
+         * 短時間に申請しすぎです。しばらく待ってからもう一度お試しください。
+         */
+        "errorRateLimited": string;
+        /**
+         * 取り込み元の絵文字がこのサーバーに残っていないため、承認できません。申請者に出し直してもらってください。
+         */
+        "remoteGoneReview": string;
+        /**
+         * 取り込み元
+         */
+        "remoteSource": string;
+        /**
          * 審査待ち
          */
         "filterPending": string;
