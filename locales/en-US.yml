@@ -3577,7 +3577,6 @@ _emojiApplication:
   dropUploading: "Uploading"
   errorDropMultiple: "You can only apply for one image at a time. Please drop a single file."
   errorDropUnsupported: "This file type cannot be used as an emoji. Please drop a PNG, GIF, WebP or similar image."
-  errorDropFailed: "The image could not be uploaded. Please try again."
   imageHint: "PNG / GIF / WebP. At least 128px on the shorter side is recommended."
   inlinePreview: "How it looks in a post"
   inlineSampleText: "For example, like this"
