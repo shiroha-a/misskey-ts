@@ -50,6 +50,10 @@ export interface IPaginator<T = unknown, _T = T & MisskeyEntity> {
 	error: Ref<boolean>;
 	/** mk-go: 直近の取得がレート制限で拒否されたか (#2955)。 */
 	rateLimited: Ref<boolean>;
+	/** mk-go: レート制限で止めた向き (#2955)。 */
+	rateLimitedDirection: Ref<'older' | 'newer' | null>;
+	/** mk-go: レート制限で止めた向きを再試行する (#2955)。 */
+	retryAfterRateLimit(): Promise<void>;
 	computedParams: ComputedRef<Misskey.Endpoints[PaginatorCompatibleEndpointPaths]['req'] | null | undefined> | null;
 	initialId: MisskeyEntity['id'] | null;
 	initialDate: number | null;
@@ -104,6 +108,14 @@ export class Paginator<
 	 * 読めている分が消える。
 	 */
 	public rateLimited = ref(false);
+	/**
+	 * mk-go: which direction was stopped by the rate limiter (#2955).
+	 *
+	 * **再試行は止めた向きだけを戻す。** 無条件に `canFetchOlder` を立てると、
+	 * 上方向で止まったときに戻る先が違い、終端に達して false になっていた
+	 * 一覧にも「もっと見る」が復活する。
+	 */
+	public rateLimitedDirection = ref<'older' | 'newer' | null>(null);
 	private endpoint: Endpoint;
 	private limit: number;
 	private params: E['req'] | (() => E['req']);
@@ -229,7 +241,13 @@ export class Paginator<
 			} : {}),
 		};
 
-		const apiRes = (await misskeyApi(this.endpoint, data).catch(_ => {
+		const apiRes = (await misskeyApi(this.endpoint, data).catch(err => {
+			// **初回の取得でも 429 を区別する (レビュー M-2)。** ここを汎用の
+			// error に潰すと `MkError` が「何かがおかしいようです」を描く。
+			// 自動追い読みが止まった直後に利用者が最初にやるのは再読み込み
+			// なので、**同じ窓の中でこの経路に入る確率が高い**。しかも
+			// `MkError` の再試行は `init()` をもう一度撃ち、窓をさらに押し戻す。
+			this.noteRateLimit(err, this.initialDirection);
 			this.error.value = true;
 			this.fetching.value = false;
 			return null;
@@ -266,6 +284,7 @@ export class Paginator<
 		}
 
 		this.error.value = false;
+		this.clearRateLimit();
 		this.fetching.value = false;
 	}
 
@@ -284,6 +303,7 @@ export class Paginator<
 		const decision = resolveRateLimitStop(err, direction);
 		if (!decision.rateLimited) return;
 		this.rateLimited.value = true;
+		this.rateLimitedDirection.value = decision.stop;
 		// **追い読みの自動発火を止める。** MkPagination は `canFetch*` が true の
 		// 間ボタンを描き、`v-appear` が視界に入るたび再発火する。値を残したまま
 		// UI 側で止めると、ボタンの再マウントでまた撃たれるので、ここで落とす。
@@ -291,6 +311,43 @@ export class Paginator<
 			this.canFetchOlder.value = false;
 		} else if (decision.stop === 'newer') {
 			this.canFetchNewer.value = false;
+		}
+	}
+
+	/**
+	 * mk-go: clears the rate-limit state after a successful fetch (#2955).
+	 *
+	 * **成功したら必ず戻す。** 戻さないと、再読み込みや検索で正常に読めるように
+	 * なっても「レート制限を超えました」が残り、**制限中でもないのに制限中と
+	 * 表示する**。`error` が `init` の成功時に戻されているのと同じ扱い。
+	 */
+	private clearRateLimit(): void {
+		this.rateLimited.value = false;
+		this.rateLimitedDirection.value = null;
+	}
+
+	/**
+	 * mk-go: retries the direction that the rate limiter stopped (#2955).
+	 *
+	 * **止めた向きだけを戻して、その向きを撃つ。** 無条件に `canFetchOlder` を
+	 * 立てると、上方向で止まったときに戻る先が違い、終端に達して false に
+	 * なっていた一覧にも「もっと見る」が復活して無駄なリクエストを 1 本撃つ。
+	 *
+	 * **判断をコンポーネントに置かない。** あちらは単体テストから駆動できない
+	 * ので、向きを取り違えても誰も落ちない (実測で素通りした)。
+	 */
+	public async retryAfterRateLimit(): Promise<void> {
+		const direction = this.rateLimitedDirection.value;
+		if (direction === 'older') {
+			this.canFetchOlder.value = true;
+		} else if (direction === 'newer') {
+			this.canFetchNewer.value = true;
+		}
+		this.clearRateLimit();
+		if (direction === 'newer') {
+			await this.fetchNewer({ toQueue: false });
+		} else {
+			await this.fetchOlder();
 		}
 	}
 
@@ -316,6 +373,7 @@ export class Paginator<
 		})) as T[] | null;
 
 		this.fetchingOlder.value = false;
+		if (apiRes != null) this.clearRateLimit();
 
 		if (apiRes == null) {
 			return;
@@ -347,9 +405,14 @@ export class Paginator<
 		}
 	}
 
+	// **レート制限中は撃たない (レビュー M-7)。** `fetchNewer` には
+	// `fetchOlder` のような `canFetch*` のガードが無く、streaming 系は
+	// `useInterval` で 10〜22 秒ごとに無条件で撃つ。止めたつもりの 'newer' 側が
+	// 実際には止まらない。
 	public async fetchNewer(options: {
 		toQueue?: boolean;
 	} = {}): Promise<void> {
+		if (this.rateLimited.value) return;
 		this.fetchingNewer.value = true;
 
 		const data: E['req'] = {
@@ -370,6 +433,7 @@ export class Paginator<
 		})) as T[] | null;
 
 		this.fetchingNewer.value = false;
+		if (apiRes != null) this.clearRateLimit();
 
 		if (apiRes == null || apiRes.length === 0) {
 			this.canFetchNewer.value = false;
@@ -403,7 +467,12 @@ export class Paginator<
 	}
 
 	public trim(trigger = true): void {
-		if (this.items.value.length >= MAX_ITEMS) this.canFetchOlder.value = true;
+		// **レート制限で止めているあいだは復活させない (レビュー H-2)。**
+		// streaming 系は届いたアイテムを `prepend` / `releaseQueue` で入れる
+		// たびにここを通るので、**通知が 1 件届くだけで停止が解除される**。
+		// 解除されると `v-show` が display:none から戻り、`IntersectionObserver`
+		// が交差の変化として callback を出して `v-appear` が再発火する。
+		if (this.items.value.length >= MAX_ITEMS && !this.rateLimited.value) this.canFetchOlder.value = true;
 		this.items.value = this.items.value.slice(0, MAX_ITEMS);
 		if (this.useShallowRef && trigger) triggerRef(this.items);
 	}
