@@ -131,6 +131,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<MkButton v-if="$i.isAdmin" inline danger @click="deleteAccount">{{ i18n.ts.deleteAccount }}</MkButton>
 				</div>
 			</FormSection>
+
+			<!--
+				**FormSection の外に置く (mk-go #2915)。** 中に入れると
+				deleteAccount のような破壊的ボタンと視覚的に混ざり、プラグインの
+				出力が「この画面の操作」に見える。
+
+				**親は _gaps_m のまま**で包まない。MkPluginSlot の root は
+				display: contents で自分の箱を持たないので、gap を持つ親の直下に
+				置く必要がある (federation.vue が _gaps で包んでいるのは、
+				あちらの親が padding しか持たない _spacer だから)。
+
+				プラグインを入れていない環境では hasMounts が false で何も
+				描画されないため、隙間はできない。
+			-->
+			<MkPluginSlot name="admin:user" :ctx="{ user: { id: user.id, username: user.username, host: user.host } }"/>
 		</div>
 
 		<div v-else-if="tab === 'roles'" class="_gaps">
@@ -223,6 +238,7 @@ import MkKeyValue from '@/components/MkKeyValue.vue';
 import MkSelect from '@/components/MkSelect.vue';
 import MkFileListForAdmin from '@/components/MkFileListForAdmin.vue';
 import MkInfo from '@/components/MkInfo.vue';
+import MkPluginSlot from '@/components/MkPluginSlot.vue';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { acct } from '@/filters/user.js';
