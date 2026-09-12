@@ -14164,6 +14164,10 @@ export interface Locale extends ILocale {
          */
         "errorQuotaExceededUnknown": string;
         /**
+         * {period}に申請できるのは{limit}件までです。審査待ちの申請も上限に達しているため、いつ申請できるようになるかは審査の進み方によります。
+         */
+        "errorQuotaExceededNoRetryAt": ParameterizedString<"period" | "limit">;
+        /**
          * 審査待ちの申請が{used}件あります。上限は{limit}件なので、結果が出るか取り下げて減らすまで新しく申請できません。
          */
         "errorPendingLimitExceeded": ParameterizedString<"used" | "limit">;

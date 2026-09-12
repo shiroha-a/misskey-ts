@@ -23,6 +23,8 @@ vi.mock('@/i18n.js', () => ({
 			_emojiApplication: {
 				errorQuotaExceeded: (p: Record<string, unknown>) =>
 					`period=${p.period} limit=${p.limit} retryAt=${p.retryAt}`,
+				errorQuotaExceededNoRetryAt: (p: Record<string, unknown>) =>
+					`no-retry period=${p.period} limit=${p.limit}`,
 				errorPendingLimitExceeded: (p: Record<string, unknown>) => `pending used=${p.used} limit=${p.limit}`,
 			},
 		},
@@ -60,18 +62,30 @@ describe('emojiApplicationQuotaText', () => {
 		expect(at('month')).toContain('period=MONTH');
 	});
 
-	// **info が欠けたら汎用文へ落とす。** 「undefined 件まで」と出すくらいなら、
-	// 待てば通ることだけ伝わる方がよい。サーバー側の書式が変わっても壊れない。
+	// **期間と件数が読めなければ汎用文へ落とす。** 「undefined 件まで」と
+	// 出すくらいなら、上限に達したことだけ伝わる方がよい。
 	test.each([
 		['info ごと無い', undefined],
 		['空', {}],
 		['limit が数値でない', { period: 'day', limit: '3', retryAt: RETRY_AT }],
 		['未知の期間', { period: 'year', limit: 3, retryAt: RETRY_AT }],
-		['retryAt が日付でない', { period: 'day', limit: 3, retryAt: 'soon' }],
-		['retryAt が文字列でない', { period: 'day', limit: 3, retryAt: 1757760000000 }],
 		['エラーそのものが null', null],
 	])('%s のときは汎用文に落とす', (_label, info) => {
 		expect(emojiApplicationQuotaText(info === null ? null : quotaError(info))).toBe('GENERIC');
+	});
+
+	// **時刻だけが無いのは審査待ちの上限も満杯のとき (#2977)。** サーバーが
+	// 「予告できない」と判断して落としている。汎用文 (「しばらくしてから
+	// もう一度」) に倒すと、**待っても通らないものを待たせる**ことになり、
+	// 期間と件数という残っている情報も捨ててしまう。
+	test.each([
+		['retryAt が無い', { period: 'day', limit: 3 }],
+		['retryAt が日付でない', { period: 'day', limit: 3, retryAt: 'soon' }],
+		['retryAt が文字列でない', { period: 'day', limit: 3, retryAt: 1757760000000 }],
+	])('%s のときは時刻に触れない文面を出す', (_label, info) => {
+		const text = emojiApplicationQuotaText(quotaError(info));
+		expect(text).toBe('no-retry period=DAY limit=3');
+		expect(text).not.toBe('GENERIC');
 	});
 
 	// **`errorRateLimited` は使わない。** 「短時間に」と書くので、月次の窓で

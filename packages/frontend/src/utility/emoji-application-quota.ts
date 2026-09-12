@@ -29,12 +29,19 @@ export function emojiApplicationQuotaText(err: unknown): string {
 	const limit = typeof info.limit === 'number' ? info.limit : null;
 	const period = quotaPeriodLabel(info.period);
 	const retryAt = quotaRetryAtLabel(info.retryAt);
-	// **info が欠けていたら期間に依らない文面に落とす。** 「undefined件まで」と
-	// 出すより待てば通ることだけ伝わる方がよい。**`errorRateLimited` は使わない**
-	// — あちらは「短時間に」と書くので、月次の窓で弾かれたときに事実と食い違う
-	// (実際には最大 30 日待つ)。
-	if (limit == null || period == null || retryAt == null) {
+	// **期間と件数が読めなければ期間に依らない文面に落とす。**「undefined件まで」
+	// と出すより、上限に達したことだけ伝わる方がよい。**`errorRateLimited` は
+	// 使わない** — あちらは「短時間に」と書くので、月次の窓で弾かれたときに
+	// 事実と食い違う (実際には最大 30 日待つ)。
+	if (limit == null || period == null) {
 		return i18n.ts._emojiApplication.errorQuotaExceededUnknown;
+	}
+	// **時刻が無いのは審査待ちの上限も満杯のとき (#2977)。** サーバーは
+	// 「いつ空くか予告できない」と判断して時刻を落としている。ここで
+	// 「しばらくしてからもう一度」と案内すると、**待っても通らないものを
+	// 待たせる**ことになり、その空振りが 1 時間あたりの制限を食う。
+	if (retryAt == null) {
+		return i18n.tsx._emojiApplication.errorQuotaExceededNoRetryAt({ period, limit });
 	}
 	return i18n.tsx._emojiApplication.errorQuotaExceeded({ period, limit, retryAt });
 }
