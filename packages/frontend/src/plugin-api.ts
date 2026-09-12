@@ -67,7 +67,18 @@ export type SlotName =
 	 *
 	 * `admin:federation` と同じく、**描画されることは権限の保証ではない**。
 	 */
-	| 'admin:instance-info';
+	| 'admin:instance-info'
+	/**
+	 * ユーザーのモデレーション画面 (コントロールパネル > ユーザー) の概要タブ。
+	 * 対象のユーザーが ctx.user に入る。
+	 *
+	 * `profile:info` と位置は似ているが**見せる相手が違う**。あちらは公開
+	 * プロフィールなので、モデレーターにだけ見せたいものをそちらへ出すと
+	 * 全員に見える。裁く材料はこちらへ置くこと。
+	 *
+	 * `admin:federation` と同じく、**描画されることは権限の保証ではない**。
+	 */
+	| 'admin:user';
 
 /** Minimal user shape handed to slots. 内部の型をそのまま渡さない。 */
 export type SlotUser = {
