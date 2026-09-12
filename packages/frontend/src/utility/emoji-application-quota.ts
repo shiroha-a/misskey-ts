@@ -12,6 +12,11 @@ type QuotaInfo = {
 	retryAt?: unknown;
 };
 
+type PendingInfo = {
+	used?: unknown;
+	limit?: unknown;
+};
+
 /**
  * Renders the rolling-window rejection returned by `emoji-application/create`
  * (#2958). Callers must have matched `EMOJI_APPLICATION_QUOTA_EXCEEDED`.
@@ -49,4 +54,21 @@ function quotaRetryAtLabel(retryAt: unknown): string | null {
 	const at = new Date(retryAt);
 	if (Number.isNaN(at.getTime())) return null;
 	return dateTimeFormat.format(at);
+}
+
+/**
+ * Renders the awaiting-review rejection (#2977). Callers must have matched
+ * `EMOJI_APPLICATION_PENDING_LIMIT_EXCEEDED`.
+ *
+ * **「しばらく待って」とは書かない。** 空くのはモデレーターが処理したときか、
+ * 自分で取り下げたとき。時間で解決すると書くと、待ち続けることになる。
+ */
+export function emojiApplicationPendingLimitText(err: unknown): string {
+	const info = (err as { info?: PendingInfo } | null)?.info ?? {};
+	if (typeof info.limit !== 'number') {
+		// **件数が読めなければ件数を書かない。** サーバー側の書式が変わっても
+		// 「取り下げれば出せる」という行動は変わらないので、そこだけ伝える。
+		return i18n.ts._emojiApplication.errorPendingLimitExceededUnknown;
+	}
+	return i18n.tsx._emojiApplication.errorPendingLimitExceeded({ limit: info.limit });
 }

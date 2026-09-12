@@ -292,6 +292,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</XFolder>
 
 		<!--
+			mk-go 固有 (#2977)。同時に審査待ちにできる件数。**期間の上限 (#2958) とは
+			数え方が逆**で、却下・取り下げ・承認で枠が戻る。絞っているものも違い、
+			あちらは「出せる総量」、こちらは「モデレーターが見る一覧の長さ」。
+		-->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPending, 'emojiApplicationMaxPending'])" v-model:policyMeta="emojiApplicationMaxPendingMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPending }}</template>
+			<template #valueText>{{ emojiApplicationMaxPending === 0 ? i18n.ts._mkgoRolePolicy.emojiApplicationQuotaUnlimited : emojiApplicationMaxPending }}</template>
+			<template #default="{ disabled }">
+				<MkInput v-model="emojiApplicationMaxPending" type="number" :min="0" :disabled="disabled">
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPending_caption }}</template>
+				</MkInput>
+			</template>
+		</XFolder>
+
+		<!--
 			mk-go 固有 (#2898)。ロール単位で通知を切る。**集約は intersection** なので、
 			複数のロールに属している利用者は全ロールで切られている種類だけが届かなくなる
 			(他の policy と同じく緩い方に倒す)。
@@ -591,6 +606,7 @@ const mkGoPolicyMetaKeys: string[] = [
 	'emojiApplicationMaxPerDay',
 	'emojiApplicationMaxPerWeek',
 	'emojiApplicationMaxPerMonth',
+	'emojiApplicationMaxPending',
 ];
 
 function setPolicyMeta(incoming: Partial<PolicyMetaRecord> | undefined): PolicyMetaRecord {
@@ -672,6 +688,9 @@ const emojiApplicationMaxPerWeek = mkGoPolicyValue('emojiApplicationMaxPerWeek',
 const emojiApplicationMaxPerWeekMeta = mkGoPolicyMeta('emojiApplicationMaxPerWeek');
 const emojiApplicationMaxPerMonth = mkGoPolicyValue('emojiApplicationMaxPerMonth', 0);
 const emojiApplicationMaxPerMonthMeta = mkGoPolicyMeta('emojiApplicationMaxPerMonth');
+// 審査待ちの上限 (#2977)。既定 0 = 無制限。
+const emojiApplicationMaxPending = mkGoPolicyValue('emojiApplicationMaxPending', 0);
+const emojiApplicationMaxPendingMeta = mkGoPolicyMeta('emojiApplicationMaxPending');
 
 /**
  * Add or remove one notification type from the opt-out list (#2898).

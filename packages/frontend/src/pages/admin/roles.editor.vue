@@ -146,6 +146,7 @@ const mkGoRolePolicyKeys: string[] = [
 	'emojiApplicationMaxPerDay',
 	'emojiApplicationMaxPerWeek',
 	'emojiApplicationMaxPerMonth',
+	'emojiApplicationMaxPending',
 ];
 
 const role = ref((() => {
