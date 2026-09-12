@@ -3794,6 +3794,7 @@ _emojiApplication:
   errorRateLimited: "短時間に申請しすぎです。しばらく待ってからもう一度お試しください。"
   errorQuotaExceeded: "{period}に申請できるのは{limit}件までです。{retryAt}以降にもう一度お試しください。"
   errorQuotaExceededUnknown: "申請できる件数の上限に達しています。しばらくしてからもう一度お試しください。"
+  errorQuotaExceededNoRetryAt: "{period}に申請できるのは{limit}件までです。審査待ちの申請も上限に達しているため、いつ申請できるようになるかは審査の進み方によります。"
   errorPendingLimitExceeded: "審査待ちの申請が{used}件あります。上限は{limit}件なので、結果が出るか取り下げて減らすまで新しく申請できません。"
   errorPendingLimitExceededUnknown: "審査待ちの申請が上限に達しています。結果が出るか、どれかを取り下げるまで新しく申請できません。"
   quotaPeriodDay: "1日"
