@@ -10,6 +10,9 @@ import type { ComputedRef, Ref, ShallowRef, UnwrapRef } from 'vue';
 import { misskeyApi } from '@/utility/misskey-api.js';
 
 const MAX_ITEMS = 30;
+// mk-go: レート制限の再試行を連打させない間隔 (#2955)。サーバー側の窓は 60 秒
+// だが、押すたびに 1 リクエスト出る形を避けるのが目的で、窓と揃える必要は無い。
+const RETRY_COOLDOWN_MS = 15000;
 const MAX_QUEUE_ITEMS = 100;
 const FIRST_FETCH_LIMIT = 15;
 const SECOND_FETCH_LIMIT = 30;
@@ -52,6 +55,8 @@ export interface IPaginator<T = unknown, _T = T & MisskeyEntity> {
 	rateLimited: Ref<boolean>;
 	/** mk-go: レート制限で止めた向き (#2955)。 */
 	rateLimitedDirection: Ref<'older' | 'newer' | null>;
+	/** mk-go: 再試行を押せるか (冷却中は false、#2955)。 */
+	canRetryAfterRateLimit: Ref<boolean>;
 	/** mk-go: レート制限で止めた向きを再試行する (#2955)。 */
 	retryAfterRateLimit(): Promise<void>;
 	computedParams: ComputedRef<Misskey.Endpoints[PaginatorCompatibleEndpointPaths]['req'] | null | undefined> | null;
@@ -116,6 +121,16 @@ export class Paginator<
 	 * 一覧にも「もっと見る」が復活する。
 	 */
 	public rateLimitedDirection = ref<'older' | 'newer' | null>(null);
+	/**
+	 * mk-go: guards the retry button against being mashed (#2955).
+	 *
+	 * **コンポーネントに持たせない。** notice は親の v-if の枝なので、再試行で
+	 * `fetching` が立つと枝が移って**アンマウントされ、冷却が消える**。429 で
+	 * 戻ると新しいインスタンスが冷却なしで生える (実測)。しかもそれは
+	 * 「自走が止まった直後に人が押すもの」= init 経路そのもの。
+	 */
+	public canRetryAfterRateLimit = ref(true);
+	private retryCooldownTimer: number | null = null;
 	private endpoint: Endpoint;
 	private limit: number;
 	private params: E['req'] | (() => E['req']);
@@ -247,6 +262,13 @@ export class Paginator<
 			// 自動追い読みが止まった直後に利用者が最初にやるのは再読み込み
 			// なので、**同じ窓の中でこの経路に入る確率が高い**。しかも
 			// `MkError` の再試行は `init()` をもう一度撃ち、窓をさらに押し戻す。
+			// **先に落としてから付け直す (レビュー 3 周目 H-1)。** 古い 429 の印が
+			// 残っているとネットワーク断の失敗でも「レート制限」と誤表示する。
+			// 枝の条件が `error` を見るようになったので、ここを落とさないと
+			// 嘘の診断になる。**後から判定する形では駄目** — `noteRateLimit` は
+			// 429 でなければ何もしないので、残った印を見て「まだ制限中」と
+			// 判断してしまう (実測でテストが落ちた)。
+			this.clearRateLimit();
 			this.noteRateLimit(err, this.initialDirection);
 			this.error.value = true;
 			this.fetching.value = false;
@@ -327,6 +349,12 @@ export class Paginator<
 	// 次の `trim()` が理由表示の無いまま自走を戻す。印を立てた向きは
 	// `canFetch*` を false にしてあるので、同じ向きの再取得は
 	// `retryAfterRateLimit()` か `init()` しか通らず、どちらも先に解除する。
+	// **取得の成功では解除しない。** 429 の後は `fetchOlder` / `fetchNewer` の
+	// どちらもガードで止まるので、成功する取得は `retryAfterRateLimit()` か
+	// `init()` からしか来ず、どちらも**先に**解除する。成功時にも解除する形は
+	// 一度入れたが、**429 の前から in-flight だった別方向の取得が後から成功
+	// すると印だけ消える** (notice も「もっと見る」も無い =「これで全部」に
+	// 見える) ので戻した。**解除の経路は再試行と再読み込みだけ**にしてある。
 	private clearRateLimit(): void {
 		this.rateLimited.value = false;
 		this.rateLimitedDirection.value = null;
@@ -343,6 +371,15 @@ export class Paginator<
 	 * ので、向きを取り違えても誰も落ちない (実測で素通りした)。
 	 */
 	public async retryAfterRateLimit(): Promise<void> {
+		if (!this.canRetryAfterRateLimit.value) return;
+		// **冷却はここで掛ける。** サーバー側は拒否も記録するので、押すほど窓が
+		// 延びる。コンポーネントに持たせると枝の移動でアンマウントされて消える。
+		this.canRetryAfterRateLimit.value = false;
+		if (this.retryCooldownTimer != null) window.clearTimeout(this.retryCooldownTimer);
+		this.retryCooldownTimer = window.setTimeout(() => {
+			this.canRetryAfterRateLimit.value = true;
+		}, RETRY_COOLDOWN_MS);
+
 		const direction = this.rateLimitedDirection.value;
 		if (direction === 'older') {
 			this.canFetchOlder.value = true;
@@ -365,6 +402,11 @@ export class Paginator<
 	}
 
 	public async fetchOlder(): Promise<void> {
+		// **向きを問わず止める (レビュー 3 周目 M-3)。** newer が 429 になっても
+		// `canFetchOlder` は無傷なので、`v-appear` が視界に入ると 1 発撃つ。
+		// 完了条件「429 を受けたら自動で再試行されない」を満たすため、
+		// `fetchNewer` と同じガードを置く。
+		if (this.rateLimited.value) return;
 		if (!this.canFetchOlder.value || this.fetching.value || this.fetchingOlder.value || this.items.value.length === 0) return;
 		this.fetchingOlder.value = true;
 
