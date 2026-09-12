@@ -148,6 +148,7 @@ import type { GridSetting } from '@/components/grid/grid.js';
 import type { SortOrder } from '@/components/MkSortOrderEditor.define.js';
 import MkRemoteEmojiEditDialog from '@/components/MkRemoteEmojiEditDialog.vue';
 import { misskeyApi } from '@/utility/misskey-api.js';
+import { getProxiedImageUrl } from '@/utility/media-proxy.js';
 import { i18n } from '@/i18n.js';
 import MkButton from '@/components/MkButton.vue';
 import MkInput from '@/components/MkInput.vue';
@@ -346,7 +347,8 @@ async function importEmojis(targets: GridItem[]) {
 
 	requestLogs.value = result.map(it => ({
 		failed: !it.success,
-		url: it.item.url,
+		// 取り込み元は相手サーバーの URL なので、一覧と同じく proxy を通す。
+		url: getProxiedImageUrl(it.item.url, 'emoji', false, true),
 		name: it.item.name,
 		error: it.err ? JSON.stringify(it.err) : undefined,
 	}));
@@ -381,7 +383,12 @@ async function refreshCustomEmojis() {
 	gridItems.value = customEmojis.value.map(it => ({
 		checked: false,
 		id: it.id,
-		url: it.publicUrl,
+		// **mk-go: media proxy を通す (#2425 の CSP)。** リモート絵文字の
+		// publicUrl は相手サーバーのオリジンで、`img-src 'self' data: blob:` を
+		// enforce している構成では**1 件も表示されない**。proxy を通すと同一
+		// オリジンになり、allowlist が `emoji.publicUrl` を通すので解決できる
+		// (`MkCustomEmoji` が既に同じ形)。純正は CSP を持たないので素通りする。
+		url: getProxiedImageUrl(it.publicUrl, 'emoji', false, true),
 		name: it.name,
 		license: it.license,
 		host: it.host!,
