@@ -13918,7 +13918,7 @@ export interface Locale extends ILocale {
          */
         "emojiApplicationMaxPending": string;
         /**
-         * 同時に審査待ちにできる申請の件数です。0 はこの上限を適用しません。期間の上限と違い、却下・取り下げ・承認で枠が戻ります。モデレーターが見る一覧の長さを抑えるための設定で、期間の上限とは効く場面が違います。
+         * 同時に審査待ちにできる申請の件数です。期間の上限と違い、却下・取り下げ・承認で枠が戻ります。モデレーターが見る一覧の長さを抑えるための設定で、期間の上限とは効く場面が違います。0 はこの上限なしという意味ですが、複数のロールに属している利用者には大きい方の値が採用されるため、個別のロールに 0 を入れてもベースロールの上限は外れません (外すにはそのロールの優先度を上げてください)。
          */
         "emojiApplicationMaxPending_caption": string;
         /**
@@ -14164,9 +14164,9 @@ export interface Locale extends ILocale {
          */
         "errorQuotaExceededUnknown": string;
         /**
-         * 審査待ちの申請が{limit}件あります。結果が出るか、どれかを取り下げるまで新しく申請できません。
+         * 審査待ちの申請が{used}件あります。上限は{limit}件なので、結果が出るか取り下げて減らすまで新しく申請できません。
          */
-        "errorPendingLimitExceeded": ParameterizedString<"limit">;
+        "errorPendingLimitExceeded": ParameterizedString<"used" | "limit">;
         /**
          * 審査待ちの申請が上限に達しています。結果が出るか、どれかを取り下げるまで新しく申請できません。
          */
