@@ -10,13 +10,29 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div v-if="tab === 'apply'" class="_gaps">
 			<MkInfo>{{ i18n.ts._emojiApplication.applyNote }}</MkInfo>
 
-			<div :class="$style.preview">
+			<!--
+				**ドロップ対象はプレビュー全体 (#2959)。** 升目だけだと的が小さく、
+				外すとブラウザが画像を開いて入力中の内容ごと失う。`.prevent` は
+				`dragover` にも要る — 付けないと `drop` が発火しない。
+			-->
+			<div
+				:class="[$style.preview, { [$style.dragover]: draghover }]"
+				@dragover.prevent.stop="onDragover"
+				@dragenter.prevent="draghover = true"
+				@dragleave.stop="draghover = false"
+				@drop.prevent.stop="onDrop"
+			>
 				<div :class="$style.previewBox">
 					<img v-if="file" :src="file.url" :alt="name" :class="$style.previewImg"/>
 					<i v-else class="ti ti-photo" :class="$style.previewPlaceholder"></i>
 				</div>
 				<div :class="$style.previewMeta">
-					<MkButton @click="chooseFile">{{ i18n.ts._emojiApplication.chooseImage }}</MkButton>
+					<MkButton :disabled="uploading" @click="chooseFile">{{ i18n.ts._emojiApplication.chooseImage }}</MkButton>
+					<div v-if="uploading" :class="$style.previewLabel">
+						<MkLoading :em="true"/> {{ i18n.ts._emojiApplication.dropUploading }}
+					</div>
+					<!-- **導線を書いておく。** ドロップできることは見ただけでは分からない。 -->
+					<div v-else :class="$style.previewLabel">{{ i18n.ts._emojiApplication.dropImage }}</div>
 					<!--
 						**本文中の実寸を見せる。** カスタム絵文字は本文では文字サイズの
 						1.25 倍でしか描かれない。大きな升目だけを見て申請すると、細い線や
@@ -122,7 +138,8 @@ import MkTime from '@/components/global/MkTime.vue';
 import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
-import { selectFile } from '@/utility/drive.js';
+import { selectFile, uploadFile, UploadAbortedError } from '@/utility/drive.js';
+import { pickDroppedEmojiImage } from '@/utility/emoji-image-drop.js';
 import { emojiApplicationQuotaText, emojiApplicationPendingLimitText } from '@/utility/emoji-application-quota.js';
 import * as os from '@/os.js';
 
@@ -164,11 +181,65 @@ const fetching = ref(false);
 
 const nameValid = computed(() => NAME_RE.test(name.value));
 // ライセンスも必須。出典が辿れないと、問題が出たときに消すしか手が無くなる。
-const canSubmit = computed(() => file.value != null && nameValid.value && license.value.trim() !== '');
+// アップロード中は押させない — 完了前に送ると古い fileId で申請される。
+const canSubmit = computed(() => !uploading.value && file.value != null && nameValid.value && license.value.trim() !== '');
 
 async function chooseFile(ev: MouseEvent) {
 	const selected = await selectFile({ anchorElement: ev.currentTarget ?? ev.target, multiple: false });
 	file.value = { id: selected.id, url: selected.url };
+}
+
+const draghover = ref(false);
+const uploading = ref(false);
+
+function onDragover(ev: DragEvent) {
+	if (ev.dataTransfer == null) return;
+	// **ファイル以外では強調しない。** テキスト選択のドラッグでも dragover は
+	// 飛ぶので、光らせると「ここに落とせる」という誤った合図になる。
+	if (ev.dataTransfer.items[0]?.kind !== 'file') return;
+	ev.dataTransfer.dropEffect = 'copy';
+	draghover.value = true;
+}
+
+/**
+ * Uploads a dropped image to drive and selects it (#2959).
+ *
+ * **drive を経由する。** 申請 API は drive の fileId を受ける契約なので、
+ * ここだけ multipart にすると承認側 (`admin/emoji/add` と同じ経路) の検証を
+ * 迂回することになる。
+ */
+async function onDrop(ev: DragEvent) {
+	draghover.value = false;
+	if (uploading.value) return;
+
+	const picked = pickDroppedEmojiImage(Array.from(ev.dataTransfer?.files ?? []));
+	if (!picked.ok) {
+		// **理由を出す。** 「失敗しました」だけだと、形式が悪いのか件数が多いのか
+		// 分からず、同じ操作を繰り返すことになる。
+		if (picked.reason === 'none') return;
+		await os.alert({
+			type: 'error',
+			text: picked.reason === 'multiple'
+				? i18n.ts._emojiApplication.errorDropMultiple
+				: i18n.ts._emojiApplication.errorDropUnsupported,
+		});
+		return;
+	}
+
+	uploading.value = true;
+	try {
+		const uploaded = await uploadFile(picked.file).filePromise;
+		// **置き換える。** 既に選んでいたものを残すと、どちらが申請されるのか
+		// 分からない。
+		file.value = { id: uploaded.id, url: uploaded.url };
+	} catch (err) {
+		// uploadFile は中断時に UploadAbortedError を投げ、失敗時は自分で
+		// ダイアログを出す。二重に出さないよう、中断は黙って戻る。
+		if (err instanceof UploadAbortedError) return;
+		await os.alert({ type: 'error', text: i18n.ts._emojiApplication.errorDropFailed });
+	} finally {
+		uploading.value = false;
+	}
 }
 
 async function submit() {
@@ -301,6 +372,14 @@ definePage(computed(() => ({
 	border: solid 1px var(--MI_THEME-divider);
 	border-radius: var(--MI-radius-sm);
 }
+/* **ドロップ可能であることを枠で示す。** 透明度や影だけだと、背景の明るい
+   テーマで見えない。 */
+.dragover {
+	outline: 2px dashed var(--MI_THEME-accent);
+	outline-offset: 4px;
+	border-radius: var(--MI-radius);
+}
+
 .previewBox {
 	width: 96px;
 	height: 96px;

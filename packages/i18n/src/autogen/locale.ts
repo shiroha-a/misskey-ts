@@ -14020,6 +14020,26 @@ export interface Locale extends ILocale {
          */
         "chooseImage": string;
         /**
+         * 画像をここにドロップしても選べます
+         */
+        "dropImage": string;
+        /**
+         * アップロード中です
+         */
+        "dropUploading": string;
+        /**
+         * 一度に申請できる画像は1件です。1つだけドロップしてください。
+         */
+        "errorDropMultiple": string;
+        /**
+         * この形式のファイルは絵文字にできません。PNG / GIF / WebP などの画像をドロップしてください。
+         */
+        "errorDropUnsupported": string;
+        /**
+         * 画像をアップロードできませんでした。もう一度お試しください。
+         */
+        "errorDropFailed": string;
+        /**
          * PNG / GIF / WebP。一辺128px以上を推奨します。
          */
         "imageHint": string;
