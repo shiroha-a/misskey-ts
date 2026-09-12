@@ -257,6 +257,41 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</XFolder>
 
 		<!--
+			mk-go 固有 (#2958)。カスタム絵文字の申請をローリング期間で絞る。
+			**固定の暦ではなく直前 N 時間で数える** — 暦だと切り替わりの直前と
+			直後に連続で出せてしまう。0 はその期間の上限なし。
+		-->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerDay, 'emojiApplicationMaxPerDay'])" v-model:policyMeta="emojiApplicationMaxPerDayMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerDay }}</template>
+			<template #valueText>{{ emojiApplicationMaxPerDay }}</template>
+			<template #default="{ disabled }">
+				<MkInput v-model="emojiApplicationMaxPerDay" type="number" :min="0" :disabled="disabled">
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationQuota_caption }}</template>
+				</MkInput>
+			</template>
+		</XFolder>
+
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerWeek, 'emojiApplicationMaxPerWeek'])" v-model:policyMeta="emojiApplicationMaxPerWeekMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerWeek }}</template>
+			<template #valueText>{{ emojiApplicationMaxPerWeek }}</template>
+			<template #default="{ disabled }">
+				<MkInput v-model="emojiApplicationMaxPerWeek" type="number" :min="0" :disabled="disabled">
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationQuota_caption }}</template>
+				</MkInput>
+			</template>
+		</XFolder>
+
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerMonth, 'emojiApplicationMaxPerMonth'])" v-model:policyMeta="emojiApplicationMaxPerMonthMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerMonth }}</template>
+			<template #valueText>{{ emojiApplicationMaxPerMonth }}</template>
+			<template #default="{ disabled }">
+				<MkInput v-model="emojiApplicationMaxPerMonth" type="number" :min="0" :disabled="disabled">
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationQuota_caption }}</template>
+				</MkInput>
+			</template>
+		</XFolder>
+
+		<!--
 			mk-go 固有 (#2898)。ロール単位で通知を切る。**集約は intersection** なので、
 			複数のロールに属している利用者は全ロールで切られている種類だけが届かなくなる
 			(他の policy と同じく緩い方に倒す)。
@@ -553,6 +588,9 @@ const mkGoPolicyMetaKeys: string[] = [
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
+	'emojiApplicationMaxPerDay',
+	'emojiApplicationMaxPerWeek',
+	'emojiApplicationMaxPerMonth',
 ];
 
 function setPolicyMeta(incoming: Partial<PolicyMetaRecord> | undefined): PolicyMetaRecord {
@@ -625,6 +663,15 @@ const chunkedUploadMaxConcurrentSessions = mkGoPolicyValue('chunkedUploadMaxConc
 const chunkedUploadMaxConcurrentSessionsMeta = mkGoPolicyMeta('chunkedUploadMaxConcurrentSessions');
 const chunkedUploadMaxPendingMb = mkGoPolicyValue('chunkedUploadMaxPendingMb', 1024);
 const chunkedUploadMaxPendingMbMeta = mkGoPolicyMeta('chunkedUploadMaxPendingMb');
+
+// カスタム絵文字申請の期間上限 (#2958)。既定はいずれも 0 = 無制限。
+// internal/effectivepolicy/validation.go と揃えること。
+const emojiApplicationMaxPerDay = mkGoPolicyValue('emojiApplicationMaxPerDay', 0);
+const emojiApplicationMaxPerDayMeta = mkGoPolicyMeta('emojiApplicationMaxPerDay');
+const emojiApplicationMaxPerWeek = mkGoPolicyValue('emojiApplicationMaxPerWeek', 0);
+const emojiApplicationMaxPerWeekMeta = mkGoPolicyMeta('emojiApplicationMaxPerWeek');
+const emojiApplicationMaxPerMonth = mkGoPolicyValue('emojiApplicationMaxPerMonth', 0);
+const emojiApplicationMaxPerMonthMeta = mkGoPolicyMeta('emojiApplicationMaxPerMonth');
 
 /**
  * Add or remove one notification type from the opt-out list (#2898).
