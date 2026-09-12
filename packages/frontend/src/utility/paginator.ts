@@ -5,6 +5,7 @@
 
 import { ref, shallowRef, triggerRef } from 'vue';
 import * as Misskey from 'misskey-js';
+import { resolveRateLimitStop } from '@/utility/rate-limit-stop.js';
 import type { ComputedRef, Ref, ShallowRef, UnwrapRef } from 'vue';
 import { misskeyApi } from '@/utility/misskey-api.js';
 
@@ -47,6 +48,8 @@ export interface IPaginator<T = unknown, _T = T & MisskeyEntity> {
 	canFetchNewer: Ref<boolean>;
 	canSearch: boolean;
 	error: Ref<boolean>;
+	/** mk-go: 直近の取得がレート制限で拒否されたか (#2955)。 */
+	rateLimited: Ref<boolean>;
 	computedParams: ComputedRef<Misskey.Endpoints[PaginatorCompatibleEndpointPaths]['req'] | null | undefined> | null;
 	initialId: MisskeyEntity['id'] | null;
 	initialDate: number | null;
@@ -88,6 +91,19 @@ export class Paginator<
 	public canFetchNewer = ref(false);
 	public canSearch = false;
 	public error = ref(false);
+	/**
+	 * mk-go: set when the last fetch was rejected by the rate limiter (#2955).
+	 *
+	 * **自動追い読みを止めるための印。** サーバー側のレート制限は「叩くのを
+	 * やめる」まで解けない — store が拒否したリクエストも記録するので、429 の
+	 * まま叩き続けると窓が前へ押し戻され続ける (実測で `Retry-After` が 58 秒
+	 * 前後に張り付いたまま解けなかった)。無限スクロールが握り潰して再試行を
+	 * 続けると、**自分のバケットを自分で開かないまま固定し続ける**。
+	 *
+	 * `error` は使わない。あちらは一覧をエラー表示で置き換えるので、既に
+	 * 読めている分が消える。
+	 */
+	public rateLimited = ref(false);
 	private endpoint: Endpoint;
 	private limit: number;
 	private params: E['req'] | (() => E['req']);
@@ -257,6 +273,27 @@ export class Paginator<
 		return this.init();
 	}
 
+	/**
+	 * mk-go: records whether a fetch was rejected by the rate limiter (#2955).
+	 *
+	 * **429 だけを他のエラーと区別する。** ネットワーク断などは従来どおり黙って
+	 * 握り潰す (一時的なもので、再試行すれば直るため)。レート制限は逆で、
+	 * **再試行が状況を悪化させる**唯一のケースなので止める必要がある。
+	 */
+	private noteRateLimit(err: unknown, direction: 'older' | 'newer'): void {
+		const decision = resolveRateLimitStop(err, direction);
+		if (!decision.rateLimited) return;
+		this.rateLimited.value = true;
+		// **追い読みの自動発火を止める。** MkPagination は `canFetch*` が true の
+		// 間ボタンを描き、`v-appear` が視界に入るたび再発火する。値を残したまま
+		// UI 側で止めると、ボタンの再マウントでまた撃たれるので、ここで落とす。
+		if (decision.stop === 'older') {
+			this.canFetchOlder.value = false;
+		} else if (decision.stop === 'newer') {
+			this.canFetchNewer.value = false;
+		}
+	}
+
 	public async fetchOlder(): Promise<void> {
 		if (!this.canFetchOlder.value || this.fetching.value || this.fetchingOlder.value || this.items.value.length === 0) return;
 		this.fetchingOlder.value = true;
@@ -273,7 +310,8 @@ export class Paginator<
 			}),
 		};
 
-		const apiRes = (await misskeyApi<T[]>(this.endpoint, data).catch(_ => {
+		const apiRes = (await misskeyApi<T[]>(this.endpoint, data).catch(err => {
+			this.noteRateLimit(err, 'older');
 			return null;
 		})) as T[] | null;
 
@@ -326,7 +364,8 @@ export class Paginator<
 			}),
 		};
 
-		const apiRes = (await misskeyApi<T[]>(this.endpoint, data).catch(_ => {
+		const apiRes = (await misskeyApi<T[]>(this.endpoint, data).catch(err => {
+			this.noteRateLimit(err, 'newer');
 			return null;
 		})) as T[] | null;
 
