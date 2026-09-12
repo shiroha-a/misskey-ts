@@ -38,24 +38,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</MkButton>
 					<MkLoading v-else/>
 				</div>
-				<!--
-					**mk-go: レート制限に当たったら自動追い読みを止める (#2955)。**
-
-					サーバー側の制限は「叩くのをやめる」まで解けない (拒否も記録
-					されるので窓が前へ押し戻され続ける)。`v-appear` による自動
-					発火のままだと、ボタンが視界にある限り再試行が回り続けて
-					**自分で制限を維持し続ける**。
-
-					`canFetch*` を落として自動発火を止めたうえで、**理由と手動の
-					再試行をここに出す** — 落とすだけだと一覧が黙って途中で
-					終わったように見え、利用者は「これで全部」と誤解する。
-				-->
-				<div v-if="paginator.rateLimited.value" :class="$style.rateLimited">
-					<MkInfo warn>{{ i18n.ts.rateLimitExceeded }}</MkInfo>
-					<MkButton :class="$style.more" rounded @click="retryAfterRateLimit">
-						{{ i18n.ts.retry }}
-					</MkButton>
-				</div>
+				<!-- mk-go: レート制限の理由と再試行 (#2955)。3 箇所で共有する。 -->
+				<MkRateLimitedNotice :paginator="paginator"/>
 			</div>
 		</Transition>
 	</div>
@@ -86,7 +70,7 @@ import { onMounted, computed, watch, unref } from 'vue';
 import type { UnwrapRef } from 'vue';
 import type { IPaginator } from '@/utility/paginator.js';
 import MkButton from '@/components/MkButton.vue';
-import MkInfo from '@/components/MkInfo.vue';
+import MkRateLimitedNotice from '@/components/MkRateLimitedNotice.vue';
 import { i18n } from '@/i18n.js';
 import { prefer } from '@/preferences.js';
 import MkPullToRefresh from '@/components/MkPullToRefresh.vue';
@@ -159,20 +143,6 @@ const downButtonLoading = computed(() => {
 	return props.paginator.order.value === 'oldest' ? props.paginator.fetchingNewer.value : props.paginator.fetchingOlder.value;
 });
 
-// mk-go: レート制限の表示から手動で再開する (#2955)。
-//
-// **`canFetch*` を戻してから撃つ。** noteRateLimit が落としているので、
-// 戻さないと fetchOlder の冒頭のガードで即 return する。
-function retryAfterRateLimit() {
-	props.paginator.rateLimited.value = false;
-	if (props.paginator.order.value === 'oldest') {
-		props.paginator.canFetchNewer.value = true;
-	} else {
-		props.paginator.canFetchOlder.value = true;
-	}
-	downButtonClick();
-}
-
 function downButtonClick() {
 	if (props.paginator.order.value === 'oldest') {
 		props.paginator.fetchNewer();
@@ -200,14 +170,6 @@ defineSlots<{
 .more {
 	margin-left: auto;
 	margin-right: auto;
-}
-
-.rateLimited {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 8px;
-	margin: 8px 0;
 }
 
 </style>

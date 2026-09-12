@@ -47,6 +47,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<MkNote v-else :class="$style.note" :note="note" :withHardMute="true" :data-scroll-anchor="note.id"/>
 			</template>
 		</component>
+		<!-- mk-go: レート制限の理由と再試行 (#2955)。落とすだけだと「これで全部」に見える。 -->
+		<MkRateLimitedNotice :paginator="paginator"/>
 		<button v-show="paginator.canFetchOlder.value" key="_more_" v-appear="prefer.s.enableInfiniteScroll ? paginator.fetchOlder : null" :disabled="paginator.fetchingOlder.value" class="_button" :class="$style.more" @click="paginator.fetchOlder">
 			<div v-if="!paginator.fetchingOlder.value">{{ i18n.ts.loadMore }}</div>
 			<MkLoading v-else :inline="true"/>
@@ -65,6 +67,7 @@ import type { BasicTimelineType } from '@/timelines.js';
 import type { SoundStore } from '@/preferences/def.js';
 import type { IPaginator, MisskeyEntity } from '@/utility/paginator.js';
 import MkPullToRefresh from '@/components/MkPullToRefresh.vue';
+import MkRateLimitedNotice from '@/components/MkRateLimitedNotice.vue';
 import { useStream } from '@/stream.js';
 import * as sound from '@/utility/sound.js';
 import { $i } from '@/i.js';
