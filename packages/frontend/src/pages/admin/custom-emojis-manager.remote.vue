@@ -148,7 +148,8 @@ import type { GridSetting } from '@/components/grid/grid.js';
 import type { SortOrder } from '@/components/MkSortOrderEditor.define.js';
 import MkRemoteEmojiEditDialog from '@/components/MkRemoteEmojiEditDialog.vue';
 import { misskeyApi } from '@/utility/misskey-api.js';
-import { getProxiedImageUrl } from '@/utility/media-proxy.js';
+import { getProxiedImageUrl, getStaticImageUrl } from '@/utility/media-proxy.js';
+import { prefer } from '@/preferences.js';
 import { i18n } from '@/i18n.js';
 import MkButton from '@/components/MkButton.vue';
 import MkInput from '@/components/MkInput.vue';
@@ -347,13 +348,23 @@ async function importEmojis(targets: GridItem[]) {
 
 	requestLogs.value = result.map(it => ({
 		failed: !it.success,
-		// 取り込み元は相手サーバーの URL なので、一覧と同じく proxy を通す。
-		url: getProxiedImageUrl(it.item.url, 'emoji', false, true),
+		// **ここは proxy を通さない。** `it.item` はグリッドの行で、`url` には
+		// 既に proxy 済みの URL が入っている (`getProxiedImageUrl` は冪等なので
+		// 通しても変わらないが、二重に見えるので通さない)。ログの画像は
+		// グリッド側の修正で直る。
+		url: it.item.url,
 		name: it.item.name,
 		error: it.err ? JSON.stringify(it.err) : undefined,
 	}));
 
 	await refreshCustomEmojis();
+}
+
+// mk-go: リモート絵文字の画像 URL を作る (#2957)。`MkCustomEmoji` /
+// `MkRemoteEmojiEditDialog` と同じ形に揃えてある。
+function emojiImageUrl(url: string): string {
+	const proxied = getProxiedImageUrl(url, 'emoji');
+	return prefer.s.disableShowingAnimatedImages ? getStaticImageUrl(proxied) : proxied;
 }
 
 async function refreshCustomEmojis() {
@@ -386,9 +397,19 @@ async function refreshCustomEmojis() {
 		// **mk-go: media proxy を通す (#2425 の CSP)。** リモート絵文字の
 		// publicUrl は相手サーバーのオリジンで、`img-src 'self' data: blob:` を
 		// enforce している構成では**1 件も表示されない**。proxy を通すと同一
-		// オリジンになり、allowlist が `emoji.publicUrl` を通すので解決できる
-		// (`MkCustomEmoji` が既に同じ形)。純正は CSP を持たないので素通りする。
-		url: getProxiedImageUrl(it.publicUrl, 'emoji', false, true),
+		// オリジンになり、allowlist が `emoji.publicUrl` を通すので解決できる。
+		// 純正は CSP を持たないので素通りする。
+		//
+		// **`noFallback` は渡さない。** グリッドの image セルは `@error` の
+		// 受け皿を持たないので、proxy が 403/404/500 を返すと壊れ画像アイコンと
+		// 長大な proxy URL (alt) がセルに出る。実測でも取得元によっては 500 /
+		// 404 になり、fallback ありなら 200 で救われる。`MkRemoteEmojiEditDialog`
+		// が同じ理由で `noFallback` を外している。
+		//
+		// **静止画設定は `getStaticImageUrl` で包む。** 第 4 引数は `noFallback`
+		// であって静止画とは無関係 (`media-proxy.ts` のシグネチャ)。包まないと
+		// `disableShowingAnimatedImages` を on にしていてもここだけ動く。
+		url: emojiImageUrl(it.publicUrl),
 		name: it.name,
 		license: it.license,
 		host: it.host!,
