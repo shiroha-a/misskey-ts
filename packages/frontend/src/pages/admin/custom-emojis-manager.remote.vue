@@ -349,9 +349,11 @@ async function importEmojis(targets: GridItem[]) {
 	requestLogs.value = result.map(it => ({
 		failed: !it.success,
 		// **ここは proxy を通さない。** `it.item` はグリッドの行で、`url` には
-		// 既に proxy 済みの URL が入っている (`getProxiedImageUrl` は冪等なので
-		// 通しても変わらないが、二重に見えるので通さない)。ログの画像は
-		// グリッド側の修正で直る。
+		// 既に proxy 済みの URL が入っている。ログの画像はグリッド側の修正で
+		// 直る。
+		//
+		// (再投入しても `getProxiedImageUrl` が proxy 接頭辞を見て元の URL を
+		// 取り出すので壊れはしないが、静止画のときは `static=1` が落ちる。)
 		url: it.item.url,
 		name: it.item.name,
 		error: it.err ? JSON.stringify(it.err) : undefined,
@@ -360,8 +362,11 @@ async function importEmojis(targets: GridItem[]) {
 	await refreshCustomEmojis();
 }
 
-// mk-go: リモート絵文字の画像 URL を作る (#2957)。`MkCustomEmoji` /
-// `MkRemoteEmojiEditDialog` と同じ形に揃えてある。
+// mk-go: リモート絵文字の画像 URL を作る (#2957)。
+//
+// **`MkRemoteEmojiEditDialog` と同じ形。** `MkCustomEmoji` は `noFallback` を
+// 渡すが、あちらは `@error` で `:name:` に落とす受け皿があるから。グリッドの
+// image セルには受け皿が無いので渡さない。
 function emojiImageUrl(url: string): string {
 	const proxied = getProxiedImageUrl(url, 'emoji');
 	return prefer.s.disableShowingAnimatedImages ? getStaticImageUrl(proxied) : proxied;
