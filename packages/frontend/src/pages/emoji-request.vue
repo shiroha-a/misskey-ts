@@ -19,8 +19,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 			<!--
 				**ドロップ対象はプレビュー全体 (#2959)。** 升目だけだと的が小さく、
-				外すとブラウザが画像を開いて入力中の内容ごと失う。`.prevent` は
-				`dragover` にも要る — 付けないと `drop` が発火しない。
+				外しやすい。**`preventDefault` は `dragover` にも要る** — 呼ばないと
+				`drop` が発火しない。modifier ではなくハンドラ内で条件付きに呼ぶ
+				(ファイル以外まで止めると deck のカラム並べ替えを潰すため)。
 			-->
 			<div
 				:class="[$style.preview, { [$style.dragover]: draghover }]"
@@ -37,8 +38,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<!--
 						**アップロード中でも押させる (レビュー H1)。** ここを塞ぐと、
 						アップロードが返ってこないときに操作手段が 1 つも無くなる。
-						選び直せば `file` は置き換わるので、遅れて届いた結果で
-						上書きされないよう世代で判定する。
+						`chooseFile` が世代を進めて `uploading` も解除するので、
+						遅れて届いたドロップの結果に上書きされることも、
+						`canSubmit` が false のままになることも無い。
 					-->
 					<MkButton @click="chooseFile">{{ i18n.ts._emojiApplication.chooseImage }}</MkButton>
 					<div v-if="uploading" :class="$style.previewLabel">
@@ -203,11 +205,6 @@ const nameValid = computed(() => NAME_RE.test(name.value));
 // アップロード中は押させない — 完了前に送ると古い fileId で申請される。
 const canSubmit = computed(() => !uploading.value && file.value != null && nameValid.value && license.value.trim() !== '');
 
-async function chooseFile(ev: MouseEvent) {
-	const selected = await selectFile({ anchorElement: ev.currentTarget ?? ev.target, multiple: false });
-	file.value = { id: selected.id, url: selected.url };
-}
-
 // ドロップの案内はデスクトップだけに出す (タッチでは実行できない)。
 const canDrop = deviceKind === 'desktop';
 const draghover = ref(false);
@@ -215,6 +212,19 @@ const uploading = ref(false);
 // **ドロップの世代。** アップロード中に選び直したり別の画像を落としたとき、
 // 遅れて届いた前の結果で上書きさせない。
 let dropGeneration = 0;
+
+async function chooseFile(ev: MouseEvent) {
+	const selected = await selectFile({ anchorElement: ev.currentTarget ?? ev.target, multiple: false });
+	// **世代を進める。** 進めないと、進行中のドロップが後から届いたときに
+	// **いま選んだものを黙って上書きする**。申請されるのは利用者が最後に
+	// 選んだ画像ではなくなり、画面上はそれが正しく見える。
+	dropGeneration++;
+	// **アップロード中の表示も解除する。** 返ってこないアップロードに
+	// 引きずられたままだと `canSubmit` が false のままで、選び直しても
+	// 一生申請できない (それがこのボタンを塞がない理由そのもの)。
+	uploading.value = false;
+	file.value = { id: selected.id, url: selected.url };
+}
 
 function isFileDrag(ev: DragEvent): boolean {
 	return ev.dataTransfer != null && Array.from(ev.dataTransfer.items).some(i => i.kind === 'file');

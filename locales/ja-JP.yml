@@ -3762,7 +3762,6 @@ _emojiApplication:
   dropUploading: "アップロード中です"
   errorDropMultiple: "一度に申請できる画像は1件です。1つだけドロップしてください。"
   errorDropUnsupported: "この形式のファイルは絵文字にできません。PNG / GIF / WebP などの画像をドロップしてください。"
-  errorDropFailed: "画像をアップロードできませんでした。もう一度お試しください。"
   imageHint: "PNG / GIF / WebP。一辺128px以上を推奨します。"
   inlinePreview: "本文ではこう表示されます"
   inlineSampleText: "たとえばこんなふうに"

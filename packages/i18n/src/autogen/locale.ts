@@ -14036,10 +14036,6 @@ export interface Locale extends ILocale {
          */
         "errorDropUnsupported": string;
         /**
-         * 画像をアップロードできませんでした。もう一度お試しください。
-         */
-        "errorDropFailed": string;
-        /**
          * PNG / GIF / WebP。一辺128px以上を推奨します。
          */
         "imageHint": string;

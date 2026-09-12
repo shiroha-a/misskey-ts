@@ -267,6 +267,13 @@ function uploadFileChunked(file: File | Blob, options: UploadOptions, cap: Chunk
 	let currentXhr: XMLHttpRequest | null = null;
 	let uploadId: string | null = null;
 
+	// **ダイアログを出したかを持つ (#2959)。** 単発経路は reject の前に必ず
+	// 1 枚出す契約で、呼び出し側はそれに乗って空 catch にしている。chunked 側は
+	// `appendChunk` の `onerror` と `post` の fetch 失敗で何も出さずに reject
+	// しており、**大きい画像で回線が切れると無言で終わっていた**。同じ契約に
+	// 揃える。
+	let reported = false;
+
 	const post = async (endpoint: string, body: Record<string, unknown>): Promise<any> => {
 		const res = await window.fetch(`${apiUrl}/${endpoint}`, {
 			method: 'POST',
@@ -276,6 +283,7 @@ function uploadFileChunked(file: File | Blob, options: UploadOptions, cap: Chunk
 		const text = await res.text();
 		if (!res.ok) {
 			showUploadError(res.status, text || null);
+			reported = true;
 			throw new Error(`${endpoint} failed: ${res.status}`);
 		}
 		return text ? JSON.parse(text) : null;
@@ -329,7 +337,17 @@ function uploadFileChunked(file: File | Blob, options: UploadOptions, cap: Chunk
 				globalEvents.emit('driveFileCreated', driveFile);
 				resolve(driveFile);
 			} catch (err) {
-				if (!signal.aborted) reject(err);
+				if (signal.aborted) return;
+				// 誰もダイアログを出していなければここで出す (transport の
+				// 失敗がこれに当たる)。中断は `signal.aborted` で抜けている。
+				if (!reported) {
+					os.alert({
+						type: 'error',
+						title: i18n.ts.failedToUpload,
+						text: i18n.ts.somethingHappened,
+					});
+				}
+				reject(err);
 			}
 		})();
 	});
@@ -345,6 +363,7 @@ function uploadFileChunked(file: File | Blob, options: UploadOptions, cap: Chunk
 				currentXhr = null;
 				if (xhr.status !== 200) {
 					showUploadError(xhr.status, xhr.response ?? null);
+					reported = true;
 					reject(new Error(`append ${index} failed: ${xhr.status}`));
 					return;
 				}
