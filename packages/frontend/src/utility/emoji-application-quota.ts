@@ -66,8 +66,10 @@ function quotaRetryAtLabel(retryAt: unknown): string | null {
 export function emojiApplicationPendingLimitText(err: unknown): string {
 	const info = (err as { info?: PendingInfo } | null)?.info ?? {};
 	if (typeof info.used !== 'number' || typeof info.limit !== 'number') {
-		// **件数が読めなければ件数を書かない。** サーバー側の書式が変わっても
-		// 「取り下げれば出せる」という行動は変わらないので、そこだけ伝える。
+		// **件数が読めなければ件数を書かない。** 退避先も本文と同じく必要条件
+		// だけを述べる (「〜まで新しく申請できません」)。**「取り下げれば出せる」
+		// とは書かない** — それが成り立つかはサーバー側の評価順序次第で、
+		// 一度その約束を書いて誤りになっている (mk.18b)。
 		return i18n.ts._emojiApplication.errorPendingLimitExceededUnknown;
 	}
 	// **`used` も出す。** 上限を後から下げると `used > limit` になり、上限の
