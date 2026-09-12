@@ -6,11 +6,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 <template>
 <PageWithHeader v-model:tab="tab" :tabs="headerTabs">
 	<!--
-		**ページ全体でも遷移を止める (レビュー M3)。** `.preview` は最小 124px の
-		帯でしかなく、そこを外すとブラウザが画像を開いて**入力中の内容ごと失う**。
-		ドロップを案内する以上、外す機会はこの変更で増えている。受け取るのは
-		プレビューの上だけなので、ここでは握り潰すだけ (`settings/theme.vue`
-		が同じ形を採っている)。
+		**本文カラムでもファイルのドロップを握り潰す (#2959)。** `.preview` は
+		最小 124px の帯でしかなく、そこを外すとブラウザが画像を開いて**入力中の
+		内容ごと失う**。ドロップを案内する以上、外す機会はこの変更で増えている。
+		受け取るのはプレビューの上だけなので、ここでは握り潰すだけ。
+
+		**カラムの外 (左右の余白・ヘッダ・タブバー) までは守れない。** `._spacer`
+		は `max-width: 700px` の中央カラムで、アプリ全体のドロップガードは
+		存在しない (`@drop` を持つのは `ui/deck/column.vue` だけ)。他のページも
+		同じ状態なので、ここだけ全面にするのはこの変更の範囲を超える。
 	-->
 	<div class="_spacer" style="--MI_SPACER-w: 700px;" @dragover="onPageDragover" @drop="onPageDrop">
 		<!-- ===== 申請する ===== -->
@@ -19,9 +23,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 			<!--
 				**ドロップ対象はプレビュー全体 (#2959)。** 升目だけだと的が小さく、
-				外しやすい。**`preventDefault` は `dragover` にも要る** — 呼ばないと
-				`drop` が発火しない。modifier ではなくハンドラ内で条件付きに呼ぶ
-				(ファイル以外まで止めると deck のカラム並べ替えを潰すため)。
+				外すと本文カラムの握り潰しに落ちる (カラムの外まで外すとブラウザが
+				画像を開いて**入力中の内容ごと失う**)。**`preventDefault` は
+				`dragover` にも要る** — 呼ばないと `drop` が発火しない。modifier では
+				なくハンドラ内で条件付きに呼ぶ (ファイル以外まで止めると deck の
+				カラム並べ替えを潰すため)。
 			-->
 			<div
 				:class="[$style.preview, { [$style.dragover]: draghover }]"
@@ -264,11 +270,14 @@ function onDragover(ev: DragEvent) {
 }
 
 /**
- * Swallows file drops outside the preview so the browser does not navigate.
+ * Swallows file drops in the body column so the browser does not navigate.
  *
  * **ファイルのときだけ `preventDefault` する。** 無条件に止めると、deck の
  * カラム並べ替えのような**このページが関知しないドロップまで潰す**
  * (`ui/deck/column.vue` が `@drop.prevent.stop` で受けている)。
+ *
+ * **守れるのは本文カラムだけ** — 付いている `._spacer` は `max-width: 700px`
+ * の中央カラムで、左右の余白・ヘッダ・タブバーは素通りする。
  */
 function onPageDragover(ev: DragEvent) {
 	if (!isFileDrag(ev)) return;
