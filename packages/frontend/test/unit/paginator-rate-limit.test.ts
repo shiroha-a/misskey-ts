@@ -46,8 +46,6 @@ describe('Paginator のレート制限時の停止', () => {
 		expect(p.canFetchOlder.value).toBe(false);
 		expect(p.rateLimited.value).toBe(true);
 		expect(p.rateLimitedDirection.value).toBe('older');
-		// **向きを取り違えない。** 消費側が結果を逆に写すと、止めたい側が止まらない。
-		expect(p.canFetchNewer.value).toBe(false);
 
 		const before = h.api.mock.calls.length;
 		await p.fetchOlder();
@@ -138,5 +136,60 @@ describe('Paginator のレート制限時の停止', () => {
 		h.api.mockResolvedValueOnce(items(3, 200));
 		await p.retryAfterRateLimit();
 		expect(p.canFetchNewer.value).toBe(true);
+		// **どちらを撃ったかを引数で見る (レビュー 2 周目 M-4)。** `canFetchNewer`
+		// は `retryAfterRateLimit` の**前半**が立てる値なので、後半 (どちらを
+		// 撃つか) を `fetchOlder` 固定に変えても通ってしまう。newer の取得は
+		// `sinceId` を、older は `untilId` を載せるので、そこで区別する。
+		const lastArgs = h.api.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+		expect(Object.keys(lastArgs)).toContain('sinceId');
+		expect(Object.keys(lastArgs)).not.toContain('untilId');
+	});
+
+	test('**older で止まったら older を撃つ。**', async () => {
+		const p = await loaded();
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		await p.fetchOlder();
+
+		h.api.mockResolvedValueOnce(items(3, 300));
+		await p.retryAfterRateLimit();
+		const lastArgs = h.api.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+		expect(Object.keys(lastArgs)).toContain('untilId');
+	});
+
+	test('**初回取得で止まったら init を撃つ。** fetchOlder は items が空だと早期 return する', async () => {
+		h.api.mockReset();
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		const p = new Paginator('users/following' as never, { limit: 15 } as never);
+		await p.init();
+		expect(p.rateLimited.value).toBe(true);
+		expect(p.items.value.length).toBe(0);
+
+		const before = h.api.mock.calls.length;
+		h.api.mockResolvedValueOnce(items(5));
+		await p.retryAfterRateLimit();
+		// **実際に読み直していること。** fetchOlder を撃つと無反応で印だけ消える。
+		expect(h.api.mock.calls.length).toBeGreaterThan(before);
+		expect(p.items.value.length).toBe(5);
+		expect(p.rateLimited.value).toBe(false);
+	});
+
+	test('**別方向の in-flight 成功が印を消さない (レビュー 2 周目 M-1)。** 消すと「これで全部」に見える', async () => {
+		const p = await loaded();
+
+		// **先に in-flight にするのが要点。** `fetchNewer` の冒頭ガードは
+		// 呼び出し時に見るので、429 の**後**に呼ぶ形では到達しない。poll が
+		// 走っている最中に別方向が 429 になる、という順序を再現する。
+		let resolveNewer!: (v: unknown) => void;
+		h.api.mockImplementationOnce(() => new Promise(r => { resolveNewer = r; }));
+		const inFlight = p.fetchNewer({ toQueue: false });
+
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		await p.fetchOlder();
+		expect(p.rateLimited.value).toBe(true);
+
+		resolveNewer(items(2, 400));
+		await inFlight;
+		// 印が消えると notice も「もっと見る」も無い =「これで全部」に見える。
+		expect(p.rateLimited.value).toBe(true);
 	});
 });

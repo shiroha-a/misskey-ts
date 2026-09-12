@@ -23,8 +23,7 @@ import type { IPaginator } from '@/utility/paginator.js';
  * mk-go: レート制限に当たったことを利用者に伝える (#2955)。
  *
  * **自動追い読みを持つすべての場所で使う。** 当初は `MkPagination` にだけ
- * 置いていたが、`i/notifications` (30s/30 と、このプロジェクトで最も厳しい
- * 閲覧系の制限) は `MkStreamingNotificationsTimeline` が独自のボタンを持ち
+ * 置いていたが、`i/notifications` は `MkStreamingNotificationsTimeline` が独自のボタンを持ち
  * `MkPagination` を経由しない。**そちらでは理由が出ず、ボタンが黙って消える
  * だけ**になっていた。利用者は「これで全部」と誤解する。
  *
