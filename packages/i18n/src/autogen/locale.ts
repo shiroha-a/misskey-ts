@@ -13901,6 +13901,22 @@ export interface Locale extends ILocale {
          * サーバー全体の上限が優先されます。ここに大きい値を入れても超えられません。0 を入れるとサーバー全体の値がそのまま使われます (無制限にはなりません)。サーバー全体の上限は現在コントロールパネルに出ていないため、変更するには admin/update-meta を直接呼ぶ必要があります。
          */
         "chunkedUploadLimits_caption": string;
+        /**
+         * カスタム絵文字の申請上限 (1日)
+         */
+        "emojiApplicationMaxPerDay": string;
+        /**
+         * カスタム絵文字の申請上限 (1週間)
+         */
+        "emojiApplicationMaxPerWeek": string;
+        /**
+         * カスタム絵文字の申請上限 (30日間)
+         */
+        "emojiApplicationMaxPerMonth": string;
+        /**
+         * 0 を入れるとこの期間の上限を適用しません。直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。
+         */
+        "emojiApplicationQuota_caption": string;
     };
     "_mkgoNotification": {
         /**
@@ -14127,6 +14143,22 @@ export interface Locale extends ILocale {
          * 短時間に申請しすぎです。しばらく待ってからもう一度お試しください。
          */
         "errorRateLimited": string;
+        /**
+         * {period}に申請できるのは{limit}件までです。{retryAt}以降にもう一度お試しください。
+         */
+        "errorQuotaExceeded": ParameterizedString<"period" | "limit" | "retryAt">;
+        /**
+         * 1日
+         */
+        "quotaPeriodDay": string;
+        /**
+         * 1週間
+         */
+        "quotaPeriodWeek": string;
+        /**
+         * 30日間
+         */
+        "quotaPeriodMonth": string;
         /**
          * 取り込み元の絵文字がこのサーバーに残っていないため、承認できません。申請者に出し直してもらってください。
          */

@@ -143,6 +143,9 @@ const mkGoRolePolicyKeys: string[] = [
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
+	'emojiApplicationMaxPerDay',
+	'emojiApplicationMaxPerWeek',
+	'emojiApplicationMaxPerMonth',
 ];
 
 const role = ref((() => {

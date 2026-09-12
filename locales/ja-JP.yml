@@ -3725,6 +3725,10 @@ _mkgoRolePolicy:
   chunkedUploadMaxConcurrentSessions: "分割アップロードの同時セッション数"
   chunkedUploadMaxPendingMb: "分割アップロードの保留容量"
   chunkedUploadLimits_caption: "サーバー全体の上限が優先されます。ここに大きい値を入れても超えられません。0 を入れるとサーバー全体の値がそのまま使われます (無制限にはなりません)。サーバー全体の上限は現在コントロールパネルに出ていないため、変更するには admin/update-meta を直接呼ぶ必要があります。"
+  emojiApplicationMaxPerDay: "カスタム絵文字の申請上限 (1日)"
+  emojiApplicationMaxPerWeek: "カスタム絵文字の申請上限 (1週間)"
+  emojiApplicationMaxPerMonth: "カスタム絵文字の申請上限 (30日間)"
+  emojiApplicationQuota_caption: "0 を入れるとこの期間の上限を適用しません。直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。"
 
 _mkgoNotification:
   abuseReport: "通報がありました"
@@ -3785,6 +3789,10 @@ _emojiApplication:
   errorRemoteGone: "この絵文字の情報がサーバーに残っていません。もう一度その絵文字を見かけてから申請してください。"
   remoteGoneShort: "取り込み元にありません"
   errorRateLimited: "短時間に申請しすぎです。しばらく待ってからもう一度お試しください。"
+  errorQuotaExceeded: "{period}に申請できるのは{limit}件までです。{retryAt}以降にもう一度お試しください。"
+  quotaPeriodDay: "1日"
+  quotaPeriodWeek: "1週間"
+  quotaPeriodMonth: "30日間"
   remoteGoneReview: "取り込み元の絵文字がこのサーバーに残っていないため、承認できません。申請者に出し直してもらってください。"
   remoteSource: "取り込み元"
   filterPending: "審査待ち"

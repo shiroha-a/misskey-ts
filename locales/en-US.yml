@@ -3607,6 +3607,10 @@ _emojiApplication:
   errorRemoteGone: "This server no longer has information about that emoji. Please try again after seeing it once more."
   remoteGoneShort: "Source is gone"
   errorRateLimited: "Too many requests in a short time. Please wait a while and try again."
+  errorQuotaExceeded: "You can request at most {limit} emoji per {period}. Please try again after {retryAt}."
+  quotaPeriodDay: "day"
+  quotaPeriodWeek: "week"
+  quotaPeriodMonth: "30 days"
   remoteGoneReview: "The source emoji is no longer known to this server, so it cannot be approved. Ask the applicant to submit it again."
   remoteSource: "Imported from"
   filterPending: "Awaiting review"
@@ -3631,3 +3635,7 @@ _mkgoNotification:
 _mkgoRolePolicy:
   canRequestCustomEmojis: "Can request custom emoji"
   canRequestCustomEmojis_caption: "Lets the user ask moderators to register their own emoji. Nothing is registered until a moderator approves it."
+  emojiApplicationMaxPerDay: "Custom emoji request limit (per day)"
+  emojiApplicationMaxPerWeek: "Custom emoji request limit (per week)"
+  emojiApplicationMaxPerMonth: "Custom emoji request limit (per 30 days)"
+  emojiApplicationQuota_caption: "Set 0 to disable the limit for this period. Every request made in the preceding period counts, including rejected and canceled ones. Whether the user may request at all is controlled by the \"Can request custom emoji\" policy."
