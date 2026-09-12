@@ -13914,7 +13914,11 @@ export interface Locale extends ILocale {
          */
         "emojiApplicationMaxPerMonth": string;
         /**
-         * 0 を入れるとこの期間の上限を適用しません。直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。
+         * 上限なし
+         */
+        "emojiApplicationQuotaUnlimited": string;
+        /**
+         * 直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。0 はこの期間の上限なしという意味ですが、複数のロールに属している利用者には大きい方の値が採用されるため、個別のロールに 0 を入れてもベースロールの上限は外れません (外すにはそのロールの優先度を上げてください)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。
          */
         "emojiApplicationQuota_caption": string;
     };
@@ -14147,6 +14151,10 @@ export interface Locale extends ILocale {
          * {period}に申請できるのは{limit}件までです。{retryAt}以降にもう一度お試しください。
          */
         "errorQuotaExceeded": ParameterizedString<"period" | "limit" | "retryAt">;
+        /**
+         * 申請できる件数の上限に達しています。しばらくしてからもう一度お試しください。
+         */
+        "errorQuotaExceededUnknown": string;
         /**
          * 1日
          */
