@@ -219,7 +219,7 @@ function submitErrorText(err: unknown): string {
 		case 'RATE_LIMIT_EXCEEDED': return i18n.ts._emojiApplication.errorRateLimited;
 		// ロールごとの期間上限 (#2958)。API の 1 時間あたりの制限とは別で、
 		// こちらは日・週・月の単位。
-		case 'EMOJI_APPLICATION_QUOTA_EXCEEDED': return emojiApplicationQuotaText(err) ?? i18n.ts._emojiApplication.errorRateLimited;
+		case 'EMOJI_APPLICATION_QUOTA_EXCEEDED': return emojiApplicationQuotaText(err);
 		default: return i18n.ts.somethingHappened;
 	}
 }

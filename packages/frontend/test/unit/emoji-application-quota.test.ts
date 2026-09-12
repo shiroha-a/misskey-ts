@@ -11,7 +11,8 @@ vi.mock('@/i18n.js', () => ({
 	i18n: {
 		ts: {
 			_emojiApplication: {
-				errorRateLimited: 'GENERIC',
+				errorRateLimited: 'RATE_LIMITED',
+				errorQuotaExceededUnknown: 'GENERIC',
 				quotaPeriodDay: 'DAY',
 				quotaPeriodWeek: 'WEEK',
 				quotaPeriodMonth: 'MONTH',
@@ -57,12 +58,6 @@ describe('emojiApplicationQuotaText', () => {
 		expect(at('month')).toContain('period=MONTH');
 	});
 
-	test('別のエラーには反応しない', () => {
-		expect(emojiApplicationQuotaText({ code: 'RATE_LIMIT_EXCEEDED' })).toBeNull();
-		expect(emojiApplicationQuotaText(null)).toBeNull();
-		expect(emojiApplicationQuotaText(undefined)).toBeNull();
-	});
-
 	// **info が欠けたら汎用文へ落とす。** 「undefined 件まで」と出すくらいなら、
 	// 待てば通ることだけ伝わる方がよい。サーバー側の書式が変わっても壊れない。
 	test.each([
@@ -72,7 +67,14 @@ describe('emojiApplicationQuotaText', () => {
 		['未知の期間', { period: 'year', limit: 3, retryAt: RETRY_AT }],
 		['retryAt が日付でない', { period: 'day', limit: 3, retryAt: 'soon' }],
 		['retryAt が文字列でない', { period: 'day', limit: 3, retryAt: 1757760000000 }],
+		['エラーそのものが null', null],
 	])('%s のときは汎用文に落とす', (_label, info) => {
-		expect(emojiApplicationQuotaText(quotaError(info))).toBe('GENERIC');
+		expect(emojiApplicationQuotaText(info === null ? null : quotaError(info))).toBe('GENERIC');
+	});
+
+	// **`errorRateLimited` は使わない。** 「短時間に」と書くので、月次の窓で
+	// 弾かれたとき (最大 30 日待つ) に事実と食い違う。
+	test('退避文面に「短時間に」の文言を使わない', () => {
+		expect(emojiApplicationQuotaText(quotaError({}))).not.toBe('RATE_LIMITED');
 	});
 });

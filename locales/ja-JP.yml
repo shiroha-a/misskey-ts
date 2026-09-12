@@ -3728,7 +3728,8 @@ _mkgoRolePolicy:
   emojiApplicationMaxPerDay: "カスタム絵文字の申請上限 (1日)"
   emojiApplicationMaxPerWeek: "カスタム絵文字の申請上限 (1週間)"
   emojiApplicationMaxPerMonth: "カスタム絵文字の申請上限 (30日間)"
-  emojiApplicationQuota_caption: "0 を入れるとこの期間の上限を適用しません。直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。"
+  emojiApplicationQuotaUnlimited: "上限なし"
+  emojiApplicationQuota_caption: "直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。0 はこの期間の上限なしという意味ですが、複数のロールに属している利用者には大きい方の値が採用されるため、個別のロールに 0 を入れてもベースロールの上限は外れません (外すにはそのロールの優先度を上げてください)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。"
 
 _mkgoNotification:
   abuseReport: "通報がありました"
@@ -3790,6 +3791,7 @@ _emojiApplication:
   remoteGoneShort: "取り込み元にありません"
   errorRateLimited: "短時間に申請しすぎです。しばらく待ってからもう一度お試しください。"
   errorQuotaExceeded: "{period}に申請できるのは{limit}件までです。{retryAt}以降にもう一度お試しください。"
+  errorQuotaExceededUnknown: "申請できる件数の上限に達しています。しばらくしてからもう一度お試しください。"
   quotaPeriodDay: "1日"
   quotaPeriodWeek: "1週間"
   quotaPeriodMonth: "30日間"

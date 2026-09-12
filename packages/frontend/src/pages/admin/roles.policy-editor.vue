@@ -263,7 +263,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		-->
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerDay, 'emojiApplicationMaxPerDay'])" v-model:policyMeta="emojiApplicationMaxPerDayMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerDay }}</template>
-			<template #valueText>{{ emojiApplicationMaxPerDay }}</template>
+			<template #valueText>{{ emojiApplicationMaxPerDay === 0 ? i18n.ts._mkgoRolePolicy.emojiApplicationQuotaUnlimited : emojiApplicationMaxPerDay }}</template>
 			<template #default="{ disabled }">
 				<MkInput v-model="emojiApplicationMaxPerDay" type="number" :min="0" :disabled="disabled">
 					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationQuota_caption }}</template>
@@ -273,7 +273,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerWeek, 'emojiApplicationMaxPerWeek'])" v-model:policyMeta="emojiApplicationMaxPerWeekMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerWeek }}</template>
-			<template #valueText>{{ emojiApplicationMaxPerWeek }}</template>
+			<template #valueText>{{ emojiApplicationMaxPerWeek === 0 ? i18n.ts._mkgoRolePolicy.emojiApplicationQuotaUnlimited : emojiApplicationMaxPerWeek }}</template>
 			<template #default="{ disabled }">
 				<MkInput v-model="emojiApplicationMaxPerWeek" type="number" :min="0" :disabled="disabled">
 					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationQuota_caption }}</template>
@@ -283,7 +283,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerMonth, 'emojiApplicationMaxPerMonth'])" v-model:policyMeta="emojiApplicationMaxPerMonthMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.emojiApplicationMaxPerMonth }}</template>
-			<template #valueText>{{ emojiApplicationMaxPerMonth }}</template>
+			<template #valueText>{{ emojiApplicationMaxPerMonth === 0 ? i18n.ts._mkgoRolePolicy.emojiApplicationQuotaUnlimited : emojiApplicationMaxPerMonth }}</template>
 			<template #default="{ disabled }">
 				<MkInput v-model="emojiApplicationMaxPerMonth" type="number" :min="0" :disabled="disabled">
 					<template #caption>{{ i18n.ts._mkgoRolePolicy.emojiApplicationQuota_caption }}</template>

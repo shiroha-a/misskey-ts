@@ -139,7 +139,7 @@ function requestErrorText(err: unknown): string {
 		// 「何かがおかしいようです」に潰すと、待てば通ることが分からない。
 		case 'RATE_LIMIT_EXCEEDED': return i18n.ts._emojiApplication.errorRateLimited;
 		// ロールごとの期間上限 (#2958)。自作画像の申請と枠を共有する。
-		case 'EMOJI_APPLICATION_QUOTA_EXCEEDED': return emojiApplicationQuotaText(err) ?? i18n.ts._emojiApplication.errorRateLimited;
+		case 'EMOJI_APPLICATION_QUOTA_EXCEEDED': return emojiApplicationQuotaText(err);
 		default: return i18n.ts.somethingHappened;
 	}
 }

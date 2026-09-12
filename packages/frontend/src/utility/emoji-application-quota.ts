@@ -14,23 +14,22 @@ type QuotaInfo = {
 
 /**
  * Renders the rolling-window rejection returned by `emoji-application/create`
- * (#2958), or null when the error is something else.
+ * (#2958). Callers must have matched `EMOJI_APPLICATION_QUOTA_EXCEEDED`.
  *
  * **どの期間で・何件までで・いつ空くかを出す。** 「申請しすぎです」だけだと、
  * 待てば通るのか設定で塞がれているのかが分からず、利用者は叩き続ける。
  */
-export function emojiApplicationQuotaText(err: unknown): string | null {
-	const e = err as { code?: string; info?: QuotaInfo } | null;
-	if (e?.code !== 'EMOJI_APPLICATION_QUOTA_EXCEEDED') return null;
-
-	const info = e.info ?? {};
+export function emojiApplicationQuotaText(err: unknown): string {
+	const info = (err as { info?: QuotaInfo } | null)?.info ?? {};
 	const limit = typeof info.limit === 'number' ? info.limit : null;
 	const period = quotaPeriodLabel(info.period);
 	const retryAt = quotaRetryAtLabel(info.retryAt);
-	// **info が欠けていたら汎用文に落とす。** 「undefined件まで」と出すより、
-	// 待てば通ることだけ伝わる方がよい。
+	// **info が欠けていたら期間に依らない文面に落とす。** 「undefined件まで」と
+	// 出すより待てば通ることだけ伝わる方がよい。**`errorRateLimited` は使わない**
+	// — あちらは「短時間に」と書くので、月次の窓で弾かれたときに事実と食い違う
+	// (実際には最大 30 日待つ)。
 	if (limit == null || period == null || retryAt == null) {
-		return i18n.ts._emojiApplication.errorRateLimited;
+		return i18n.ts._emojiApplication.errorQuotaExceededUnknown;
 	}
 	return i18n.tsx._emojiApplication.errorQuotaExceeded({ period, limit, retryAt });
 }
