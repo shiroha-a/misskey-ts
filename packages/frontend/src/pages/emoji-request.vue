@@ -5,7 +5,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <template>
 <PageWithHeader v-model:tab="tab" :tabs="headerTabs">
-	<div class="_spacer" style="--MI_SPACER-w: 700px;">
+	<!--
+		**ページ全体でも遷移を止める (レビュー M3)。** `.preview` は最小 124px の
+		帯でしかなく、そこを外すとブラウザが画像を開いて**入力中の内容ごと失う**。
+		ドロップを案内する以上、外す機会はこの変更で増えている。受け取るのは
+		プレビューの上だけなので、ここでは握り潰すだけ (`settings/theme.vue`
+		が同じ形を採っている)。
+	-->
+	<div class="_spacer" style="--MI_SPACER-w: 700px;" @dragover="onPageDragover" @drop="onPageDrop">
 		<!-- ===== 申請する ===== -->
 		<div v-if="tab === 'apply'" class="_gaps">
 			<MkInfo>{{ i18n.ts._emojiApplication.applyNote }}</MkInfo>
@@ -17,22 +24,32 @@ SPDX-License-Identifier: AGPL-3.0-only
 			-->
 			<div
 				:class="[$style.preview, { [$style.dragover]: draghover }]"
-				@dragover.prevent.stop="onDragover"
-				@dragenter.prevent="draghover = true"
-				@dragleave.stop="draghover = false"
-				@drop.prevent.stop="onDrop"
+				@dragover="onDragover"
+				@dragenter="onDragenter"
+				@dragleave="onDragleave"
+				@drop="onDrop"
 			>
 				<div :class="$style.previewBox">
 					<img v-if="file" :src="file.url" :alt="name" :class="$style.previewImg"/>
 					<i v-else class="ti ti-photo" :class="$style.previewPlaceholder"></i>
 				</div>
 				<div :class="$style.previewMeta">
-					<MkButton :disabled="uploading" @click="chooseFile">{{ i18n.ts._emojiApplication.chooseImage }}</MkButton>
+					<!--
+						**アップロード中でも押させる (レビュー H1)。** ここを塞ぐと、
+						アップロードが返ってこないときに操作手段が 1 つも無くなる。
+						選び直せば `file` は置き換わるので、遅れて届いた結果で
+						上書きされないよう世代で判定する。
+					-->
+					<MkButton @click="chooseFile">{{ i18n.ts._emojiApplication.chooseImage }}</MkButton>
 					<div v-if="uploading" :class="$style.previewLabel">
 						<MkLoading :em="true"/> {{ i18n.ts._emojiApplication.dropUploading }}
 					</div>
-					<!-- **導線を書いておく。** ドロップできることは見ただけでは分からない。 -->
-					<div v-else :class="$style.previewLabel">{{ i18n.ts._emojiApplication.dropImage }}</div>
+					<!--
+						**導線を書いておく。** ドロップできることは見ただけでは
+						分からない。**ただしタッチ端末では出さない** — 実行できない
+						操作を案内することになる。
+					-->
+					<div v-else-if="canDrop" :class="$style.previewLabel">{{ i18n.ts._emojiApplication.dropImage }}</div>
 					<!--
 						**本文中の実寸を見せる。** カスタム絵文字は本文では文字サイズの
 						1.25 倍でしか描かれない。大きな升目だけを見て申請すると、細い線や
@@ -138,8 +155,10 @@ import MkTime from '@/components/global/MkTime.vue';
 import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
-import { selectFile, uploadFile, UploadAbortedError } from '@/utility/drive.js';
-import { pickDroppedEmojiImage } from '@/utility/emoji-image-drop.js';
+import { selectFile, uploadFile } from '@/utility/drive.js';
+import { prefer } from '@/preferences.js';
+import { deviceKind } from '@/utility/device-kind.js';
+import { pickDroppedEmojiImage, droppedEmojiImageErrorText } from '@/utility/emoji-image-drop.js';
 import { emojiApplicationQuotaText, emojiApplicationPendingLimitText } from '@/utility/emoji-application-quota.js';
 import * as os from '@/os.js';
 
@@ -189,16 +208,82 @@ async function chooseFile(ev: MouseEvent) {
 	file.value = { id: selected.id, url: selected.url };
 }
 
+// ドロップの案内はデスクトップだけに出す (タッチでは実行できない)。
+const canDrop = deviceKind === 'desktop';
 const draghover = ref(false);
 const uploading = ref(false);
+// **ドロップの世代。** アップロード中に選び直したり別の画像を落としたとき、
+// 遅れて届いた前の結果で上書きさせない。
+let dropGeneration = 0;
+
+function isFileDrag(ev: DragEvent): boolean {
+	return ev.dataTransfer != null && Array.from(ev.dataTransfer.items).some(i => i.kind === 'file');
+}
 
 function onDragover(ev: DragEvent) {
 	if (ev.dataTransfer == null) return;
-	// **ファイル以外では強調しない。** テキスト選択のドラッグでも dragover は
-	// 飛ぶので、光らせると「ここに落とせる」という誤った合図になる。
-	if (ev.dataTransfer.items[0]?.kind !== 'file') return;
-	ev.dataTransfer.dropEffect = 'copy';
+	// **ファイル以外には一切触らない。** `preventDefault` も `dropEffect` も
+	// しないので、deck のカラム並べ替えはそのまま祖先へ届く。
+	if (!isFileDrag(ev)) {
+		draghover.value = false;
+		return;
+	}
+	ev.preventDefault();
+	// **伝播を止める。** 祖先の `onPageDragover` が後から `dropEffect` を
+	// `none` へ上書きしてしまう (dragover はバブルするので親が後に走る)。
+	ev.stopPropagation();
+	// **`effectAllowed` と突き合わせる。** 許されていない operation を指定すると
+	// drag operation が none になり、**光ったまま落とせない**状態になる。
+	switch (ev.dataTransfer.effectAllowed) {
+		case 'all':
+		case 'uninitialized':
+		case 'copy':
+		case 'copyLink':
+		case 'copyMove':
+			ev.dataTransfer.dropEffect = 'copy';
+			break;
+		case 'move':
+		case 'linkMove':
+			ev.dataTransfer.dropEffect = 'move';
+			break;
+		default:
+			ev.dataTransfer.dropEffect = 'link';
+			break;
+	}
 	draghover.value = true;
+}
+
+/**
+ * Swallows file drops outside the preview so the browser does not navigate.
+ *
+ * **ファイルのときだけ `preventDefault` する。** 無条件に止めると、deck の
+ * カラム並べ替えのような**このページが関知しないドロップまで潰す**
+ * (`ui/deck/column.vue` が `@drop.prevent.stop` で受けている)。
+ */
+function onPageDragover(ev: DragEvent) {
+	if (!isFileDrag(ev)) return;
+	ev.preventDefault();
+	// 受け取らないので「ここには落とせない」と示す。既定の copy が残ると、
+	// 落とせるように見えて何も起きない。
+	if (ev.dataTransfer != null) ev.dataTransfer.dropEffect = 'none';
+}
+
+function onPageDrop(ev: DragEvent) {
+	if (isFileDrag(ev)) ev.preventDefault();
+}
+
+function onDragenter(ev: DragEvent) {
+	// **ここでも種別を見る。** 無条件に光らせると `onDragover` のガードが
+	// 素通りになり、テキスト選択のドラッグでも必ず先にハイライトが点く。
+	if (isFileDrag(ev)) draghover.value = true;
+}
+
+function onDragleave(ev: DragEvent) {
+	// **子要素へ入っただけの dragleave では消さない。** `.stop` は伝播を
+	// 止めるだけで、下から上がってきた dragleave のハンドラ実行は止まらない。
+	const next = ev.relatedTarget;
+	if (next instanceof Node && ev.currentTarget instanceof Node && ev.currentTarget.contains(next)) return;
+	draghover.value = false;
 }
 
 /**
@@ -210,35 +295,39 @@ function onDragover(ev: DragEvent) {
  */
 async function onDrop(ev: DragEvent) {
 	draghover.value = false;
-	if (uploading.value) return;
+	// ファイル以外は祖先 (deck のカラムなど) に任せる。
+	if (!isFileDrag(ev)) return;
+	ev.preventDefault();
+	ev.stopPropagation();
 
 	const picked = pickDroppedEmojiImage(Array.from(ev.dataTransfer?.files ?? []));
 	if (!picked.ok) {
 		// **理由を出す。** 「失敗しました」だけだと、形式が悪いのか件数が多いのか
 		// 分からず、同じ操作を繰り返すことになる。
 		if (picked.reason === 'none') return;
-		await os.alert({
-			type: 'error',
-			text: picked.reason === 'multiple'
-				? i18n.ts._emojiApplication.errorDropMultiple
-				: i18n.ts._emojiApplication.errorDropUnsupported,
-		});
+		await os.alert({ type: 'error', text: droppedEmojiImageErrorText(picked.reason) });
 		return;
 	}
 
+	const generation = ++dropGeneration;
 	uploading.value = true;
 	try {
-		const uploaded = await uploadFile(picked.file).filePromise;
+		// **フォルダの設定を尊重する。** 「画像を選ぶ」は uploader 経由で
+		// `prefer.s.uploadFolder` に入るので、こちらだけ直下に落とすと
+		// 同じ操作で置き場所が変わる。
+		const uploaded = await uploadFile(picked.file, { folderId: prefer.s.uploadFolder }).filePromise;
+		// **世代が進んでいたら捨てる。** 追い越された古いアップロードの結果で
+		// 新しい選択を上書きしない。
+		if (generation !== dropGeneration) return;
 		// **置き換える。** 既に選んでいたものを残すと、どちらが申請されるのか
 		// 分からない。
 		file.value = { id: uploaded.id, url: uploaded.url };
-	} catch (err) {
-		// uploadFile は中断時に UploadAbortedError を投げ、失敗時は自分で
-		// ダイアログを出す。二重に出さないよう、中断は黙って戻る。
-		if (err instanceof UploadAbortedError) return;
-		await os.alert({ type: 'error', text: i18n.ts._emojiApplication.errorDropFailed });
+	} catch {
+		// **ここではダイアログを出さない (レビュー M1)。** `uploadFile` は
+		// 中断以外の失敗で自分でダイアログを出す (サイズ超過・非 200・通信
+		// エラー) ので、重ねると 2 枚出る。中断はそもそも黙って戻る形。
 	} finally {
-		uploading.value = false;
+		if (generation === dropGeneration) uploading.value = false;
 	}
 }
 
@@ -377,7 +466,6 @@ definePage(computed(() => ({
 .dragover {
 	outline: 2px dashed var(--MI_THEME-accent);
 	outline-offset: 4px;
-	border-radius: var(--MI-radius);
 }
 
 .previewBox {

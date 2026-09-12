@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+import { i18n } from '@/i18n.js';
+
 /**
  * MIME types the server accepts as a custom emoji image (#2959).
  *
@@ -67,4 +69,16 @@ export function pickDroppedEmojiImage(files: readonly File[]): DroppedEmojiImage
 	const file = files[0];
 	if (!isEmojiImageType(file.type)) return { ok: false, reason: 'unsupported' };
 	return { ok: true, file };
+}
+
+/**
+ * Maps a rejection reason onto the message shown to the user (#2959).
+ *
+ * **`.vue` の三項演算子に書かない。** 対応を取り違えても型もテストも通り、
+ * 「複数落としたのに形式が悪いと言われる」ような案内になる。
+ */
+export function droppedEmojiImageErrorText(reason: 'multiple' | 'unsupported'): string {
+	return reason === 'multiple'
+		? i18n.ts._emojiApplication.errorDropMultiple
+		: i18n.ts._emojiApplication.errorDropUnsupported;
 }
