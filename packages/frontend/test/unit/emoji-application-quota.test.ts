@@ -13,6 +13,7 @@ vi.mock('@/i18n.js', () => ({
 			_emojiApplication: {
 				errorRateLimited: 'RATE_LIMITED',
 				errorQuotaExceededUnknown: 'GENERIC',
+				errorPendingLimitExceededUnknown: 'PENDING_GENERIC',
 				quotaPeriodDay: 'DAY',
 				quotaPeriodWeek: 'WEEK',
 				quotaPeriodMonth: 'MONTH',
@@ -22,12 +23,13 @@ vi.mock('@/i18n.js', () => ({
 			_emojiApplication: {
 				errorQuotaExceeded: (p: Record<string, unknown>) =>
 					`period=${p.period} limit=${p.limit} retryAt=${p.retryAt}`,
+				errorPendingLimitExceeded: (p: Record<string, unknown>) => `pending limit=${p.limit}`,
 			},
 		},
 	},
 }));
 
-import { emojiApplicationQuotaText } from '@/utility/emoji-application-quota.js';
+import { emojiApplicationQuotaText, emojiApplicationPendingLimitText } from '@/utility/emoji-application-quota.js';
 
 const RETRY_AT = '2026-09-13T10:30:00.000Z';
 
@@ -76,5 +78,38 @@ describe('emojiApplicationQuotaText', () => {
 	// 弾かれたとき (最大 30 日待つ) に事実と食い違う。
 	test('退避文面に「短時間に」の文言を使わない', () => {
 		expect(emojiApplicationQuotaText(quotaError({}))).not.toBe('RATE_LIMITED');
+	});
+});
+
+/**
+ * mk-go: 審査待ち件数の上限 (#2977)。
+ *
+ * **「しばらく待って」とは書かない。** 空くのはモデレーターが処理したときか
+ * 自分で取り下げたときで、時間では解決しない。
+ */
+describe('emojiApplicationPendingLimitText', () => {
+	test('件数を文面に渡す', () => {
+		expect(emojiApplicationPendingLimitText({ info: { used: 5, limit: 3 } })).toBe('pending limit=3');
+	});
+
+	test.each([
+		['info ごと無い', undefined],
+		['空', {}],
+		['limit が数値でない', { used: 5, limit: '3' }],
+	])('%s のときは件数を書かない', (_label, info) => {
+		expect(emojiApplicationPendingLimitText({ info })).toBe('PENDING_GENERIC');
+	});
+
+	test('エラーそのものが null でも落ちない', () => {
+		expect(emojiApplicationPendingLimitText(null)).toBe('PENDING_GENERIC');
+	});
+
+	// **期間の上限とは別の文面を出すこと。** 同じにすると「待てば通る」と
+	// 誤解させ、実際には取り下げるまで通らない。
+	test('期間の上限と同じ文面にしない', () => {
+		const pending = emojiApplicationPendingLimitText({ info: { used: 5, limit: 3 } });
+		const quota = emojiApplicationQuotaText({ info: { period: 'day', limit: 3, retryAt: RETRY_AT } });
+		expect(pending).not.toBe(quota);
+		expect(pending).not.toBe('GENERIC');
 	});
 });

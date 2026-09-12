@@ -123,7 +123,7 @@ import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { selectFile } from '@/utility/drive.js';
-import { emojiApplicationQuotaText } from '@/utility/emoji-application-quota.js';
+import { emojiApplicationQuotaText, emojiApplicationPendingLimitText } from '@/utility/emoji-application-quota.js';
 import * as os from '@/os.js';
 
 type Application = {
@@ -220,6 +220,9 @@ function submitErrorText(err: unknown): string {
 		// ロールごとの期間上限 (#2958)。API の 1 時間あたりの制限とは別で、
 		// こちらは日・週・月の単位。
 		case 'EMOJI_APPLICATION_QUOTA_EXCEEDED': return emojiApplicationQuotaText(err);
+		// 審査待ちの上限 (#2977)。期間の上限とは解決の仕方が違う (待つのではなく
+		// 取り下げるか、結果が出るのを待つ)。
+		case 'EMOJI_APPLICATION_PENDING_LIMIT_EXCEEDED': return emojiApplicationPendingLimitText(err);
 		default: return i18n.ts.somethingHappened;
 	}
 }

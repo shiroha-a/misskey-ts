@@ -13914,6 +13914,14 @@ export interface Locale extends ILocale {
          */
         "emojiApplicationMaxPerMonth": string;
         /**
+         * カスタム絵文字の審査待ち上限
+         */
+        "emojiApplicationMaxPending": string;
+        /**
+         * 同時に審査待ちにできる申請の件数です。0 はこの上限を適用しません。期間の上限と違い、却下・取り下げ・承認で枠が戻ります。モデレーターが見る一覧の長さを抑えるための設定で、期間の上限とは効く場面が違います。
+         */
+        "emojiApplicationMaxPending_caption": string;
+        /**
          * 上限なし
          */
         "emojiApplicationQuotaUnlimited": string;
@@ -14155,6 +14163,14 @@ export interface Locale extends ILocale {
          * 申請できる件数の上限に達しています。しばらくしてからもう一度お試しください。
          */
         "errorQuotaExceededUnknown": string;
+        /**
+         * 審査待ちの申請が{limit}件あります。結果が出るか、どれかを取り下げるまで新しく申請できません。
+         */
+        "errorPendingLimitExceeded": ParameterizedString<"limit">;
+        /**
+         * 審査待ちの申請が上限に達しています。結果が出るか、どれかを取り下げるまで新しく申請できません。
+         */
+        "errorPendingLimitExceededUnknown": string;
         /**
          * 1日
          */

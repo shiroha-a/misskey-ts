@@ -6,7 +6,7 @@
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { i18n } from '@/i18n.js';
-import { emojiApplicationQuotaText } from '@/utility/emoji-application-quota.js';
+import { emojiApplicationQuotaText, emojiApplicationPendingLimitText } from '@/utility/emoji-application-quota.js';
 
 // **server の namePattern と同じ (`internal/core/emojiapplication` line 79)。**
 // `emoji-request.vue` の NAME_RE と揃えてある。
@@ -140,6 +140,9 @@ function requestErrorText(err: unknown): string {
 		case 'RATE_LIMIT_EXCEEDED': return i18n.ts._emojiApplication.errorRateLimited;
 		// ロールごとの期間上限 (#2958)。自作画像の申請と枠を共有する。
 		case 'EMOJI_APPLICATION_QUOTA_EXCEEDED': return emojiApplicationQuotaText(err);
+		// 審査待ちの上限 (#2977)。期間の上限とは解決の仕方が違う (待つのではなく
+		// 取り下げるか、結果が出るのを待つ)。
+		case 'EMOJI_APPLICATION_PENDING_LIMIT_EXCEEDED': return emojiApplicationPendingLimitText(err);
 		default: return i18n.ts.somethingHappened;
 	}
 }
