@@ -321,6 +321,12 @@ export class Paginator<
 	 * なっても「レート制限を超えました」が残り、**制限中でもないのに制限中と
 	 * 表示する**。`error` が `init` の成功時に戻されているのと同じ扱い。
 	 */
+	// **取得の成功では解除しない (レビュー 2 周目 M-1)。** 一度そうしていたが、
+	// **別方向の in-flight が成功すると、こちらの 429 で立てた印だけが消える**。
+	// 結果 `rateLimited=false` + `canFetchOlder=false` で「これで全部」に見え、
+	// 次の `trim()` が理由表示の無いまま自走を戻す。印を立てた向きは
+	// `canFetch*` を false にしてあるので、同じ向きの再取得は
+	// `retryAfterRateLimit()` か `init()` しか通らず、どちらも先に解除する。
 	private clearRateLimit(): void {
 		this.rateLimited.value = false;
 		this.rateLimitedDirection.value = null;
@@ -344,6 +350,13 @@ export class Paginator<
 			this.canFetchNewer.value = true;
 		}
 		this.clearRateLimit();
+		// **初回取得が止まっていたら init から。** `fetchOlder` は
+		// `items.length === 0` で早期 return するので、init() の 429 から
+		// 復帰するときに `fetchOlder` を撃っても**無反応で印だけ消える**。
+		if (this.items.value.length === 0) {
+			await this.init();
+			return;
+		}
 		if (direction === 'newer') {
 			await this.fetchNewer({ toQueue: false });
 		} else {
@@ -373,7 +386,6 @@ export class Paginator<
 		})) as T[] | null;
 
 		this.fetchingOlder.value = false;
-		if (apiRes != null) this.clearRateLimit();
 
 		if (apiRes == null) {
 			return;
@@ -433,7 +445,6 @@ export class Paginator<
 		})) as T[] | null;
 
 		this.fetchingNewer.value = false;
-		if (apiRes != null) this.clearRateLimit();
 
 		if (apiRes == null || apiRes.length === 0) {
 			this.canFetchNewer.value = false;

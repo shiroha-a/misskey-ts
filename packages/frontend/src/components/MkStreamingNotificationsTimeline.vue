@@ -7,6 +7,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 <component :is="prefer.s.enablePullToRefresh ? MkPullToRefresh : 'div'" :refresher="() => reload()">
 	<MkLoading v-if="paginator.fetching.value"/>
 
+	<!--
+
+		**mk-go: MkError より前に置く (#2955)。** v-if チェーンは排他なので、
+
+		**読めている分があるときは出さない** — この枝が勝つと一覧ごと消える。
+	初回取得が 429 のとき `error` も立ち、後ろに置くと必ず MkError
+
+		(=「何かがおかしいようです」) が選ばれて**理由が画面に出ない**。
+
+		自走が止まった直後に人が押すもの (F5 / reload / pull-to-refresh /
+
+		MkError の retry) はほぼ全部 init() なので、この経路に入りやすい。
+
+	-->
+
+	<MkRateLimitedNotice v-else-if="paginator.rateLimited.value && paginator.items.value.length === 0" :paginator="paginator"/>
+
 	<MkError v-else-if="paginator.error.value" @retry="paginator.init()"/>
 
 	<div v-else-if="paginator.items.value.length === 0" key="_empty_">

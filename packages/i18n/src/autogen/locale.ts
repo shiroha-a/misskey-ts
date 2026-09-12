@@ -3965,6 +3965,10 @@ export interface Locale extends ILocale {
      */
     "rateLimitExceeded": string;
     /**
+     * しばらく待ってから再試行してください
+     */
+    "rateLimitCooldown": string;
+    /**
      * 画像のクロップ
      */
     "cropImage": string;
