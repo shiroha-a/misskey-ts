@@ -203,6 +203,24 @@ function uploadFileSingle(file: File | Blob, options: UploadOptions = {}): Uploa
 			resolve(driveFile);
 		}) as (ev: ProgressEvent<EventTarget>) => void;
 
+		// **トランスポート層の失敗も settle させる (#2959)。** `onload` しか
+		// 無いと、接続断・サーバー再起動・回線切替で **promise が永久に
+		// pending** になる。呼び出し側が「アップロード中」で UI を塞ぐ作りだと
+		// (投稿フォームの uploader も、絵文字申請のフォームもそう)、リロード
+		// 以外に復旧手段が無くなり入力中の内容ごと失う。**chunked 経路は
+		// 既に `xhr.onerror` を持っており、単発経路だけ落ちていた。**
+		xhr.onerror = () => {
+			// 他の reject 経路と同じく、ここでダイアログを出しておく。
+			// 呼び出し側で二重に出さないための約束 (中断だけが例外)。
+			os.alert({
+				type: 'error',
+				title: i18n.ts.failedToUpload,
+				text: i18n.ts.somethingHappened,
+			});
+			reject();
+		};
+		xhr.ontimeout = xhr.onerror;
+
 		if (options.onProgress) {
 			xhr.upload.onprogress = ev => {
 				if (ev.lengthComputable && options.onProgress != null) {
