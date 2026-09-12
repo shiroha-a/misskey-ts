@@ -65,10 +65,13 @@ function quotaRetryAtLabel(retryAt: unknown): string | null {
  */
 export function emojiApplicationPendingLimitText(err: unknown): string {
 	const info = (err as { info?: PendingInfo } | null)?.info ?? {};
-	if (typeof info.limit !== 'number') {
+	if (typeof info.used !== 'number' || typeof info.limit !== 'number') {
 		// **件数が読めなければ件数を書かない。** サーバー側の書式が変わっても
 		// 「取り下げれば出せる」という行動は変わらないので、そこだけ伝える。
 		return i18n.ts._emojiApplication.errorPendingLimitExceededUnknown;
 	}
-	return i18n.tsx._emojiApplication.errorPendingLimitExceeded({ limit: info.limit });
+	// **`used` も出す。** 上限を後から下げると `used > limit` になり、上限の
+	// 件数だけを見せると「何件取り下げればよいか」が伝わらない (7 件あって
+	// 上限 3 なら 5 件取り下げる必要がある)。
+	return i18n.tsx._emojiApplication.errorPendingLimitExceeded({ used: info.used, limit: info.limit });
 }

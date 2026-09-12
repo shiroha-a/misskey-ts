@@ -23,7 +23,7 @@ vi.mock('@/i18n.js', () => ({
 			_emojiApplication: {
 				errorQuotaExceeded: (p: Record<string, unknown>) =>
 					`period=${p.period} limit=${p.limit} retryAt=${p.retryAt}`,
-				errorPendingLimitExceeded: (p: Record<string, unknown>) => `pending limit=${p.limit}`,
+				errorPendingLimitExceeded: (p: Record<string, unknown>) => `pending used=${p.used} limit=${p.limit}`,
 			},
 		},
 	},
@@ -88,14 +88,18 @@ describe('emojiApplicationQuotaText', () => {
  * 自分で取り下げたときで、時間では解決しない。
  */
 describe('emojiApplicationPendingLimitText', () => {
-	test('件数を文面に渡す', () => {
-		expect(emojiApplicationPendingLimitText({ info: { used: 5, limit: 3 } })).toBe('pending limit=3');
+	// **`used` と `limit` の両方を出す。** 上限を後から下げると `used > limit`
+	// になり、上限だけを見せると「何件取り下げればよいか」が伝わらない。
+	test('審査待ちの件数と上限の両方を文面に渡す', () => {
+		expect(emojiApplicationPendingLimitText({ info: { used: 5, limit: 3 } })).toBe('pending used=5 limit=3');
 	});
 
 	test.each([
 		['info ごと無い', undefined],
 		['空', {}],
 		['limit が数値でない', { used: 5, limit: '3' }],
+		['used が数値でない', { used: '5', limit: 3 }],
+		['used が無い', { limit: 3 }],
 	])('%s のときは件数を書かない', (_label, info) => {
 		expect(emojiApplicationPendingLimitText({ info })).toBe('PENDING_GENERIC');
 	});
