@@ -8,21 +8,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<MkLoading v-if="paginator.fetching.value"/>
 
 	<!--
-
-		**mk-go: MkError より前に置く (#2955)。** v-if チェーンは排他なので、
-
-		**読めている分があるときは出さない** — この枝が勝つと一覧ごと消える。
-	初回取得が 429 のとき `error` も立ち、後ろに置くと必ず MkError
-
-		(=「何かがおかしいようです」) が選ばれて**理由が画面に出ない**。
-
-		自走が止まった直後に人が押すもの (F5 / reload / pull-to-refresh /
-
-		MkError の retry) はほぼ全部 init() なので、この経路に入りやすい。
-
+		**mk-go: MkError より前に置く (#2955)。**
+		v-if チェーンは排他で、init() の catch は error も立てる。後ろに置くと
+		初回取得の 429 で必ず MkError (=「何かがおかしいようです」) が選ばれ、
+		理由が画面に出ない。自走が止まった直後に人が押すもの (F5 / reload /
+		pull-to-refresh / MkError の retry) はほぼ全部 init() なので、この
+		経路に入りやすい。
+	
+		**条件は error。** items の件数で見ると、streaming が 1 件 prepend した
+		瞬間に枝から外れて MkError に戻る (realtimeMode は既定 true で、init の
+		成否と無関係に繋ぐ)。error は init の失敗でしか立たないので「初回取得が
+		失敗した」を正確に表す。429 以外の失敗では Paginator 側が印を落とす。
 	-->
-
-	<MkRateLimitedNotice v-else-if="paginator.rateLimited.value && paginator.items.value.length === 0" :paginator="paginator"/>
+	<MkRateLimitedNotice v-else-if="paginator.rateLimited.value && paginator.error.value" :paginator="paginator"/>
 
 	<MkError v-else-if="paginator.error.value" @retry="paginator.init()"/>
 

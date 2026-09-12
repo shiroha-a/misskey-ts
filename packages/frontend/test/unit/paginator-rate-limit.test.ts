@@ -192,4 +192,64 @@ describe('Paginator のレート制限時の停止', () => {
 		// 印が消えると notice も「もっと見る」も無い =「これで全部」に見える。
 		expect(p.rateLimited.value).toBe(true);
 	});
+
+	test('**解除の経路は再試行と再読み込みだけ (レビュー 3 周目 H-2)。** 成功で解除すると in-flight の競合で印だけ消える', async () => {
+		const p = await loaded();
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		await p.fetchNewer({ toQueue: false });
+		expect(p.rateLimited.value).toBe(true);
+
+		// 429 の後はどちらの向きもガードで止まるので、成功する取得は来ない。
+		const before = h.api.mock.calls.length;
+		await p.fetchOlder();
+		await p.fetchNewer({ toQueue: false });
+		expect(h.api.mock.calls.length).toBe(before);
+		expect(p.rateLimited.value).toBe(true);
+
+		// 解除できるのは再試行から。
+		h.api.mockResolvedValueOnce(items(5, 500));
+		await p.retryAfterRateLimit();
+		expect(p.rateLimited.value).toBe(false);
+	});
+
+	test('**冷却は Paginator が持つ (レビュー 3 周目 H-3)。** コンポーネントに置くと枝の移動で消える', async () => {
+		const p = await loaded();
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		await p.fetchOlder();
+		expect(p.canRetryAfterRateLimit.value).toBe(true);
+
+		h.api.mockResolvedValueOnce(items(3, 600));
+		await p.retryAfterRateLimit();
+		// 押した直後は冷却中。
+		expect(p.canRetryAfterRateLimit.value).toBe(false);
+
+		// 冷却中は撃たない。
+		const before = h.api.mock.calls.length;
+		await p.retryAfterRateLimit();
+		expect(h.api.mock.calls.length).toBe(before);
+	});
+
+	test('**429 以外で init が失敗したら印を落とす (レビュー 3 周目 H-1)。** 残すと嘘の診断になる', async () => {
+		h.api.mockReset();
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		const p = new Paginator('users/following' as never, { limit: 15 } as never);
+		await p.init();
+		expect(p.rateLimited.value).toBe(true);
+
+		// 次はネットワーク断。レート制限ではないので印は残さない。
+		h.api.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+		await p.init();
+		expect(p.rateLimited.value).toBe(false);
+		expect(p.error.value).toBe(true);
+	});
+
+	test('**newer で止めたら older の自動発火も止まる (レビュー 3 周目 M-3)。**', async () => {
+		const p = await loaded();
+		h.api.mockRejectedValueOnce(RATE_LIMIT);
+		await p.fetchNewer({ toQueue: false });
+
+		const before = h.api.mock.calls.length;
+		await p.fetchOlder();
+		expect(h.api.mock.calls.length).toBe(before);
+	});
 });
