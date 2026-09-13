@@ -3828,6 +3828,8 @@ _emojiApplication:
   relatedCanceled: "取り下げ{n}"
   relatedNote: "過去に却下されていたことだけを理由に拒否しないでください。ライセンスの変更、画像の修正、運用方針の変更があり得ます。"
   relatedUnknown: "関連する過去の申請を確認できませんでした。もう一度読み込んでください。"
+  imageUnknownShort: "画像を確認できませんでした"
+  appliedAt: "申請日時"
   tabUserApplications: "絵文字申請"
   userSummaryTitle: "申請の状況"
   userHistoryTitle: "申請履歴"

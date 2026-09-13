@@ -3627,6 +3627,8 @@ _emojiApplication:
   relatedCanceled: "{n} withdrawn"
   relatedNote: "Do not reject a request solely because a similar one was rejected before. The license, the image, or the moderation policy may have changed."
   relatedUnknown: "Could not load related past requests. Please try again."
+  imageUnknownShort: "Could not check the image"
+  appliedAt: "Requested at"
   tabUserApplications: "Emoji requests"
   userSummaryTitle: "Request status"
   userHistoryTitle: "Request history"
