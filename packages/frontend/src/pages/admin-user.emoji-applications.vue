@@ -31,6 +31,30 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 	</FormSection>
 
+	<!--
+		**審査待ちの上限は期間の窓とは独立 (レビュー L-3)。** 窓の節の中に置くと、
+		窓の一覧が空になる構成で審査待ちが満杯でも行ごと消える。**上限が無いときは
+		出さない (レビュー L-4)** — 「審査待ちの上限: 2件（上限なし）」は件数カードと
+		同じ数字をラベルと噛み合わない形で重複させるだけ。
+	-->
+	<FormSection v-if="!summaryFailed && pendingLimit && !pendingLimit.unlimited">
+		<template #label>{{ i18n.ts._emojiApplication.pendingLimitTitle }}</template>
+		<div class="_gaps_s">
+			<MkKeyValue oneline>
+				<template #key>{{ i18n.ts._emojiApplication.pendingLimitTitle }}</template>
+				<template #value>
+					<span :class="quotaIsFull(pendingLimit) ? $style.full : undefined">{{ quotaUsageLabel(pendingLimit) }}</span>
+				</template>
+			</MkKeyValue>
+			<!--
+				**期間の窓が満杯のときは出さない (レビュー L-2)。** backend は両方
+				満杯なら窓のエラーを優先する — 期間上限は全ステータスを数えるので
+				「取り下げれば出せる」は嘘になる。画面でその抑制を打ち消さない。
+			-->
+			<MkInfo v-if="quotaIsFull(pendingLimit) && !anyWindowFull" warn>{{ i18n.ts._emojiApplication.pendingLimitFull }}</MkInfo>
+		</div>
+	</FormSection>
+
 	<FormSection v-if="!summaryFailed && windows.length > 0">
 		<template #label>{{ i18n.ts._emojiApplication.quotaTitle }}</template>
 		<div class="_gaps_s">
@@ -40,19 +64,6 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<span :class="quotaIsFull(w) ? $style.full : undefined">{{ quotaUsageLabel(w) }}</span>
 				</template>
 			</MkKeyValue>
-			<!--
-				**審査待ちの上限も出す (レビュー M1)。** 期間の窓に空きがあっても
-				これが満杯なら申請は 400 で弾かれる。出さないと「1日: 2 / 10
-				(空きあり)」と描いて、実際には出せない人を出せると案内する。
-			-->
-			<MkKeyValue v-if="pendingLimit" oneline>
-				<template #key>{{ i18n.ts._emojiApplication.pendingLimitTitle }}</template>
-				<template #value>
-					<span :class="quotaIsFull(pendingLimit) ? $style.full : undefined">{{ quotaUsageLabel(pendingLimit) }}</span>
-				</template>
-			</MkKeyValue>
-			<MkInfo v-if="pendingLimit && quotaIsFull(pendingLimit)" warn>{{ i18n.ts._emojiApplication.pendingLimitFull }}</MkInfo>
-
 			<!--
 				**上限に達しているときだけ次に出せる日時を出す。** 空きがあるのに
 				出すと「今は出せない」と読める。時刻が無い場合 (審査待ちの上限も
@@ -193,6 +204,8 @@ const brokenPreviews = ref(new Set<string>());
 
 const canLoadMore = computed(() => canLoadMoreUserApplications(lastPageSize.value, PAGE));
 
+const anyWindowFull = computed(() => windows.value.some(w => quotaIsFull(w)));
+
 const countCards = computed(() => {
 	const c = counts.value;
 	if (c == null) return [];
@@ -262,6 +275,11 @@ let generation = 0;
 async function fetchPage(untilId?: string) {
 	const gen = ++generation;
 	fetching.value = true;
+	// **取り直す間は失敗の表示を出さない (レビュー M-3)。** 残すと、読み込み中も
+	// 「確認できませんでした」が出たままになる (`v-else-if` なので読み込み中の
+	// 表示に来ない)。`reload()` だけで戻していたが、いちばん押される復旧経路は
+	// 再試行ボタン (`loadMore`) のほうだった。失敗したら catch が立て直す。
+	historyFailed.value = false;
 	try {
 		const res = await misskeyApi('admin/emoji-application/list-by-user' as never, {
 			userId: props.userId,
@@ -289,10 +307,6 @@ function reload() {
 	// 残すと「却下だけ」を選んでいるのに承認済みが並ぶ。
 	items.value = [];
 	lastPageSize.value = 0;
-	// **失敗の表示も戻す (レビュー L2)。** 残すと、次の取得が走っている間ずっと
-	// 「確認できませんでした」が出たままになる (v-else-if なので読み込み中の
-	// 表示に来ない)。
-	historyFailed.value = false;
 	void fetchPage();
 }
 
