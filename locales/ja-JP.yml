@@ -3147,6 +3147,7 @@ _abuseReport:
     deleteConfirm: "通知先を削除しますか？"
 
 _moderationLogTypes:
+  resetEmojiApplicationQuota: "絵文字申請枠をリセット"
   clearQueue: "ジョブキューをクリア"
   promoteQueue: "キューのジョブを再試行"
   createRole: "ロールを作成"

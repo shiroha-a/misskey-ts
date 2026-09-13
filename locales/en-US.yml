@@ -3051,6 +3051,7 @@ _abuseReport:
     notifiedWebhook: "Webhook to use"
     deleteConfirm: "Are you sure that you want to delete the notification recipient?"
 _moderationLogTypes:
+  resetEmojiApplicationQuota: "Emoji request quota reset"
   clearQueue: "Clear queue"
   promoteQueue: "Promote queue"
   createRole: "Role created"
