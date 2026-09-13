@@ -10,7 +10,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 	採っているのと同じ判断 — 確認できていないことを隠すと、実際には履歴が
 	ある申請を承認してしまう。
 -->
-<MkInfo v-if="failed" warn>{{ i18n.ts._emojiApplication.relatedUnknown }}</MkInfo>
+<!--
+	**可視になるまで取りに行かない (#2960 レビュー H1)。** 審査待ちタブは
+	`defaultOpen` で**全行が最初から開いている**ので、`onMounted` で取ると
+	limit 50 のときに 50 本の related が同時に飛ぶ。「閉じている行では走らない」
+	は既定タブでは成り立たない。`v-appear` (IntersectionObserver) なら画面に
+	入った行だけが取りに行く。
+-->
+<div v-if="!loaded" v-appear="onAppear" :class="$style.placeholder">
+	<MkLoading v-if="fetching" :em="true"/>
+</div>
+<MkInfo v-else-if="failed && items.length === 0" warn>{{ i18n.ts._emojiApplication.relatedUnknown }}</MkInfo>
 <MkFolder v-else-if="counts && counts.total > 0">
 	<template #icon><i class="ti ti-history"></i></template>
 	<!-- **開かなくても件数と内訳が見える。** 見るべき履歴かどうかを、開く前に判断できる。 -->
@@ -58,16 +68,24 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 
-		<MkButton v-if="canLoadMore" :disabled="fetching" @click="loadMore">{{ i18n.ts.loadMore }}</MkButton>
+		<!--
+			**追加読み込みに失敗しても、読めていた履歴は消さない (レビュー L3)。**
+			確認できていたものまで隠すと、判断材料が減る方向に倒れる。
+		-->
+		<MkInfo v-if="failed" warn>{{ i18n.ts._emojiApplication.relatedUnknown }}</MkInfo>
+		<MkButton v-if="canLoadMore || failed" :disabled="fetching" @click="loadMore">
+			{{ failed ? i18n.ts.retry : i18n.ts.loadMore }}
+		</MkButton>
 	</div>
 </MkFolder>
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import MkButton from '@/components/MkButton.vue';
 import MkFolder from '@/components/MkFolder.vue';
 import MkInfo from '@/components/MkInfo.vue';
+import MkLoading from '@/components/global/MkLoading.vue';
 import MkKeyValue from '@/components/MkKeyValue.vue';
 import MkA from '@/components/global/MkA.vue';
 import MkTime from '@/components/global/MkTime.vue';
@@ -101,6 +119,7 @@ const props = defineProps<{ applicationId: string }>();
 
 const PAGE = 5;
 
+const loaded = ref(false);
 const counts = ref<Counts | null>(null);
 const items = ref<RelatedItem[]>([]);
 const fetching = ref(false);
@@ -154,26 +173,39 @@ async function fetchPage(untilId?: string) {
 		counts.value = res.counts;
 		items.value = untilId == null ? res.items : [...items.value, ...res.items];
 		failed.value = false;
+		loaded.value = true;
 	} catch {
 		// **握り潰さない。** 何も出さないと「履歴が無い」と読める。
 		failed.value = true;
+		// **初回が失敗しても loaded を立てる。** 立てないとプレースホルダのまま
+		// で、警告も再試行のボタンも出ない。
+		loaded.value = true;
 	} finally {
 		fetching.value = false;
 	}
 }
 
 function loadMore() {
-	const last = items.value[items.value.length - 1];
+	// 初回が失敗しているときは最初から取り直す (untilId を渡すと 1 ページ目が
+	// 永久に埋まらない)。
+	const last = items.value.length > 0 ? items.value[items.value.length - 1] : null;
 	void fetchPage(last?.id);
 }
 
-// **申請の詳細が描画されたときに 1 回だけ取る (#2960)。** 一覧 API に
-// 埋め込むと全行ぶん履歴を引くことになり N+1 になる。`MkFolder` は
-// 開くまで body を描画しないので、閉じている行では走らない。
-onMounted(() => void fetchPage());
+// **画面に入ったときに 1 回だけ取る (#2960)。** `v-appear` は throttle 付きで
+// 何度でも呼ばれるので、取得済み / 取得中は弾く。
+function onAppear() {
+	if (loaded.value || fetching.value) return;
+	void fetchPage();
+}
 </script>
 
 <style lang="scss" module>
+/* **高さを持たせる。** 0 だと IntersectionObserver が交差を報告しない。 */
+.placeholder {
+	min-height: 24px;
+}
+
 .row {
 	display: grid;
 	grid-template-columns: 64px 1fr;
