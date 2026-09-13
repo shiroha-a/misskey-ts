@@ -3789,6 +3789,7 @@ _emojiApplication:
   errorAlreadyProcessed: "この申請は既に処理されています。一覧を読み込み直してください。"
   errorUnsupportedType: "この画像の形式では絵文字にできません。"
   errorFileGone: "申請された画像が見つかりません。申請者が削除した可能性があります。"
+  errorImageTooLarge: "申請された画像が大きすぎて絵文字にできません。"
   errorNoSuchApplication: "この申請は見つかりません。"
   errorNotAllowed: "現在のロールではカスタム絵文字の登録を申請できません。"
   errorTooLong: "入力が長すぎます。ライセンスやカテゴリを短くしてください。"
