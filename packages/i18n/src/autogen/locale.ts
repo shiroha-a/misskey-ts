@@ -14144,6 +14144,10 @@ export interface Locale extends ILocale {
          */
         "errorFileGone": string;
         /**
+         * 申請された画像が大きすぎて絵文字にできません。
+         */
+        "errorImageTooLarge": string;
+        /**
          * この申請は見つかりません。
          */
         "errorNoSuchApplication": string;

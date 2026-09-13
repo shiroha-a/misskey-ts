@@ -277,6 +277,10 @@ function reviewErrorText(err: unknown): string {
 		case 'ALREADY_PROCESSED': return i18n.ts._emojiApplication.errorAlreadyProcessed;
 		case 'UNSUPPORTED_FILE_TYPE': return i18n.ts._emojiApplication.errorUnsupportedType;
 		case 'NO_SUCH_FILE': return i18n.ts._emojiApplication.errorFileGone;
+		// **承認だけが失敗する形 (#2966)。** 申請の時点でも同じ上限で弾くので
+		// 普通は届かないが、ロールの上限を後から下げると既存の申請がここに来る。
+		// 汎用文だと「何度押しても失敗する理由」がモデレーターに伝わらない。
+		case 'EMOJI_IMAGE_TOO_LARGE': return i18n.ts._emojiApplication.errorImageTooLarge;
 		// **この設計がいちばん想定している失敗 (レビュー M3)。** リモート絵文字の
 		// 行はキャッシュに近く、審査を待つ間に消えうる。汎用メッセージに潰すと、
 		// モデレーターには「なぜか失敗した」としか見えない。
