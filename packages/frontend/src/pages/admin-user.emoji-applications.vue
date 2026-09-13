@@ -80,7 +80,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<!--
 		**枠のリセット (#2962)。** 期間上限の節の後ろに置く — 「何件使っているか」を
 		見てから押す操作なので、上限の表示より前にあると判断材料が後から来る。
-		**すべての期間上限が無制限なら出さない** (戻す枠が無い)。
+		**ボタンは、すべての期間上限が無制限なら出さない** (戻す枠が無い)。
+		**節そのものは履歴があれば出す** — 上限を撤廃したあとに「最後のリセット」を
+		確認できなくなるため (issue が非表示を求めたのはボタン)。
 	-->
 	<FormSection v-if="!summaryFailed && (canResetQuota(windows) || lastReset)">
 		<template #label>{{ i18n.ts._emojiApplication.resetQuotaTitle }}</template>
