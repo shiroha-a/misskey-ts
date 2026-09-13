@@ -3830,6 +3830,8 @@ _emojiApplication:
   relatedUnknown: "関連する過去の申請を確認できませんでした。もう一度読み込んでください。"
   imageUnknownShort: "画像を確認できませんでした"
   appliedAt: "申請日時"
+  pendingLimitTitle: "審査待ちの上限"
+  pendingLimitFull: "審査待ちが上限に達しています。期間の上限に空きがあっても、結果が出るか取り下げるまで新しく申請できません。"
   tabUserApplications: "絵文字申請"
   userSummaryTitle: "申請の状況"
   userHistoryTitle: "申請履歴"

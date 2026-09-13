@@ -14308,6 +14308,14 @@ export interface Locale extends ILocale {
          */
         "appliedAt": string;
         /**
+         * 審査待ちの上限
+         */
+        "pendingLimitTitle": string;
+        /**
+         * 審査待ちが上限に達しています。期間の上限に空きがあっても、結果が出るか取り下げるまで新しく申請できません。
+         */
+        "pendingLimitFull": string;
+        /**
          * 絵文字申請
          */
         "tabUserApplications": string;

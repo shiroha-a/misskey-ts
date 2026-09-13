@@ -17,6 +17,19 @@ export type QuotaWindowView = {
 };
 
 /**
+ * The awaiting-review cap as returned by `user-summary` (#2961 / #2977).
+ *
+ * **窓とは別に出す。** 期間の窓に空きがあっても、これが満杯なら申請は 400 で
+ * 弾かれる。出さないと画面は「1日: 2 / 10 (空きあり)」と描き、**実際には
+ * 出せない人を出せると案内する**。
+ */
+export type PendingLimitView = {
+	used: number;
+	limit: number;
+	unlimited: boolean;
+};
+
+/**
  * Renders the period label (#2961).
  *
  * **未知の期間でラベルを捏造しない。** サーバー側に窓が増えたとき、既存の
@@ -38,7 +51,7 @@ export function quotaPeriodLabel(period: string): string {
  * **`>=` で見る。** `>` にすると、ちょうど上限に達した状態を「まだ出せる」と
  * 描いてしまう (作成側は `used >= Max` で弾く)。
  */
-export function quotaIsFull(w: QuotaWindowView): boolean {
+export function quotaIsFull(w: QuotaWindowView | PendingLimitView): boolean {
 	if (w.unlimited || w.limit <= 0) return false;
 	return w.used >= w.limit;
 }
@@ -49,7 +62,7 @@ export function quotaIsFull(w: QuotaWindowView): boolean {
  * **無制限を「3 / 0」と描かない。** 0 を分母にすると枠が尽きているように
  * 見える。上限が無いことと、使った件数は別々に伝える。
  */
-export function quotaUsageLabel(w: QuotaWindowView): string {
+export function quotaUsageLabel(w: QuotaWindowView | PendingLimitView): string {
 	if (w.unlimited || w.limit <= 0) {
 		return i18n.tsx._emojiApplication.quotaUsageUnlimited({ used: w.used });
 	}

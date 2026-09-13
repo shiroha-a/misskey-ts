@@ -3629,6 +3629,8 @@ _emojiApplication:
   relatedUnknown: "Could not load related past requests. Please try again."
   imageUnknownShort: "Could not check the image"
   appliedAt: "Requested at"
+  pendingLimitTitle: "Awaiting-review limit"
+  pendingLimitFull: "The awaiting-review limit has been reached. Even with room in the period limits, no new request can be made until one is processed or withdrawn."
   tabUserApplications: "Emoji requests"
   userSummaryTitle: "Request status"
   userHistoryTitle: "Request history"
