@@ -49,6 +49,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<span v-else-if="log.type === 'suspend'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'unsuspend'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'resetPassword'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<!--
+			mk-go 独自 (#2962)。**対象者を見出しに出す。** 出さないと
+			「絵文字申請枠をリセット」+ 時刻だけの行が並び、誰のものか
+			raw を開くまで分からない。**string へ cast する** — `log.type` の union は
+			misskey-js 由来で mk-go 固有の値を含まないので、そのままでは比較が
+			「重ならない」と怒られる。
+		-->
+		<span v-else-if="(log.type as string) === 'resetEmojiApplicationQuota'">: {{ mkgoTargetAcct(log.info) }}</span>
 		<span v-else-if="log.type === 'assignRole'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }} <i class="ti ti-arrow-right"></i> {{ log.info.roleName }}</span>
 		<span v-else-if="log.type === 'unassignRole'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }} <i class="ti ti-equal-not"></i> {{ log.info.roleName }}</span>
 		<span v-else-if="log.type === 'createRole'">: {{ log.info.role.name }}</span>
@@ -91,6 +99,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<i v-else-if="log.type === 'suspend'" class="ti ti-user-x"></i>
 		<i v-else-if="log.type === 'unsuspend'" class="ti ti-user-check"></i>
 		<i v-else-if="log.type === 'resetPassword'" class="ti ti-key"></i>
+		<i v-else-if="(log.type as string) === 'resetEmojiApplicationQuota'" class="ti ti-icons"></i>
 		<i v-else-if="log.type === 'assignRole'" class="ti ti-user-plus"></i>
 		<i v-else-if="log.type === 'unassignRole'" class="ti ti-user-minus"></i>
 		<i v-else-if="log.type === 'createRole'" class="ti ti-plus"></i>
@@ -240,6 +249,18 @@ import MkFolder from '@/components/MkFolder.vue';
 const props = defineProps<{
 	log: Misskey.entities.ModerationLog;
 }>();
+
+/**
+ * Renders the target acct for mk-go's own log types (#2962).
+ *
+ * **misskey-js の union には mk-go 固有の値が無い**ので、`log.type` を絞っても
+ * `log.info` は narrowing されない。対象者だけを取り出すための cast。
+ */
+function mkgoTargetAcct(info: unknown): string {
+	const i = info as { userUsername?: string; userHost?: string | null };
+	if (i.userUsername == null) return '';
+	return `@${i.userUsername}${i.userHost != null ? '@' + i.userHost : ''}`;
+}
 </script>
 
 <style lang="scss" module>
