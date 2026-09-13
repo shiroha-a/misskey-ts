@@ -14300,6 +14300,58 @@ export interface Locale extends ILocale {
          */
         "relatedUnknown": string;
         /**
+         * 絵文字申請
+         */
+        "tabUserApplications": string;
+        /**
+         * 申請の状況
+         */
+        "userSummaryTitle": string;
+        /**
+         * 申請履歴
+         */
+        "userHistoryTitle": string;
+        /**
+         * 期間別の申請数
+         */
+        "quotaTitle": string;
+        /**
+         * {used} / {limit}
+         */
+        "quotaUsage": ParameterizedString<"used" | "limit">;
+        /**
+         * {used}件（上限なし）
+         */
+        "quotaUsageUnlimited": ParameterizedString<"used">;
+        /**
+         * 上限に達しています。{retryAt}以降に申請できます。
+         */
+        "quotaFullUntil": ParameterizedString<"retryAt">;
+        /**
+         * 上限に達しています。
+         */
+        "quotaUnknownRetry": string;
+        /**
+         * 名前または取り込み元で検索
+         */
+        "searchPlaceholder": string;
+        /**
+         * すべて
+         */
+        "filterAll": string;
+        /**
+         * 申請の状況を確認できませんでした。もう一度読み込んでください。
+         */
+        "summaryUnknown": string;
+        /**
+         * 申請履歴を確認できませんでした。もう一度読み込んでください。
+         */
+        "historyUnknown": string;
+        /**
+         * 登録された絵文字ID
+         */
+        "emojiId": string;
+        /**
          * 名前が同じ
          */
         "matchedByName": string;
