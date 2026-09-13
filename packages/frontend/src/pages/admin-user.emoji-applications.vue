@@ -41,6 +41,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</template>
 			</MkKeyValue>
 			<!--
+				**審査待ちの上限も出す (レビュー M1)。** 期間の窓に空きがあっても
+				これが満杯なら申請は 400 で弾かれる。出さないと「1日: 2 / 10
+				(空きあり)」と描いて、実際には出せない人を出せると案内する。
+			-->
+			<MkKeyValue v-if="pendingLimit" oneline>
+				<template #key>{{ i18n.ts._emojiApplication.pendingLimitTitle }}</template>
+				<template #value>
+					<span :class="quotaIsFull(pendingLimit) ? $style.full : undefined">{{ quotaUsageLabel(pendingLimit) }}</span>
+				</template>
+			</MkKeyValue>
+			<MkInfo v-if="pendingLimit && quotaIsFull(pendingLimit)" warn>{{ i18n.ts._emojiApplication.pendingLimitFull }}</MkInfo>
+
+			<!--
 				**上限に達しているときだけ次に出せる日時を出す。** 空きがあるのに
 				出すと「今は出せない」と読める。時刻が無い場合 (審査待ちの上限も
 				同時に満杯) は時刻を騙らない。
@@ -129,7 +142,7 @@ import { misskeyApi } from '@/utility/misskey-api.js';
 import { dateTimeFormat } from '@/utility/intl-const.js';
 import { relatedImageMissingReason, relatedPreviewUrl, relatedStatusLabel } from '@/utility/emoji-application-related.js';
 import { canLoadMoreUserApplications, quotaIsFull, quotaPeriodLabel, quotaUsageLabel, userApplicationNextCursor } from '@/utility/emoji-application-user.js';
-import type { QuotaWindowView } from '@/utility/emoji-application-user.js';
+import type { PendingLimitView, QuotaWindowView } from '@/utility/emoji-application-user.js';
 
 type Item = {
 	id: string;
@@ -158,6 +171,7 @@ const PAGE = 30;
 
 const counts = ref<Counts | null>(null);
 const windows = ref<QuotaWindowView[]>([]);
+const pendingLimit = ref<PendingLimitView | null>(null);
 const items = ref<Item[]>([]);
 const { model: status, def: statusDef } = useMkSelect({
 	items: [
@@ -224,9 +238,10 @@ async function fetchSummary() {
 	try {
 		const res = await misskeyApi('admin/emoji-application/user-summary' as never, {
 			userId: props.userId,
-		} as never) as unknown as { counts: Counts; windows: QuotaWindowView[] };
+		} as never) as unknown as { counts: Counts; windows: QuotaWindowView[]; pending: PendingLimitView };
 		counts.value = res.counts;
 		windows.value = res.windows;
+		pendingLimit.value = res.pending;
 		summaryFailed.value = false;
 	} catch {
 		// **握り潰さない。** 0 件として描くと「申請なし」と読める。
@@ -274,6 +289,10 @@ function reload() {
 	// 残すと「却下だけ」を選んでいるのに承認済みが並ぶ。
 	items.value = [];
 	lastPageSize.value = 0;
+	// **失敗の表示も戻す (レビュー L2)。** 残すと、次の取得が走っている間ずっと
+	// 「確認できませんでした」が出たままになる (v-else-if なので読み込み中の
+	// 表示に来ない)。
+	historyFailed.value = false;
 	void fetchPage();
 }
 
