@@ -311,8 +311,10 @@ function reload() {
 }
 
 function loadMore() {
-	// 失敗しているときは最初から取り直す (untilId を渡すと 1 ページ目が
-	// 永久に埋まらない)。
+	// **1 件も読めていなければ最初から、読めていれば続きから取り直す
+	// (レビュー R3-L2)。** 初回の失敗では `items` が空なのでカーソルは
+	// undefined になり 1 ページ目を取る。2 ページ目以降の失敗では最後の
+	// カーソルから続きを取る (先頭に戻すと読めていた行を取り直すだけになる)。
 	void fetchPage(userApplicationNextCursor(items.value));
 }
 
