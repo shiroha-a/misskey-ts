@@ -14264,6 +14264,34 @@ export interface Locale extends ILocale {
          */
         "rejectReasonCaption": string;
         /**
+         * 関連する過去の申請
+         */
+        "related": string;
+        /**
+         * 関連する過去の申請: {total}件（却下{rejected} / 承認{approved}）
+         */
+        "relatedSummary": ParameterizedString<"total" | "rejected" | "approved">;
+        /**
+         * 過去に却下されていたことだけを理由に拒否しないでください。ライセンスの変更、画像の修正、運用方針の変更があり得ます。
+         */
+        "relatedNote": string;
+        /**
+         * 関連する過去の申請を確認できませんでした。もう一度読み込んでください。
+         */
+        "relatedUnknown": string;
+        /**
+         * 名前が同じ
+         */
+        "matchedByName": string;
+        /**
+         * 取り込み元が同じ
+         */
+        "matchedByRemoteSource": string;
+        /**
+         * 画像が同じ
+         */
+        "matchedByFileHash": string;
+        /**
          * 却下の理由を入力してください。申請者にはこの文面しか届きません。
          */
         "rejectReasonRequired": string;
