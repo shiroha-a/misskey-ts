@@ -195,6 +195,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<MkFileListForAdmin :paginator="filesPaginator" viewMode="grid"/>
 		</div>
 
+		<!--
+			**カスタム絵文字の申請履歴 (#2961)。** ローカルのユーザーにだけ出す —
+			リモートとシステムアカウントは申請できないので、空のタブになる。
+			**権限は backend と揃える** (canManageCustomEmojis か管理者)。
+			moderator というだけで出すと、押した先が必ず 403 になる。
+		-->
+		<div v-else-if="tab === 'emojiApplication'" class="_gaps_m">
+			<XEmojiApplications :userId="user.id"/>
+		</div>
+
 		<div v-else-if="tab === 'chart'" class="_gaps_m">
 			<div class="cmhjzshm">
 				<div class="selects">
@@ -246,6 +256,7 @@ import { definePage } from '@/page.js';
 import { i18n } from '@/i18n.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import { ensureSignin, iAmAdmin, iAmModerator } from '@/i.js';
+import XEmojiApplications from '@/pages/admin-user.emoji-applications.vue';
 import MkRolePreview from '@/components/MkRolePreview.vue';
 import MkPagination from '@/components/MkPagination.vue';
 import { Paginator } from '@/utility/paginator.js';
@@ -279,6 +290,14 @@ const moderator = ref(info.value.isModerator);
 const silenced = ref(info.value.isSilenced);
 const suspended = ref(info.value.isSuspended);
 const isSystem = ref(user.value.host == null && user.value.username.includes('.'));
+
+// **backend の gate と同じ条件にする (#2961)。** `admin/emoji-application/*` は
+// `canManageCustomEmojis` (または管理者) を要求するので、moderator というだけで
+// タブを出すと、開いた先が必ず 403 になる。リモートのユーザーとシステム
+// アカウントは申請できないので、そもそも出さない。
+const canSeeEmojiApplications = computed(() => !isSystem.value &&
+	user.value.host == null &&
+	(iAmAdmin || $i.policies.canManageCustomEmojis === true));
 const moderationNote = ref(info.value.moderationNote);
 const filesPaginator = markRaw(new Paginator('admin/drive/files', {
 	limit: 10,
@@ -577,7 +596,11 @@ const headerTabs = computed(() => isSystem.value ? [{
 	key: 'drive',
 	title: i18n.ts.drive,
 	icon: 'ti ti-cloud',
-}, {
+}, ...(canSeeEmojiApplications.value ? [{
+	key: 'emojiApplication',
+	title: i18n.ts._emojiApplication.tabUserApplications,
+	icon: 'ti ti-icons',
+}] : []), {
 	key: 'chart',
 	title: i18n.ts.charts,
 	icon: 'ti ti-chart-line',
