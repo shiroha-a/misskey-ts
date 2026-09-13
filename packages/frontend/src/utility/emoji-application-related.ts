@@ -75,8 +75,21 @@ export function relatedPreviewUrl(item: RelatedItem, broken: ReadonlySet<string>
  * nameConflict に対して採っているのと同じ判断。
  */
 export function relatedImageMissingLabel(item: RelatedItem, broken: ReadonlySet<string>): string {
-	if (item.url === '' && !broken.has(item.id)) return i18n.ts._emojiApplication.imageGone;
+	if (relatedImageMissingReason(item, broken) === 'gone') return i18n.ts._emojiApplication.imageGone;
 	return i18n.ts._emojiApplication.imageUnknown;
+}
+
+/**
+ * Reports why the thumbnail cannot be displayed (#2961).
+ *
+ * **判定と文面を分ける。** 審査画面の `imageUnknown` は「承認する前にもう一度
+ * 読み込んでください」まで言うが、履歴を見るだけの画面には承認操作が無く、
+ * 文面がそのままでは成り立たない。条件は 1 つに保ったまま、文面だけ画面ごとに
+ * 決められるようにする。
+ */
+export function relatedImageMissingReason(item: RelatedItem, broken: ReadonlySet<string>): 'gone' | 'unknown' {
+	if (item.url === '' && !broken.has(item.id)) return 'gone';
+	return 'unknown';
 }
 
 /**

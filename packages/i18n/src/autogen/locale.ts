@@ -14300,6 +14300,14 @@ export interface Locale extends ILocale {
          */
         "relatedUnknown": string;
         /**
+         * 画像を確認できませんでした
+         */
+        "imageUnknownShort": string;
+        /**
+         * 申請日時
+         */
+        "appliedAt": string;
+        /**
          * 絵文字申請
          */
         "tabUserApplications": string;

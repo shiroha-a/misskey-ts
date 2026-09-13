@@ -10,7 +10,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 		申請があるユーザーを「履歴なし」と判断する。審査画面が nameConflict /
 		remoteGone で採っているのと同じ判断。
 	-->
-	<MkInfo v-if="summaryFailed" warn>{{ i18n.ts._emojiApplication.summaryUnknown }}</MkInfo>
+	<!--
+		**集計にも再試行を置く (レビュー M1)。** 失敗すると期間別の使用状況ごと
+		消えるうえ、`fetchSummary` の呼び出しは onMounted の 1 箇所しか無いので、
+		復旧手段がページのリロードだけになる (#2960 が mk.20c で直したのと同じ形)。
+		文面が「もう一度読み込んでください」と指示しているのに、その操作が UI に
+		無い状態でもあった。
+	-->
+	<div v-if="summaryFailed" class="_gaps_s">
+		<MkInfo warn>{{ i18n.ts._emojiApplication.summaryUnknown }}</MkInfo>
+		<MkButton :disabled="summaryFetching" @click="fetchSummary">{{ i18n.ts.retry }}</MkButton>
+	</div>
 	<FormSection v-else-if="counts" :first="true">
 		<template #label>{{ i18n.ts._emojiApplication.userSummaryTitle }}</template>
 		<div :class="$style.counts">
@@ -61,7 +71,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<div v-for="item in items" :key="item.id" :class="$style.row">
 				<div :class="$style.thumb">
 					<img v-if="previewUrls.get(item.id)" :src="previewUrls.get(item.id)!" :alt="item.name" :class="$style.thumbImg" @error="onPreviewError(item)"/>
-					<span v-else :class="$style.thumbGone">{{ relatedImageMissingLabel(item, brokenPreviews) }}</span>
+					<span v-else :class="$style.thumbGone">{{ imageMissingLabel(item) }}</span>
 				</div>
 				<div :class="$style.body">
 					<div :class="$style.head">
@@ -74,7 +84,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<template #value><span class="_monospace">:{{ item.remoteName }}:@{{ item.remoteHost }}</span></template>
 					</MkKeyValue>
 					<MkKeyValue oneline>
-						<template #key>{{ i18n.ts.createdAt }}</template>
+						<template #key>{{ i18n.ts._emojiApplication.appliedAt }}</template>
 						<template #value><MkTime :time="item.createdAt" mode="detail"/></template>
 					</MkKeyValue>
 					<MkKeyValue v-if="item.processedAt" oneline>
@@ -117,7 +127,7 @@ import { useMkSelect } from '@/composables/use-mkselect.js';
 import { i18n } from '@/i18n.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { dateTimeFormat } from '@/utility/intl-const.js';
-import { relatedImageMissingLabel, relatedPreviewUrl, relatedStatusLabel } from '@/utility/emoji-application-related.js';
+import { relatedImageMissingReason, relatedPreviewUrl, relatedStatusLabel } from '@/utility/emoji-application-related.js';
 import { canLoadMoreUserApplications, quotaIsFull, quotaPeriodLabel, quotaUsageLabel, userApplicationNextCursor } from '@/utility/emoji-application-user.js';
 import type { QuotaWindowView } from '@/utility/emoji-application-user.js';
 
@@ -162,6 +172,7 @@ const { model: status, def: statusDef } = useMkSelect({
 const query = ref('');
 const fetching = ref(false);
 const summaryFailed = ref(false);
+const summaryFetching = ref(false);
 const historyFailed = ref(false);
 const lastPageSize = ref(0);
 const brokenPreviews = ref(new Set<string>());
@@ -190,6 +201,15 @@ const previewUrls = computed(() => {
 	return map;
 });
 
+// **この画面の文面にする (レビュー L1)。** 審査画面の `imageUnknown` は
+// 「承認する前にもう一度読み込んでください」まで言うが、ここには承認操作が
+// 無く、行の大半は処理済み。判定は共有したまま文面だけ分ける。
+function imageMissingLabel(item: Item): string {
+	return relatedImageMissingReason(item, brokenPreviews.value) === 'gone'
+		? i18n.ts._emojiApplication.imageGone
+		: i18n.ts._emojiApplication.imageUnknownShort;
+}
+
 function onPreviewError(item: Item) {
 	brokenPreviews.value = new Set(brokenPreviews.value).add(item.id);
 }
@@ -199,6 +219,8 @@ function formatDateTime(at: string): string {
 }
 
 async function fetchSummary() {
+	if (summaryFetching.value) return;
+	summaryFetching.value = true;
 	try {
 		const res = await misskeyApi('admin/emoji-application/user-summary' as never, {
 			userId: props.userId,
@@ -209,11 +231,21 @@ async function fetchSummary() {
 	} catch {
 		// **握り潰さない。** 0 件として描くと「申請なし」と読める。
 		summaryFailed.value = true;
+	} finally {
+		summaryFetching.value = false;
 	}
 }
 
+// **世代で古い応答を捨てる (レビュー H1)。** `if (fetching) return` で新しい
+// 要求を捨てる形だと、取得中に絞り込みや検索を変えたときに**要求が 1 本も出ない
+// まま、あとから解決した旧フィルタの結果が並ぶ**。「却下」と表示された一覧に
+// 承認済みが混ざり、エラーもスピナーも出ないので気付けない (実測)。しかも次の
+// 「もっと見る」は別の結果集合から採ったカーソルを渡すので、以降の行が永久に
+// 出てこない。捨てるのは要求ではなく**古い応答**のほうにする。
+let generation = 0;
+
 async function fetchPage(untilId?: string) {
-	if (fetching.value) return;
+	const gen = ++generation;
 	fetching.value = true;
 	try {
 		const res = await misskeyApi('admin/emoji-application/list-by-user' as never, {
@@ -223,13 +255,17 @@ async function fetchPage(untilId?: string) {
 			limit: PAGE,
 			untilId: untilId ?? null,
 		} as never) as unknown as { items: Item[] };
+		if (gen !== generation) return;
 		items.value = untilId == null ? res.items : [...items.value, ...res.items];
 		lastPageSize.value = res.items.length;
 		historyFailed.value = false;
 	} catch {
+		if (gen !== generation) return;
 		historyFailed.value = true;
 	} finally {
-		fetching.value = false;
+		// **最新の要求だけが解除する。** 古い応答が解除すると、実際には
+		// まだ飛んでいるのにボタンが押せる状態になる。
+		if (gen === generation) fetching.value = false;
 	}
 }
 
