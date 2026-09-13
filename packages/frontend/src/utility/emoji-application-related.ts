@@ -56,11 +56,27 @@ export function canLoadMoreRelated(counts: RelatedCounts | null, loaded: number)
  * enforce している構成で黙ってブロックされる (#2957 と同じ)。
  */
 export function relatedPreviewUrl(item: RelatedItem, broken: ReadonlySet<string>): string | null {
-	// null = 確認できなかった / 空文字 = 申請者が drive から消した。どちらも出せない。
+	// null = 確認できなかった / 空文字 = 申請者が drive から消した。どちらも出せない
+	// (どちらなのかは `relatedImageMissingLabel` が文面で分ける)。
 	if (item.url == null || item.url === '') return null;
 	if (broken.has(item.id)) return null;
 	if (!item.remoteHost) return item.url;
 	return getProxiedImageUrl(item.url, 'emoji', false, true);
+}
+
+/**
+ * Renders the placeholder text shown when the thumbnail cannot be displayed (#2960).
+ *
+ * **「確認できなかった」と「消された」を同じ文面に丸めない (レビュー R2-L4)。**
+ * 空文字はサーバーが「drive にもう無い」と確定させた状態だが、null は
+ * 確認そのものができなかった状態で、読み込み失敗も同じ。確定していないものを
+ * 「画像がありません」と言い切ると、実際には残っている申請を却下しうる。
+ * 審査一覧 (`custom-emojis-manager.applications.vue`) が remoteGone /
+ * nameConflict に対して採っているのと同じ判断。
+ */
+export function relatedImageMissingLabel(item: RelatedItem, broken: ReadonlySet<string>): string {
+	if (item.url === '' && !broken.has(item.id)) return i18n.ts._emojiApplication.imageGone;
+	return i18n.ts._emojiApplication.imageUnknown;
 }
 
 /**

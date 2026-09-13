@@ -16,6 +16,8 @@ vi.mock('@/i18n.js', () => ({
 				statusApproved: 'APPROVED',
 				statusRejected: 'REJECTED',
 				statusCanceled: 'CANCELED',
+				imageGone: 'GONE',
+				imageUnknown: 'UNKNOWN',
 			},
 		},
 		tsx: {
@@ -34,7 +36,7 @@ vi.mock('@/utility/media-proxy.js', () => ({
 	getProxiedImageUrl: (url: string, ...rest: unknown[]) => `proxy(${url},${rest.join(',')})`,
 }));
 
-import { canLoadMoreRelated, matchedByLabel, relatedNextCursor, relatedPreviewUrl, relatedStatusLabel, relatedSummaryLabel } from '@/utility/emoji-application-related.js';
+import { canLoadMoreRelated, matchedByLabel, relatedImageMissingLabel, relatedNextCursor, relatedPreviewUrl, relatedStatusLabel, relatedSummaryLabel } from '@/utility/emoji-application-related.js';
 
 const counts = (total: number) => ({ total, pending: 0, approved: 0, rejected: 0, canceled: 0 });
 
@@ -101,6 +103,26 @@ describe('relatedPreviewUrl', () => {
 
 	test('読み込みに失敗したものは出さない', () => {
 		expect(relatedPreviewUrl({ id: 'a', url: 'https://self/x.png' }, new Set(['a']))).toBeNull();
+	});
+});
+
+describe('relatedImageMissingLabel', () => {
+	const none = new Set<string>();
+
+	// 空文字はサーバーが「drive にもう無い」と確定させた状態。
+	test('消されたものは「ありません」', () => {
+		expect(relatedImageMissingLabel({ id: 'a', url: '' }, none)).toBe('GONE');
+	});
+
+	// **確定していないものを「ありません」と言い切らない。** 実際には残って
+	// いる申請を却下しうる (審査一覧が remoteGone に対して採っている判断)。
+	test('確認できなかったものは「確認できません」', () => {
+		expect(relatedImageMissingLabel({ id: 'a', url: null }, none)).toBe('UNKNOWN');
+	});
+
+	test('読み込みに失敗したものも「確認できません」', () => {
+		expect(relatedImageMissingLabel({ id: 'a', url: 'https://self/x.png' }, new Set(['a']))).toBe('UNKNOWN');
+		expect(relatedImageMissingLabel({ id: 'a', url: '' }, new Set(['a']))).toBe('UNKNOWN');
 	});
 });
 

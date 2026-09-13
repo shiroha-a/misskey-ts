@@ -20,7 +20,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 <div v-if="!loaded" v-appear="onAppear" :class="$style.placeholder">
 	<MkLoading v-if="fetching" :em="true"/>
 </div>
-<MkInfo v-else-if="failed && items.length === 0" warn>{{ i18n.ts._emojiApplication.relatedUnknown }}</MkInfo>
+<!--
+	**初回の取得に失敗したときも再試行できるようにする (レビュー R2-M1)。**
+	この分岐は `MkFolder` の外なので、折りたたみの中に置いた再試行ボタンは
+	描画されない。`MkFolder` は一度開いた body を閉じても unmount しない
+	ので、開き直しても `loaded` は true のままで、**復旧手段がページの
+	リロードしか無くなる**。いちばん起きやすい「初回の通信失敗」がそれ。
+-->
+<div v-else-if="failed && items.length === 0" class="_gaps_s">
+	<MkInfo warn>{{ i18n.ts._emojiApplication.relatedUnknown }}</MkInfo>
+	<MkButton :disabled="fetching" @click="loadMore">{{ i18n.ts.retry }}</MkButton>
+</div>
 <MkFolder v-else-if="counts && counts.total > 0">
 	<template #icon><i class="ti ti-history"></i></template>
 	<!-- **開かなくても件数と内訳が見える。** 見るべき履歴かどうかを、開く前に判断できる。 -->
@@ -36,7 +46,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div v-for="item in items" :key="item.id" :class="$style.row">
 			<div :class="$style.thumb">
 				<img v-if="previewUrls.get(item.id)" :src="previewUrls.get(item.id)!" :alt="item.name" :class="$style.thumbImg" @error="onPreviewError(item)"/>
-				<span v-else :class="$style.thumbGone">{{ i18n.ts._emojiApplication.imageGone }}</span>
+				<!--
+					**「確認できなかった」と「消された」を分ける (レビュー R2-L4)。**
+					確定していないものを「ありません」と言い切ると、実際には残って
+					いる申請を却下しうる。審査一覧と同じ判断。
+				-->
+				<span v-else :class="$style.thumbGone">{{ relatedImageMissingLabel(item, brokenPreviews) }}</span>
 			</div>
 			<div :class="$style.body">
 				<div :class="$style.head">
@@ -93,7 +108,7 @@ import MkA from '@/components/global/MkA.vue';
 import MkTime from '@/components/global/MkTime.vue';
 import { i18n } from '@/i18n.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
-import { canLoadMoreRelated, matchedByLabel, relatedNextCursor, relatedPreviewUrl, relatedStatusLabel, relatedSummaryLabel } from '@/utility/emoji-application-related.js';
+import { canLoadMoreRelated, matchedByLabel, relatedImageMissingLabel, relatedNextCursor, relatedPreviewUrl, relatedStatusLabel, relatedSummaryLabel } from '@/utility/emoji-application-related.js';
 
 type RelatedItem = {
 	id: string;
@@ -130,7 +145,10 @@ const brokenPreviews = ref(new Set<string>());
 
 const canLoadMore = computed(() => canLoadMoreRelated(counts.value, items.value.length));
 
-const summaryLabel = computed(() => (counts.value == null ? '' : relatedSummaryLabel(counts.value)));
+// `counts` が null の分岐は型の narrowing 上どのみち要る。現状 `MkFolder` は
+// `counts` がある時しか描画しないので到達しないが、空文字を返すとラベルの無い
+// フォルダになるので、到達したときに読める既定ラベルを返す (レビュー R2-L3)。
+const summaryLabel = computed(() => (counts.value == null ? i18n.ts._emojiApplication.related : relatedSummaryLabel(counts.value)));
 
 // **1 件につき 1 回だけ解決する。** template から関数を呼ぶと再描画のたびに
 // 走り、`<img>` の src が同値でも別インスタンスになる (親と同じ理由)。
@@ -185,7 +203,8 @@ function onAppear() {
 </script>
 
 <style lang="scss" module>
-/* **高さを持たせる。** 0 だと IntersectionObserver が交差を報告しない。 */
+/* 取得中のローディング表示のぶん。**IntersectionObserver は高さ 0 でも交差を
+ * 報告する**ので、外しても取得が止まるわけではない (レビュー R2-L2 で実測) */
 .placeholder {
 	min-height: 24px;
 }
