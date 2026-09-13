@@ -82,7 +82,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		見てから押す操作なので、上限の表示より前にあると判断材料が後から来る。
 		**すべての期間上限が無制限なら出さない** (戻す枠が無い)。
 	-->
-	<FormSection v-if="!summaryFailed && canResetQuota(windows)">
+	<FormSection v-if="!summaryFailed && (canResetQuota(windows) || lastReset)">
 		<template #label>{{ i18n.ts._emojiApplication.resetQuotaTitle }}</template>
 		<div class="_gaps_s">
 			<MkKeyValue oneline>
@@ -108,7 +108,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 				これでは解除されない (審査待ちは処理しない限り減らない)。
 			-->
 			<MkInfo>{{ i18n.ts._emojiApplication.resetQuotaNote }}</MkInfo>
-			<MkButton :disabled="resetting" danger @click="resetQuota">{{ i18n.ts._emojiApplication.resetQuota }}</MkButton>
+			<!--
+				**ボタンだけを隠す (レビュー L4)。** 節ごと消すと、上限を撤廃した
+				あとに「最後のリセット」を確認できなくなる (issue が非表示を
+				求めたのはボタン)。
+			-->
+			<MkButton v-if="canResetQuota(windows)" :disabled="resetting" danger @click="resetQuota">{{ i18n.ts._emojiApplication.resetQuota }}</MkButton>
 		</div>
 	</FormSection>
 
@@ -348,8 +353,11 @@ async function resetQuota() {
 	const { canceled, result: reason } = await os.inputText({
 		title: i18n.ts._emojiApplication.resetQuotaTitle,
 		text: i18n.ts._emojiApplication.resetQuotaNote,
-		placeholder: i18n.ts._emojiApplication.resetQuotaReason,
+		placeholder: i18n.ts._emojiApplication.resetQuotaReasonCaption,
 		minLength: 1,
+		// **列の長さに合わせる (レビュー M1)。** 超えると server が 400 を返すが、
+		// 打ち終わってから弾かれるより入力の時点で止めるほうが早い。
+		maxLength: 1024,
 	});
 	if (canceled) return;
 	if (!isValidResetReason(reason)) {

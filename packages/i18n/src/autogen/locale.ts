@@ -11859,6 +11859,10 @@ export interface Locale extends ILocale {
     };
     "_moderationLogTypes": {
         /**
+         * 絵文字申請枠をリセット
+         */
+        "resetEmojiApplicationQuota": string;
+        /**
          * ジョブキューをクリア
          */
         "clearQueue": string;
