@@ -77,6 +77,23 @@ describe('quotaUsageLabel', () => {
 	});
 });
 
+// **審査待ちの上限も同じ関数で描く (レビュー L-6)。** 期間の窓と形が同じなので
+// 取り違えても型では落ちない。0 を分母にしない・上限ちょうどで満杯、を固定する。
+describe('審査待ちの上限', () => {
+	const pending = (used: number, limit: number, unlimited: boolean) => ({ used, limit, unlimited });
+
+	test('上限があれば used / limit', () => {
+		expect(quotaUsageLabel(pending(2, 3, false))).toBe('2/3');
+		expect(quotaIsFull(pending(2, 3, false))).toBe(false);
+		expect(quotaIsFull(pending(3, 3, false))).toBe(true);
+	});
+
+	test('上限なしは分母を出さず満杯にもならない', () => {
+		expect(quotaUsageLabel(pending(5, 0, true))).toBe('5(none)');
+		expect(quotaIsFull(pending(5, 0, true))).toBe(false);
+	});
+});
+
 describe('userApplicationNextCursor', () => {
 	// **末尾を採る。** 先頭を渡すと同じページを永久に読み直す。
 	test('末尾の id を返す', () => {
