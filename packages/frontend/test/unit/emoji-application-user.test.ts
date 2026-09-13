@@ -23,7 +23,7 @@ vi.mock('@/i18n.js', () => ({
 	},
 }));
 
-import { canLoadMoreUserApplications, quotaIsFull, quotaPeriodLabel, quotaUsageLabel, userApplicationNextCursor } from '@/utility/emoji-application-user.js';
+import { canLoadMoreUserApplications, canResetQuota, isValidResetReason, quotaIsFull, quotaPeriodLabel, quotaUsageLabel, userApplicationNextCursor } from '@/utility/emoji-application-user.js';
 
 const win = (over: Partial<{ period: string; used: number; limit: number; unlimited: boolean }> = {}) => ({
 	period: 'day', used: 0, limit: 0, unlimited: true, ...over,
@@ -112,5 +112,40 @@ describe('canLoadMoreUserApplications', () => {
 		expect(canLoadMoreUserApplications(30, 30)).toBe(true);
 		expect(canLoadMoreUserApplications(29, 30)).toBe(false);
 		expect(canLoadMoreUserApplications(0, 30)).toBe(false);
+	});
+});
+
+// mk-go: 申請枠の手動リセット (#2962)。
+describe('canResetQuota', () => {
+	const w = (limit: number, unlimited: boolean) => ({ period: 'day', used: 0, limit, unlimited });
+
+	// **すべて無制限なら出さない。** 戻す枠が無いので、押しても何も変わらない
+	// 操作を「効いたように見える」形で出すことになる。
+	test('すべて無制限なら false', () => {
+		expect(canResetQuota([w(0, true), w(0, true)])).toBe(false);
+		expect(canResetQuota([])).toBe(false);
+	});
+
+	test('1つでも上限があれば true', () => {
+		expect(canResetQuota([w(0, true), w(5, false), w(0, true)])).toBe(true);
+	});
+
+	// サーバーが unlimited を落としても limit 0 は上限なしとして扱う。
+	test('limit 0 は上限なし扱い', () => {
+		expect(canResetQuota([w(0, false)])).toBe(false);
+	});
+});
+
+describe('isValidResetReason', () => {
+	// **空白だけを通さない。** 監査ログに残る唯一の文脈。
+	test('空や空白だけは false', () => {
+		expect(isValidResetReason('')).toBe(false);
+		expect(isValidResetReason('   ')).toBe(false);
+		expect(isValidResetReason('\t\n')).toBe(false);
+	});
+
+	test('中身があれば true', () => {
+		expect(isValidResetReason('再申請してもらうため')).toBe(true);
+		expect(isValidResetReason('  x  ')).toBe(true);
 	});
 });

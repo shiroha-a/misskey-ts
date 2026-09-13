@@ -14316,6 +14316,50 @@ export interface Locale extends ILocale {
          */
         "pendingLimitFull": string;
         /**
+         * 申請回数をリセット
+         */
+        "resetQuota": string;
+        /**
+         * 申請枠のリセット
+         */
+        "resetQuotaTitle": string;
+        /**
+         * 期間別の申請数を0に戻します。申請履歴は削除されません。短時間の送信制限と、審査待ちの件数の上限は解除されません。
+         */
+        "resetQuotaNote": string;
+        /**
+         * リセットの理由
+         */
+        "resetQuotaReason": string;
+        /**
+         * 監査ログに残ります。誤操作、テスト申請、再申請の依頼など。
+         */
+        "resetQuotaReasonCaption": string;
+        /**
+         * リセットの理由を入力してください。
+         */
+        "resetQuotaReasonRequired": string;
+        /**
+         * 申請枠をリセットしました。
+         */
+        "resetQuotaDone": string;
+        /**
+         * 申請枠をリセットできませんでした。もう一度お試しください。
+         */
+        "resetQuotaFailed": string;
+        /**
+         * 最後のリセット
+         */
+        "lastReset": string;
+        /**
+         * 実行者
+         */
+        "lastResetBy": string;
+        /**
+         * リセットされたことはありません。
+         */
+        "lastResetNone": string;
+        /**
          * 絵文字申請
          */
         "tabUserApplications": string;
