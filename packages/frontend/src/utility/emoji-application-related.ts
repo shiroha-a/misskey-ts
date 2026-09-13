@@ -20,6 +20,8 @@ export type RelatedItem = {
 	remoteHost?: string;
 };
 
+export type RelatedStatus = 'pending' | 'approved' | 'rejected' | 'canceled';
+
 /**
  * Renders the label for one match reason (#2960).
  *
@@ -59,4 +61,54 @@ export function relatedPreviewUrl(item: RelatedItem, broken: ReadonlySet<string>
 	if (broken.has(item.id)) return null;
 	if (!item.remoteHost) return item.url;
 	return getProxiedImageUrl(item.url, 'emoji', false, true);
+}
+
+/**
+ * Renders the folder label shown before it is opened (#2960).
+ *
+ * **内訳は total を説明できる形にする。** 却下と承認しか出さないと、審査待ちや
+ * 取り下げだけの履歴が「3件（却下0 / 承認0）」になり、**見なくていい履歴だと
+ * 誤読される**。開く前に判断させるための表示なので、内訳が総数と合わないのは
+ * それ自体が害。
+ */
+export function relatedSummaryLabel(counts: RelatedCounts): string {
+	const parts: string[] = [];
+	if (counts.rejected > 0) parts.push(i18n.tsx._emojiApplication.relatedRejected({ n: counts.rejected }));
+	if (counts.approved > 0) parts.push(i18n.tsx._emojiApplication.relatedApproved({ n: counts.approved }));
+	if (counts.pending > 0) parts.push(i18n.tsx._emojiApplication.relatedPending({ n: counts.pending }));
+	if (counts.canceled > 0) parts.push(i18n.tsx._emojiApplication.relatedCanceled({ n: counts.canceled }));
+	// **内訳が無いときは総数だけ。** 「(却下0 / 承認0)」を出すより読みやすい。
+	if (parts.length === 0) return i18n.tsx._emojiApplication.relatedSummaryPlain({ total: counts.total });
+	return i18n.tsx._emojiApplication.relatedSummary({
+		total: counts.total,
+		breakdown: parts.join(' / '),
+	});
+}
+
+/**
+ * Renders one status (#2960).
+ *
+ * **既定を「取り下げ」にしない。** 未知の status をどれかに丸めると、却下を
+ * 承認と表示するような取り違えが起きる。
+ */
+export function relatedStatusLabel(status: string): string {
+	switch (status) {
+		case 'pending': return i18n.ts._emojiApplication.statusPending;
+		case 'approved': return i18n.ts._emojiApplication.statusApproved;
+		case 'rejected': return i18n.ts._emojiApplication.statusRejected;
+		case 'canceled': return i18n.ts._emojiApplication.statusCanceled;
+		default: return status;
+	}
+}
+
+/**
+ * Picks the cursor for the next page (#2960).
+ *
+ * **末尾を採る。** 先頭を渡すと同じページを永久に読み直す (id の降順なので、
+ * 次に欲しいのは「いちばん小さい id より前」)。失敗して 1 件も無いときは
+ * undefined を返して最初から取り直す。
+ */
+export function relatedNextCursor(items: readonly { id: string }[]): string | undefined {
+	if (items.length === 0) return undefined;
+	return items[items.length - 1].id;
 }

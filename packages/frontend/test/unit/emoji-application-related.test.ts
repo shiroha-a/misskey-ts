@@ -12,6 +12,20 @@ vi.mock('@/i18n.js', () => ({
 				matchedByName: 'NAME',
 				matchedByRemoteSource: 'SOURCE',
 				matchedByFileHash: 'IMAGE',
+				statusPending: 'PENDING',
+				statusApproved: 'APPROVED',
+				statusRejected: 'REJECTED',
+				statusCanceled: 'CANCELED',
+			},
+		},
+		tsx: {
+			_emojiApplication: {
+				relatedSummary: (p: Record<string, unknown>) => `total=${p.total} (${p.breakdown})`,
+				relatedSummaryPlain: (p: Record<string, unknown>) => `total=${p.total}`,
+				relatedRejected: (p: Record<string, unknown>) => `rej${p.n}`,
+				relatedApproved: (p: Record<string, unknown>) => `app${p.n}`,
+				relatedPending: (p: Record<string, unknown>) => `pen${p.n}`,
+				relatedCanceled: (p: Record<string, unknown>) => `can${p.n}`,
 			},
 		},
 	},
@@ -20,7 +34,7 @@ vi.mock('@/utility/media-proxy.js', () => ({
 	getProxiedImageUrl: (url: string, ...rest: unknown[]) => `proxy(${url},${rest.join(',')})`,
 }));
 
-import { canLoadMoreRelated, matchedByLabel, relatedPreviewUrl } from '@/utility/emoji-application-related.js';
+import { canLoadMoreRelated, matchedByLabel, relatedNextCursor, relatedPreviewUrl, relatedStatusLabel, relatedSummaryLabel } from '@/utility/emoji-application-related.js';
 
 const counts = (total: number) => ({ total, pending: 0, approved: 0, rejected: 0, canceled: 0 });
 
@@ -87,5 +101,60 @@ describe('relatedPreviewUrl', () => {
 
 	test('読み込みに失敗したものは出さない', () => {
 		expect(relatedPreviewUrl({ id: 'a', url: 'https://self/x.png' }, new Set(['a']))).toBeNull();
+	});
+});
+
+describe('relatedSummaryLabel', () => {
+	// **内訳は総数を説明できる形にする。** 却下と承認しか出さないと、審査待ちや
+	// 取り下げだけの履歴が「3件（却下0 / 承認0）」になり、見なくていい履歴だと
+	// 誤読される。開く前に判断させるための表示なので、それ自体が害。
+	test('内訳の合計が総数と合う', () => {
+		expect(relatedSummaryLabel({ total: 5, pending: 2, approved: 1, rejected: 2, canceled: 0 }))
+			.toBe('total=5 (rej2 / app1 / pen2)');
+	});
+
+	test('取り下げだけでも内訳を出す', () => {
+		expect(relatedSummaryLabel({ total: 3, pending: 0, approved: 0, rejected: 0, canceled: 3 }))
+			.toBe('total=3 (can3)');
+	});
+
+	// 0 件の内訳は並べない (「却下0 / 承認0」より読みやすい)。
+	test('0 の内訳は出さない', () => {
+		expect(relatedSummaryLabel({ total: 2, pending: 0, approved: 0, rejected: 2, canceled: 0 }))
+			.toBe('total=2 (rej2)');
+	});
+
+	// 未知の status だけのとき。内訳は組めないが、総数は伝える。
+	test('内訳が組めなければ総数だけ出す', () => {
+		expect(relatedSummaryLabel({ total: 4, pending: 0, approved: 0, rejected: 0, canceled: 0 }))
+			.toBe('total=4');
+	});
+});
+
+describe('relatedStatusLabel', () => {
+	test.each([
+		['pending', 'PENDING'],
+		['approved', 'APPROVED'],
+		['rejected', 'REJECTED'],
+		['canceled', 'CANCELED'],
+	])('%s を %s にする', (status, want) => {
+		expect(relatedStatusLabel(status)).toBe(want);
+	});
+
+	// **既定を「取り下げ」にしない。** 未知の status をどれかに丸めると、
+	// 却下を承認と表示するような取り違えが起きる。
+	test('未知の status は生のまま出す', () => {
+		expect(relatedStatusLabel('escalated')).toBe('escalated');
+	});
+});
+
+describe('relatedNextCursor', () => {
+	// **末尾を採る。** 先頭を渡すと同じページを永久に読み直す (id の降順)。
+	test('末尾の id を返す', () => {
+		expect(relatedNextCursor([{ id: 'c' }, { id: 'b' }, { id: 'a' }])).toBe('a');
+	});
+
+	test('空なら undefined (最初から取り直す)', () => {
+		expect(relatedNextCursor([])).toBeUndefined();
 	});
 });

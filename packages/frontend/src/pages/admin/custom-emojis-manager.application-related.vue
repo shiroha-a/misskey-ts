@@ -40,8 +40,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 			<div :class="$style.body">
 				<div :class="$style.head">
+					<!-- 自作画像かリモート絵文字か。本体一覧と同じアイコンで示す。 -->
+					<i :class="item.remoteHost ? 'ti ti-world-download' : 'ti ti-mood-smile'"></i>
 					<span class="_monospace">:{{ item.name }}:</span>
-					<span :class="[$style.status, $style[item.status]]">{{ statusLabel(item.status) }}</span>
+					<span :class="[$style.status, $style[item.status]]">{{ relatedStatusLabel(item.status) }}</span>
 				</div>
 				<div :class="$style.meta">
 					<!-- どの条件で一致したか。名前を変えた再申請を見落とさないための手がかり。 -->
@@ -91,7 +93,7 @@ import MkA from '@/components/global/MkA.vue';
 import MkTime from '@/components/global/MkTime.vue';
 import { i18n } from '@/i18n.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
-import { canLoadMoreRelated, matchedByLabel, relatedPreviewUrl } from '@/utility/emoji-application-related.js';
+import { canLoadMoreRelated, matchedByLabel, relatedNextCursor, relatedPreviewUrl, relatedStatusLabel, relatedSummaryLabel } from '@/utility/emoji-application-related.js';
 
 type RelatedItem = {
 	id: string;
@@ -128,15 +130,7 @@ const brokenPreviews = ref(new Set<string>());
 
 const canLoadMore = computed(() => canLoadMoreRelated(counts.value, items.value.length));
 
-const summaryLabel = computed(() => {
-	const c = counts.value;
-	if (c == null) return i18n.ts._emojiApplication.related;
-	return i18n.tsx._emojiApplication.relatedSummary({
-		total: c.total,
-		rejected: c.rejected,
-		approved: c.approved,
-	});
-});
+const summaryLabel = computed(() => (counts.value == null ? '' : relatedSummaryLabel(counts.value)));
 
 // **1 件につき 1 回だけ解決する。** template から関数を呼ぶと再描画のたびに
 // 走り、`<img>` の src が同値でも別インスタンスになる (親と同じ理由)。
@@ -150,15 +144,6 @@ const previewUrls = computed(() => {
 
 function onPreviewError(item: RelatedItem) {
 	brokenPreviews.value = new Set(brokenPreviews.value).add(item.id);
-}
-
-function statusLabel(status: RelatedItem['status']): string {
-	switch (status) {
-		case 'pending': return i18n.ts._emojiApplication.statusPending;
-		case 'approved': return i18n.ts._emojiApplication.statusApproved;
-		case 'rejected': return i18n.ts._emojiApplication.statusRejected;
-		default: return i18n.ts._emojiApplication.statusCanceled;
-	}
 }
 
 async function fetchPage(untilId?: string) {
@@ -188,8 +173,7 @@ async function fetchPage(untilId?: string) {
 function loadMore() {
 	// 初回が失敗しているときは最初から取り直す (untilId を渡すと 1 ページ目が
 	// 永久に埋まらない)。
-	const last = items.value.length > 0 ? items.value[items.value.length - 1] : null;
-	void fetchPage(last?.id);
+	void fetchPage(relatedNextCursor(items.value));
 }
 
 // **画面に入ったときに 1 回だけ取る (#2960)。** `v-appear` は throttle 付きで

@@ -14268,9 +14268,29 @@ export interface Locale extends ILocale {
          */
         "related": string;
         /**
-         * 関連する過去の申請: {total}件（却下{rejected} / 承認{approved}）
+         * 関連する過去の申請: {total}件（{breakdown}）
          */
-        "relatedSummary": ParameterizedString<"total" | "rejected" | "approved">;
+        "relatedSummary": ParameterizedString<"total" | "breakdown">;
+        /**
+         * 関連する過去の申請: {total}件
+         */
+        "relatedSummaryPlain": ParameterizedString<"total">;
+        /**
+         * 却下{n}
+         */
+        "relatedRejected": ParameterizedString<"n">;
+        /**
+         * 承認{n}
+         */
+        "relatedApproved": ParameterizedString<"n">;
+        /**
+         * 審査中{n}
+         */
+        "relatedPending": ParameterizedString<"n">;
+        /**
+         * 取り下げ{n}
+         */
+        "relatedCanceled": ParameterizedString<"n">;
         /**
          * 過去に却下されていたことだけを理由に拒否しないでください。ライセンスの変更、画像の修正、運用方針の変更があり得ます。
          */
