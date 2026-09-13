@@ -116,6 +116,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<template #value>{{ app.rejectReason }}</template>
 					</MkKeyValue>
 
+					<!--
+						**判断材料はボタンの前に置く (#2960)。** 押した後に出しても
+						意味が無い。同じ名前・同じ取り込み元・同じ画像で過去に
+						却下されていたら、その理由をここで見せる。
+					-->
+					<XRelated :applicationId="app.id"/>
+
 					<template v-if="app.status === 'pending'">
 						<MkTextarea v-model="reasons[app.id]">
 							<template #label>{{ i18n.ts._emojiApplication.rejectReason }}</template>
@@ -141,6 +148,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { computed, ref, watch } from 'vue';
 import MkButton from '@/components/MkButton.vue';
 import MkFolder from '@/components/MkFolder.vue';
+import XRelated from '@/pages/admin/custom-emojis-manager.application-related.vue';
 import MkInfo from '@/components/MkInfo.vue';
 import MkKeyValue from '@/components/MkKeyValue.vue';
 import MkSelect from '@/components/MkSelect.vue';
