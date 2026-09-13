@@ -77,6 +77,41 @@ SPDX-License-Identifier: AGPL-3.0-only
 		</div>
 	</FormSection>
 
+	<!--
+		**枠のリセット (#2962)。** 期間上限の節の後ろに置く — 「何件使っているか」を
+		見てから押す操作なので、上限の表示より前にあると判断材料が後から来る。
+		**すべての期間上限が無制限なら出さない** (戻す枠が無い)。
+	-->
+	<FormSection v-if="!summaryFailed && canResetQuota(windows)">
+		<template #label>{{ i18n.ts._emojiApplication.resetQuotaTitle }}</template>
+		<div class="_gaps_s">
+			<MkKeyValue oneline>
+				<template #key>{{ i18n.ts._emojiApplication.lastReset }}</template>
+				<template #value>
+					<MkTime v-if="lastReset" :time="lastReset.at" mode="detail"/>
+					<span v-else>{{ i18n.ts._emojiApplication.lastResetNone }}</span>
+				</template>
+			</MkKeyValue>
+			<template v-if="lastReset">
+				<MkKeyValue oneline>
+					<template #key>{{ i18n.ts._emojiApplication.lastResetBy }}</template>
+					<template #value><MkA :to="`/admin/user/${lastReset.byId}`" class="_link">{{ lastReset.byId }}</MkA></template>
+				</MkKeyValue>
+				<MkKeyValue oneline>
+					<template #key>{{ i18n.ts._emojiApplication.resetQuotaReason }}</template>
+					<template #value>{{ lastReset.reason }}</template>
+				</MkKeyValue>
+			</template>
+			<!--
+				**何が起きて何が起きないかを押す前に出す。** 履歴が消えると思って
+				押されると取り返しがつかないし、短時間の送信制限と審査待ちの上限は
+				これでは解除されない (審査待ちは処理しない限り減らない)。
+			-->
+			<MkInfo>{{ i18n.ts._emojiApplication.resetQuotaNote }}</MkInfo>
+			<MkButton :disabled="resetting" danger @click="resetQuota">{{ i18n.ts._emojiApplication.resetQuota }}</MkButton>
+		</div>
+	</FormSection>
+
 	<FormSection>
 		<template #label>{{ i18n.ts._emojiApplication.userHistoryTitle }}</template>
 		<div class="_gaps_s">
@@ -149,11 +184,12 @@ import MkTime from '@/components/global/MkTime.vue';
 import FormSection from '@/components/form/section.vue';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import { i18n } from '@/i18n.js';
+import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { dateTimeFormat } from '@/utility/intl-const.js';
 import { relatedImageMissingReason, relatedPreviewUrl, relatedStatusLabel } from '@/utility/emoji-application-related.js';
-import { canLoadMoreUserApplications, quotaIsFull, quotaPeriodLabel, quotaUsageLabel, userApplicationNextCursor } from '@/utility/emoji-application-user.js';
-import type { PendingLimitView, QuotaWindowView } from '@/utility/emoji-application-user.js';
+import { canLoadMoreUserApplications, canResetQuota, isValidResetReason, quotaIsFull, quotaPeriodLabel, quotaUsageLabel, userApplicationNextCursor } from '@/utility/emoji-application-user.js';
+import type { PendingLimitView, QuotaResetView, QuotaWindowView } from '@/utility/emoji-application-user.js';
 
 type Item = {
 	id: string;
@@ -183,6 +219,8 @@ const PAGE = 30;
 const counts = ref<Counts | null>(null);
 const windows = ref<QuotaWindowView[]>([]);
 const pendingLimit = ref<PendingLimitView | null>(null);
+const lastReset = ref<QuotaResetView | null>(null);
+const resetting = ref(false);
 const items = ref<Item[]>([]);
 const { model: status, def: statusDef } = useMkSelect({
 	items: [
@@ -251,10 +289,11 @@ async function fetchSummary() {
 	try {
 		const res = await misskeyApi('admin/emoji-application/user-summary' as never, {
 			userId: props.userId,
-		} as never) as unknown as { counts: Counts; windows: QuotaWindowView[]; pending: PendingLimitView };
+		} as never) as unknown as { counts: Counts; windows: QuotaWindowView[]; pending: PendingLimitView; lastReset: QuotaResetView | null };
 		counts.value = res.counts;
 		windows.value = res.windows;
 		pendingLimit.value = res.pending;
+		lastReset.value = res.lastReset;
 		summaryFailed.value = false;
 	} catch {
 		// **握り潰さない。** 0 件として描くと「申請なし」と読める。
@@ -299,6 +338,42 @@ async function fetchPage(untilId?: string) {
 		// **最新の要求だけが解除する。** 古い応答が解除すると、実際には
 		// まだ飛んでいるのにボタンが押せる状態になる。
 		if (gen === generation) fetching.value = false;
+	}
+}
+
+// **理由を必ず取ってから送る (#2962)。** 監査ログに残る唯一の文脈なので、
+// 空のまま押せる導線を作らない。server も同じ判定で 400 を返す。
+async function resetQuota() {
+	if (resetting.value) return;
+	const { canceled, result: reason } = await os.inputText({
+		title: i18n.ts._emojiApplication.resetQuotaTitle,
+		text: i18n.ts._emojiApplication.resetQuotaNote,
+		placeholder: i18n.ts._emojiApplication.resetQuotaReason,
+		minLength: 1,
+	});
+	if (canceled) return;
+	if (!isValidResetReason(reason)) {
+		await os.alert({ type: 'warning', text: i18n.ts._emojiApplication.resetQuotaReasonRequired });
+		return;
+	}
+
+	resetting.value = true;
+	try {
+		await misskeyApi('admin/emoji-application/reset-user-quota' as never, {
+			userId: props.userId,
+			reason,
+		} as never);
+		// **取り直す。** 枠が戻ったかどうかは件数の表示でしか確かめられない。
+		// 返り値の lastReset だけ入れて件数を古いままにすると、押したのに
+		// 「5 / 5」のままに見える。
+		await fetchSummary();
+		await os.alert({ type: 'success', text: i18n.ts._emojiApplication.resetQuotaDone });
+	} catch {
+		// **握り潰さない。** 成功したように見えると、戻っていない枠を戻ったものと
+		// して扱うことになる。
+		await os.alert({ type: 'error', text: i18n.ts._emojiApplication.resetQuotaFailed });
+	} finally {
+		resetting.value = false;
 	}
 }
 

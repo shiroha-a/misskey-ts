@@ -88,3 +88,37 @@ export function userApplicationNextCursor(items: readonly { id: string }[]): str
 export function canLoadMoreUserApplications(lastPageSize: number, limit: number): boolean {
 	return lastPageSize >= limit && lastPageSize > 0;
 }
+
+/**
+ * The last manual quota reset as returned by `user-summary` (#2962).
+ */
+export type QuotaResetView = {
+	at: string;
+	byId: string;
+	reason: string;
+};
+
+/**
+ * Reports whether the manual reset is worth offering (#2962).
+ *
+ * **すべての期間上限が無制限ならボタンを出さない。** 戻す枠が無いので、押しても
+ * 何も変わらない操作を「効いたように見える」形で提供することになる。監査ログ
+ * だけが増える。
+ *
+ * **審査待ちの上限は数えない。** リセットはそちらに効かない (戻しても申請は
+ * 審査待ちのまま残る) ので、それだけを理由にボタンを出すと期待を裏切る。
+ */
+export function canResetQuota(windows: readonly QuotaWindowView[]): boolean {
+	return windows.some(w => !w.unlimited && w.limit > 0);
+}
+
+/**
+ * Validates the reason before sending the reset (#2962).
+ *
+ * **空白だけを通さない。** 監査ログに残る唯一の文脈なので、server も同じ判定で
+ * 400 を返す。手前で弾くのは往復を減らすためで、判定そのものを client に
+ * 委ねているわけではない。
+ */
+export function isValidResetReason(reason: string): boolean {
+	return reason.trim().length > 0;
+}
