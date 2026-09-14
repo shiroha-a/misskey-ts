@@ -3677,8 +3677,15 @@ _emojiApplication:
   rejectReasonCaption: "Shown to the applicant as written."
   rejectReasonRequired: "Please write a reason. It is the only thing the applicant receives."
 _mkgoNotification:
+  emojiApplicationReceived: "A request to register the emoji :{name}: arrived"
+  emojiApplicationReceivedLabel: "Emoji registration requests"
+  signupApplicationReceived: "A new account signup request arrived"
+  applicationProcessed: "Already handled"
+  openApplication: "Review the request"
+  emojiApplicationReviewerOnly: "Emoji request notifications only reach users who can manage custom emoji. Moderator rights alone are not enough."
   # deep merge なので ja-JP の同セクションの他キーは残る (packages/i18n/src/index.ts)。
-  # ここは #2934 で足した 2 つだけ英語を用意する。
+  # mk-go 固有の通知の文面。ja-JP がベースで deep merge されるので、ここに無い
+  # キーは日本語のまま出る (packages/i18n/src/index.ts)。
   emojiApplicationApproved: "Your request for :{name}: was approved"
   emojiApplicationRejected: "Your request for :{name}: was rejected"
 _mkgoAvatarDecoration:

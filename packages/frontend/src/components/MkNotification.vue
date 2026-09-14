@@ -11,6 +11,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div v-else-if="notification.type === 'reaction:grouped' && notification.note.reactionAcceptance === 'likeOnly'" :class="[$style.icon, $style.icon_reactionGroupHeart]"><i class="ti ti-heart" style="line-height: 1;"></i></div>
 		<div v-else-if="notification.type === 'reaction:grouped'" :class="[$style.icon, $style.icon_reactionGroup]"><i class="ti ti-plus" style="line-height: 1;"></i></div>
 		<div v-else-if="notification.type === 'renote:grouped'" :class="[$style.icon, $style.icon_renoteGroup]"><i class="ti ti-repeat" style="line-height: 1;"></i></div>
+		<!--
+			**登録申請の受付通知には notifier がいない (#2987)。** 申請者はまだ
+			アカウントを持っていないので、指せる利用者が存在しない。`'user' in
+			notification` の受け皿より前に置かないと、下の汎用フォールバックに
+			落ちてアイコンが空になる。
+		-->
+		<div v-else-if="isMkGoType(notification, 'signupApplicationReceived')" :class="[$style.icon, $style.icon_signupApplication]"><i class="ti ti-user-plus" style="line-height: 1;"></i></div>
 		<MkAvatar v-else-if="'user' in notification" :class="$style.icon" :user="notification.user" link preview/>
 		<img v-else-if="'icon' in notification && notification.icon != null" :class="[$style.icon, $style.icon_app]" :src="notification.icon" alt=""/>
 		<div
@@ -33,6 +40,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				[$style.t_roleAssigned]: notification.type === 'roleAssigned' && notification.role.iconUrl == null,
 				[$style.t_emojiApplicationApproved]: isMkGoType(notification, 'emojiApplicationProcessed') && mkGoEmojiApplicationStatus(notification) === 'approved',
 				[$style.t_emojiApplicationRejected]: isMkGoType(notification, 'emojiApplicationProcessed') && mkGoEmojiApplicationStatus(notification) !== 'approved',
+				[$style.t_applicationReceived]: isMkGoType(notification, 'emojiApplicationReceived') || isMkGoType(notification, 'signupApplicationReceived'),
 				[$style.t_abuseReport]: isMkGoType(notification, 'abuseReport') && !mkGoResolved(notification),
 				[$style.t_abuseReportResolved]: isMkGoType(notification, 'abuseReport') && mkGoResolved(notification),
 			}]"
@@ -55,6 +63,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<!-- mk-go 固有 (#2868)。upstream は通報を通知欄に出さない。 -->
 			<i v-else-if="isMkGoType(notification, 'emojiApplicationProcessed') && mkGoEmojiApplicationStatus(notification) === 'approved'" class="ti ti-mood-check"></i>
 			<i v-else-if="isMkGoType(notification, 'emojiApplicationProcessed')" class="ti ti-mood-sad"></i>
+			<i v-else-if="isMkGoType(notification, 'emojiApplicationReceived')" class="ti ti-mood-plus"></i>
+			<i v-else-if="isMkGoType(notification, 'signupApplicationReceived')" class="ti ti-user-plus"></i>
 			<i v-else-if="isMkGoType(notification, 'abuseReport') && mkGoResolved(notification)" class="ti ti-check"></i>
 			<i v-else-if="isMkGoType(notification, 'abuseReport')" class="ti ti-exclamation-circle"></i>
 			<template v-else-if="notification.type === 'roleAssigned'">
@@ -100,6 +110,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 					二重で当たる。
 				-->
 				<span v-if="mkGoResolved(notification)" :class="$style.abuseReportResolved">{{ i18n.ts._mkgoNotification.abuseReportResolved }}</span>
+			</span>
+			<!--
+				申請が出された (#2987)。**処理済みかどうかは read 時に引き直した
+				状態。** 通知は作成時点しか持たないので、これが無いと他の人が
+				処理済みの申請に二重で当たる (abuseReport と同じ形)。
+			-->
+			<span v-else-if="isMkGoType(notification, 'emojiApplicationReceived')">
+				{{ i18n.tsx._mkgoNotification.emojiApplicationReceived({ name: mkGoEmojiApplicationName(notification) }) }}
+				<span v-if="mkGoEmojiApplicationStatus(notification) !== 'pending'" :class="$style.abuseReportResolved">{{ i18n.ts._mkgoNotification.applicationProcessed }}</span>
+			</span>
+			<span v-else-if="isMkGoType(notification, 'signupApplicationReceived')">
+				{{ i18n.ts._mkgoNotification.signupApplicationReceived }}
+				<span v-if="mkGoSignupApplicationStatus(notification) !== 'pending'" :class="$style.abuseReportResolved">{{ i18n.ts._mkgoNotification.applicationProcessed }}</span>
 			</span>
 			<span v-else-if="isMkGoType(notification, 'emojiApplicationProcessed')">
 				<template v-if="mkGoEmojiApplicationStatus(notification) === 'approved'">
@@ -202,6 +225,22 @@ SPDX-License-Identifier: AGPL-3.0-only
 				そのまま出すと長すぎて読めない。誰からの通報かだけ伝え、中身は
 				ボタンから管理画面で見る。
 			-->
+			<!--
+				審査画面への導線 (#2987)。**リンクが要点** — 通知欄で「申請が
+				来た」と分かっても、対処するには結局どこから開くか探すことになる。
+			-->
+			<div v-else-if="isMkGoType(notification, 'emojiApplicationReceived') && full" :class="$style.abuseReportCommands">
+				<!--
+					**`/admin/*` ではなく `/custom-emojis-manager` へ送る。** 審査は
+					`canManageCustomEmojis` でできるが、`/admin` 配下は
+					`iAmModerator` gate を持つので、モデレーターではない絵文字
+					管理者はそちらへ行くと not-found になる。
+				-->
+				<MkButton :class="$style.abuseReportCommandButton" type="routerLink" to="/custom-emojis-manager?tab=applications" rounded :primary="mkGoEmojiApplicationStatus(notification) === 'pending'"><i class="ti ti-mood-plus"></i> {{ i18n.ts._mkgoNotification.openApplication }}</MkButton>
+			</div>
+			<div v-else-if="isMkGoType(notification, 'signupApplicationReceived') && full" :class="$style.abuseReportCommands">
+				<MkButton :class="$style.abuseReportCommandButton" type="routerLink" to="/admin/signup-applications" rounded :primary="mkGoSignupApplicationStatus(notification) === 'pending'"><i class="ti ti-user-plus"></i> {{ i18n.ts._mkgoNotification.openApplication }}</MkButton>
+			</div>
 			<div v-else-if="isMkGoType(notification, 'abuseReport') && full && mkGoExtra(notification, 'reportId') !== ''" :class="$style.abuseReportCommands">
 				<MkButton :class="$style.abuseReportCommandButton" type="routerLink" :to="`/admin/abuses?reportId=${mkGoExtra(notification, 'reportId')}`" rounded :primary="!mkGoResolved(notification)"><i class="ti ti-exclamation-circle"></i> {{ i18n.ts._mkgoNotification.openModeration }}</MkButton>
 			</div>
@@ -345,6 +384,15 @@ function mkGoResolved(notification: Misskey.entities.Notification): boolean {
 }
 
 /**
+ * Current status of the signup request a signupApplicationReceived
+ * notification points at (#2987)。read 時に引き直した値。
+ */
+function mkGoSignupApplicationStatus(notification: Misskey.entities.Notification): string {
+	const app = (notification as unknown as { signupApplication?: { status?: unknown } }).signupApplication;
+	return typeof app?.status === 'string' ? app.status : '';
+}
+
+/**
  * Display name of a mk-go specific notification's notifier.
  *
  * 既知タイプを分岐で尽くした後では autogen 型の narrowing で `notification` が
@@ -425,6 +473,22 @@ function mkGoExtra(notification: Misskey.entities.Notification, key: string): st
 
 .icon_reactionGroup {
 	background: var(--eventReaction);
+}
+
+/*
+	登録申請の受付通知のアイコン (#2987)。notifier がいないのでアバターを
+	出せない。`.icon_renoteGroup` と同じ寸法・字色の枠を使う。
+*/
+.icon_signupApplication {
+	display: grid;
+	align-items: center;
+	justify-items: center;
+	width: 80%;
+	height: 80%;
+	font-size: 15px;
+	border-radius: 100%;
+	color: #fff;
+	background: var(--MI_THEME-accent);
 }
 
 .icon_reactionGroupHeart {
@@ -512,6 +576,21 @@ function mkGoExtra(notification: Misskey.entities.Notification, key: string): st
 
 .t_roleAssigned {
 	background: var(--eventOther);
+	pointer-events: none;
+}
+
+/*
+	申請の受付 (#2987)。**通報 (エラー色) とは分ける** — 通報は対処が要る
+	出来事だが、申請は順番に見ればよいもの。同じ色にすると通知一覧で
+	見分けが付かない。
+
+	**padding を足さない。** `.subIcon` は `box-sizing: border-box` +
+	`line-height: 20px` で中身を中央に置くので、padding を足すと内容領域だけ
+	縮んでアイコンが下へずれる。#2868 が同じことをして本番で指摘され、
+	外した経緯がある (他の t_* はどれも padding を持たない)。
+*/
+.t_applicationReceived {
+	background: var(--MI_THEME-accent);
 	pointer-events: none;
 }
 

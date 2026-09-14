@@ -3748,6 +3748,12 @@ _mkgoAvatarDecoration:
   emojiDisabledButWorn: "ロールの設定でカスタム絵文字のデコレーションが使えなくなっていますが、{n}個装着したままです。外すまで他のデコレーションも変更できません。上の「使用中」から選んで解除してください。"
 
 _mkgoNotification:
+  emojiApplicationReceived: "絵文字 :{name}: の登録申請が届きました"
+  emojiApplicationReceivedLabel: "絵文字の登録申請"
+  signupApplicationReceived: "アカウントの登録申請が届きました"
+  applicationProcessed: "処理済み"
+  openApplication: "申請を確認"
+  emojiApplicationReviewerOnly: "絵文字の申請の通知は、カスタム絵文字を管理できる利用者にのみ届きます。モデレーター権限だけでは届きません。"
   abuseReport: "通報がありました"
   abuseReportFrom: "{name}さんから通報がありました"
   openModeration: "通報を確認"

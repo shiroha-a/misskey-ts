@@ -344,7 +344,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 							全てのロールに出るので、権限を持たないロールでも「切れる」
 							ように見え、通報の通知を一般利用者も受け取ると誤解される。
 						-->
-						<template v-if="type === 'abuseReport'" #caption>{{ i18n.ts._mkgoNotification.abuseReportModeratorOnly }}</template>
+						<template v-if="type === 'abuseReport' || type === 'signupApplicationReceived'" #caption>{{ i18n.ts._mkgoNotification.abuseReportModeratorOnly }}</template>
+						<!--
+							**絵文字の申請だけ届く相手が違う (#2987)。** 審査は
+							`canManageCustomEmojis` でできるので、モデレーターかどうかでは
+							決まらない。同じ注意書きを出すと逆に誤解させる。
+						-->
+						<template v-else-if="type === 'emojiApplicationReceived'" #caption>{{ i18n.ts._mkgoNotification.emojiApplicationReviewerOnly }}</template>
 					</MkSwitch>
 					<MkInfo>{{ i18n.ts._mkgoNotification.optOutNotificationTypes_caption }}</MkInfo>
 				</div>
@@ -577,7 +583,7 @@ import MkInfo from '@/components/MkInfo.vue';
  * notificationRecieveConfig で切れるものはそちらでよく、ロールで一括して切りたいのは
  * 運営向けに配られる通知のほう。
  */
-const mkGoOptOutTargetTypes = ['abuseReport'] as const;
+const mkGoOptOutTargetTypes = ['abuseReport', 'emojiApplicationReceived', 'signupApplicationReceived'] as const;
 
 const props = defineProps<{
 	isBaseRole: boolean;
@@ -730,7 +736,12 @@ function toggleOptOutNotificationType(type: string, enabled: boolean): void {
  * 落とす。どちらにも無ければ型名をそのまま出す (空ラベルより読める)。
  */
 function mkGoNotificationTypeLabel(type: string): string {
+	// **mk-go 固有の型は `_notification._types` に無い。** あそこは upstream の
+	// 21 種だけなので、分岐を足さないと `table[type] ?? type` が**生の識別子**を
+	// そのままラベルとして描く (全言語)。運営向け通知を足すたびにここも要る。
 	if (type === 'abuseReport') return i18n.ts._mkgoNotification.abuseReport;
+	if (type === 'emojiApplicationReceived') return i18n.ts._mkgoNotification.emojiApplicationReceivedLabel;
+	if (type === 'signupApplicationReceived') return i18n.ts._mkgoNotification.signupApplicationReceived;
 	const table = i18n.ts._notification._types as unknown as Record<string, string | undefined>;
 	return table[type] ?? type;
 }
