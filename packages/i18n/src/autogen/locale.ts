@@ -14070,6 +14070,34 @@ export interface Locale extends ILocale {
     };
     "_emojiApplication": {
         /**
+         * ファイル削除済み
+         */
+        "previewFileGone": string;
+        /**
+         * 絵文字を申請する
+         */
+        "entryFromEmojiList": string;
+        /**
+         * 絵文字申請
+         */
+        "entryFromInstanceMenu": string;
+        /**
+         * 参照元のリモート絵文字が見つかりません
+         */
+        "previewRemoteGone": string;
+        /**
+         * 承認後に絵文字が削除されました
+         */
+        "previewApprovedEmojiGone": string;
+        /**
+         * 画像を取得できません
+         */
+        "previewUnknown": string;
+        /**
+         * 画像を読み込めません
+         */
+        "previewLoadFailed": string;
+        /**
          * カスタム絵文字の登録申請
          */
         "title": string;

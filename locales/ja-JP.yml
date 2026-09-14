@@ -3772,6 +3772,13 @@ _mkgoUnsupported:
   remoteMediaCache: "mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。"
   cleanRemoteFiles: "mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。"
 _emojiApplication:
+  previewFileGone: "ファイル削除済み"
+  entryFromEmojiList: "絵文字を申請する"
+  entryFromInstanceMenu: "絵文字申請"
+  previewRemoteGone: "参照元のリモート絵文字が見つかりません"
+  previewApprovedEmojiGone: "承認後に絵文字が削除されました"
+  previewUnknown: "画像を取得できません"
+  previewLoadFailed: "画像を読み込めません"
   title: "カスタム絵文字の登録申請"
   tabTitle: "申請"
   tabApply: "申請する"

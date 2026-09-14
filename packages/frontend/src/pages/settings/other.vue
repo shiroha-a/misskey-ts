@@ -171,6 +171,7 @@ import * as os from '@/os.js';
 import { enableStoragePersistence, getStoragePersistenceStatusRef, storagePersistenceSupported } from '@/utility/storage.js';
 import { ensureSignin } from '@/i.js';
 import { i18n } from '@/i18n.js';
+import { useEmojiRequestEntry } from '@/utility/emoji-request-entry.js';
 import { definePage } from '@/page.js';
 import FormSection from '@/components/form/section.vue';
 import { prefer } from '@/preferences.js';
@@ -182,12 +183,9 @@ import { cloudBackup } from '@/preferences/utility.js';
 
 const $i = ensureSignin();
 
-// **policy を持たない人には導線を出さない。** 開いても申請できない
-// ページへ誘導することになる。canManageCustomEmojis を持つ人は申請では
-// なく直接登録できるので、そちらでも出さない。
-const canRequestCustomEmojis = computed(() => !$i.isModerator
-	&& !($i.policies as Record<string, unknown>).canManageCustomEmojis
-	&& ($i.policies as Record<string, unknown>).canRequestCustomEmojis === true);
+// 導線の判定は共通ヘルパー (#2989)。**3 箇所で式を書き分けない** — 条件を
+// 変えたときに一部の画面だけ違う状態が残る。
+const canRequestCustomEmojis = useEmojiRequestEntry();
 
 const storagePersisted = await getStoragePersistenceStatusRef();
 
