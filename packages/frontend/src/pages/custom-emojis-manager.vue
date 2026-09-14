@@ -5,7 +5,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <template>
 <PageWithHeader v-model:tab="tab" :actions="headerActions" :tabs="headerTabs">
-	<div class="_spacer" style="--MI_SPACER-w: 900px;">
+	<!--
+		登録申請の審査 (#2984)。**既存の `_spacer` の外に置く** —
+		`custom-emojis-manager.applications.vue` は自前で `_spacer` を持つので、
+		中に入れると入れ子になって幅と余白が二重に掛かる。
+	-->
+	<XApplicationsComponent v-if="tab === 'applications'"/>
+	<div v-else class="_spacer" style="--MI_SPACER-w: 900px;">
 		<div class="ogwlenmc">
 			<div v-if="tab === 'local'" class="local">
 				<MkInput v-model="query" :debounce="true" type="search" autocapitalize="off">
@@ -83,12 +89,15 @@ import { selectFile } from '@/utility/drive.js';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { getProxiedImageUrl } from '@/utility/media-proxy.js';
+import XApplicationsComponent from '@/pages/admin/custom-emojis-manager.applications.vue';
 import { i18n } from '@/i18n.js';
 import { iAmAdmin } from '@/i.js';
 import { definePage } from '@/page.js';
 import { Paginator } from '@/utility/paginator.js';
 
-const tab = ref('local');
+// **型を明示する。** 素の `ref('local')` は `Ref<string>` になるので、
+// タブのキーを打ち間違えても何も言われない。
+const tab = ref<'local' | 'remote' | 'applications'>('local');
 const query = ref<string | null>(null);
 const queryRemote = ref<string | null>(null);
 const host = ref<string | null>(null);
@@ -342,6 +351,12 @@ const headerTabs = computed(() => [{
 }, {
 	key: 'remote',
 	title: i18n.ts.remote,
+}, {
+	// beta 側 (`/admin/emojis2`) にしか無く、こちらを使っている運営者は
+	// 審査へ到達できなかった (#2984)。**同じ画面に置く**理由も beta と同じで、
+	// 既存の絵文字と見比べる場面が多いため。
+	key: 'applications',
+	title: i18n.ts._emojiApplication.tabTitle,
 }]);
 
 definePage(() => ({
