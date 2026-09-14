@@ -3681,9 +3681,22 @@ _mkgoNotification:
   # ここは #2934 で足した 2 つだけ英語を用意する。
   emojiApplicationApproved: "Your request for :{name}: was approved"
   emojiApplicationRejected: "Your request for :{name}: was rejected"
+_mkgoAvatarDecoration:
+  size: "Size"
+  chooseEmoji: "Pick an emoji"
+  emojiCaption: "Wear this server's custom emoji on top of your avatar. They share the same slot count as the decorations registered by the administrator."
+  customEmojiOnly: "Pick a custom emoji. Unicode emoji cannot be worn."
+  noSuchEmoji: "Emoji :{name}: was not found. It may have been deleted."
+  emojiGone: "That emoji was not found. It may have been deleted or renamed."
+  emojiRestrictedByRole: "That emoji cannot be worn on your avatar. Your role does not allow it."
+  sensitiveEmojiNotAllowed: "Sensitive emoji cannot be worn on your avatar."
+  emojiDisabledButWorn: "Your role no longer allows custom emoji as avatar decorations, but you are still wearing {n}. Until you remove them you cannot change any of your other decorations either. Pick them under \"Used\" above to detach."
+
 _mkgoRolePolicy:
   canRequestCustomEmojis: "Can request custom emoji"
   canRequestCustomEmojis_caption: "Lets the user ask moderators to register their own emoji. Nothing is registered until a moderator approves it."
+  canUseEmojiAsAvatarDecoration: "Can wear custom emoji on their avatar"
+  canUseEmojiAsAvatarDecoration_caption: "Lets members of this role wear this server's custom emoji as an avatar decoration. Sensitive emoji cannot be picked. The number that can be worn is shared with \"Max avatar decorations\" — emoji and the decorations registered by the administrator are counted together."
   emojiApplicationMaxPerDay: "Custom emoji request limit (per day)"
   emojiApplicationMaxPerWeek: "Custom emoji request limit (per week)"
   emojiApplicationMaxPerMonth: "Custom emoji request limit (per 30 days)"

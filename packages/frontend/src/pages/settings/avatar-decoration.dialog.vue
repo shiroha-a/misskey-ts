@@ -20,6 +20,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<MkAvatar style="width: 64px; height: 64px; margin-bottom: 20px;" :user="$i" :decorations="decorationsForPreview" forceShowDecoration/>
 			</div>
 			<div class="_gaps_s">
+				<!--
+					大きさ (#2975、mk-go 独自)。**拡大は無い** — `.decoration` は
+					既にアバターの 2 倍の枠に描かれるので、1 が upstream と同じ
+					最大サイズになる。余白を持たないカスタム絵文字はそのままだと
+					アイコンを覆うため、ここで縮める。
+				-->
+				<MkRange v-model="scale" continuousUpdate :min="0.1" :max="1" :step="0.05" :textConverter="(v) => `${Math.round(v * 100)}%`">
+					<template #label>{{ i18n.ts._mkgoAvatarDecoration.size }}</template>
+				</MkRange>
 				<MkRange v-model="angle" continuousUpdate :min="-0.5" :max="0.5" :step="0.025" :textConverter="(v) => `${Math.floor(v * 360)}°`">
 					<template #label>{{ i18n.ts.angle }}</template>
 				</MkRange>
@@ -57,6 +66,11 @@ const $i = ensureSignin();
 
 const props = defineProps<{
 	usingIndex: number | null;
+	/**
+	 * 新規装着のときの大きさの初期値 (#2975、mk-go 独自)。カスタム絵文字は
+	 * 余白を持たないので、呼び出し側が小さめの値を渡す。省略で 1。
+	 */
+	defaultScale?: number;
 	decoration: {
 		id: string;
 		url: string;
@@ -72,12 +86,14 @@ const emit = defineEmits<{
 		flipH: boolean;
 		offsetX: number;
 		offsetY: number;
+		scale: number;
 	}): void;
 	(ev: 'update', payload: {
 		angle: number;
 		flipH: boolean;
 		offsetX: number;
 		offsetY: number;
+		scale: number;
 	}): void;
 	(ev: 'detach'): void;
 }>();
@@ -89,6 +105,13 @@ const angle = ref((props.usingIndex != null ? $i.avatarDecorations[props.usingIn
 const flipH = ref((props.usingIndex != null ? $i.avatarDecorations[props.usingIndex].flipH : null) ?? false);
 const offsetX = ref((props.usingIndex != null ? $i.avatarDecorations[props.usingIndex].offsetX : null) ?? 0);
 const offsetY = ref((props.usingIndex != null ? $i.avatarDecorations[props.usingIndex].offsetY : null) ?? 0);
+// mk-go 独自 (#2975)。autogen 型に無いのでキャストで読む。装着済みなら保存値、
+// 新規なら呼び出し側の既定 (絵文字は小さめ)、どちらも無ければ 1。
+const scale = ref(
+	(props.usingIndex != null
+		? ($i.avatarDecorations[props.usingIndex] as { scale?: number }).scale
+		: null) ?? props.defaultScale ?? 1,
+);
 
 const decorationsForPreview = computed(() => {
 	const decoration = {
@@ -98,6 +121,7 @@ const decorationsForPreview = computed(() => {
 		flipH: flipH.value,
 		offsetX: offsetX.value,
 		offsetY: offsetY.value,
+		scale: scale.value,
 		blink: true,
 	};
 	const decorations = [...$i.avatarDecorations];
@@ -119,6 +143,7 @@ async function update() {
 		flipH: flipH.value,
 		offsetX: offsetX.value,
 		offsetY: offsetY.value,
+		scale: scale.value,
 	});
 	dialog.value?.close();
 }
@@ -129,6 +154,7 @@ async function attach() {
 		flipH: flipH.value,
 		offsetX: offsetX.value,
 		offsetY: offsetY.value,
+		scale: scale.value,
 	});
 	dialog.value?.close();
 }

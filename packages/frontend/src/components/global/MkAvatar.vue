@@ -56,8 +56,12 @@ import { prefer } from '@/preferences.js';
 const animation = ref(prefer.s.animation);
 const squareAvatars = ref(prefer.s.squareAvatars);
 
-type Decoration = Misskey.entities.UserDetailed['avatarDecorations'][number];
-type DecorationEditorDecoration = Omit<Misskey.entities.UserDetailed['avatarDecorations'][number], 'id'> & { blink?: boolean; };
+// `scale` は mk-go 独自の additive field (#2975)。misskey-js の autogen 型は
+// openapi から再生成されるので足しても次の生成で消える。ここで交差型として
+// 足し、**省略を許す** (無ければ 1 = upstream と同じ大きさ)。
+type MkGoDecorationExtras = { scale?: number; };
+type Decoration = Misskey.entities.UserDetailed['avatarDecorations'][number] & MkGoDecorationExtras;
+type DecorationEditorDecoration = Omit<Misskey.entities.UserDetailed['avatarDecorations'][number], 'id'> & MkGoDecorationExtras & { blink?: boolean; };
 
 const props = withDefaults(defineProps<{
 	user: Misskey.entities.User;
@@ -107,8 +111,14 @@ function getDecorationAngle(decoration: Decoration | DecorationEditorDecoration)
 }
 
 function getDecorationScale(decoration: Decoration | DecorationEditorDecoration) {
-	const scaleX = decoration.flipH ? -1 : 1;
-	return scaleX === 1 ? undefined : `${scaleX} 1`;
+	// **無ければ 1** — upstream と同じ大きさになる。
+	//
+	// `.decoration` は `top:-50%; left:-50%; width:200%` でアバターの 2 倍の枠に
+	// 描くので、余白を持たないカスタム絵文字は既定だとアイコンを覆ってしまう。
+	// backend は 1 を超える値を弾くため、ここでの結果も拡大にはならない。
+	const size = typeof decoration.scale === 'number' && decoration.scale > 0 ? decoration.scale : 1;
+	const scaleX = decoration.flipH ? -size : size;
+	return scaleX === 1 && size === 1 ? undefined : `${scaleX} ${size}`;
 }
 
 function getDecorationOffset(decoration: Decoration | DecorationEditorDecoration) {

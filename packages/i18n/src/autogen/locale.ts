@@ -13886,6 +13886,14 @@ export interface Locale extends ILocale {
          */
         "canRequestCustomEmojis_caption": string;
         /**
+         * カスタム絵文字をアイコンに重ねられる
+         */
+        "canUseEmojiAsAvatarDecoration": string;
+        /**
+         * このサーバーのカスタム絵文字を、アバターデコレーションとして自分のアイコンに重ねられるようにします。センシティブな絵文字は選べません。重ねられる個数は「アバターデコレーションの最大数」と共通で、管理者が登録したデコレーションと合計で数えます。
+         */
+        "canUseEmojiAsAvatarDecoration_caption": string;
+        /**
          * 分割アップロードを許可
          */
         "canUseChunkedUpload": string;
@@ -13933,6 +13941,44 @@ export interface Locale extends ILocale {
          * 直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。0 はこの期間の上限なしという意味ですが、複数のロールに属している利用者には大きい方の値が採用されるため、個別のロールに 0 を入れてもベースロールの上限は外れません (外すにはそのロールの優先度を上げてください)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。
          */
         "emojiApplicationQuota_caption": string;
+    };
+    "_mkgoAvatarDecoration": {
+        /**
+         * 大きさ
+         */
+        "size": string;
+        /**
+         * 絵文字を選ぶ
+         */
+        "chooseEmoji": string;
+        /**
+         * このサーバーのカスタム絵文字をアイコンに重ねられます。重ねられる個数は管理者が登録したデコレーションと共通です。
+         */
+        "emojiCaption": string;
+        /**
+         * カスタム絵文字を選んでください。Unicodeの絵文字は重ねられません。
+         */
+        "customEmojiOnly": string;
+        /**
+         * 絵文字 :{name}: は見つかりませんでした。削除された可能性があります。
+         */
+        "noSuchEmoji": ParameterizedString<"name">;
+        /**
+         * 選んだ絵文字は見つかりませんでした。削除されたか、名前が変わった可能性があります。
+         */
+        "emojiGone": string;
+        /**
+         * この絵文字はアイコンに重ねられません。ロールの設定で許可されていません。
+         */
+        "emojiRestrictedByRole": string;
+        /**
+         * センシティブな絵文字はアイコンに重ねられません。
+         */
+        "sensitiveEmojiNotAllowed": string;
+        /**
+         * ロールの設定でカスタム絵文字のデコレーションが使えなくなっていますが、{n}個装着したままです。外すまで他のデコレーションも変更できません。上の「使用中」から選んで解除してください。
+         */
+        "emojiDisabledButWorn": ParameterizedString<"n">;
     };
     "_mkgoNotification": {
         /**
