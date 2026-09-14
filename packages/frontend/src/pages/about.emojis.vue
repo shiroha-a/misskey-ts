@@ -6,6 +6,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 <template>
 <div class="_gaps">
 	<MkButton v-if="$i && ($i.isModerator || $i.policies.canManageCustomEmojis)" primary type="routerLink" to="/custom-emojis-manager">{{ i18n.ts.manageCustomEmojis }}</MkButton>
+	<!--
+		登録申請への導線 (#2989)。**管理ボタンとは同時に出さない** — 管理できる人は
+		申請ではなく直接登録できるので、両方出すと遠回りの選択肢が増えるだけ。
+		`canShowEmojiRequestEntry` が管理権限を除外しているので排他になる。
+	-->
+	<MkButton v-else-if="canRequestEmoji" primary type="routerLink" to="/emoji-request"><i class="ti ti-mood-plus"></i> {{ i18n.ts._emojiApplication.entryFromEmojiList }}</MkButton>
 
 	<div class="query">
 		<MkInput v-model="q" class="" :placeholder="i18n.ts.search" autocapitalize="off">
@@ -39,6 +45,10 @@ import MkFoldableSection from '@/components/MkFoldableSection.vue';
 import { customEmojis, customEmojiCategories } from '@/custom-emojis.js';
 import { i18n } from '@/i18n.js';
 import { $i } from '@/i.js';
+import { useEmojiRequestEntry } from '@/utility/emoji-request-entry.js';
+
+// 導線の判定は共通ヘルパー (3 箇所で式を書き分けない、#2989)。
+const canRequestEmoji = useEmojiRequestEntry();
 
 const q = ref('');
 const searchEmojis = ref<Misskey.entities.EmojiSimple[] | null>(null);

@@ -110,13 +110,32 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<MkInfo v-else-if="mine.length === 0">{{ i18n.ts._emojiApplication.noneOfMine }}</MkInfo>
 			<div v-else class="_gaps_s">
 				<MkFolder v-for="app in mine" :key="app.id" :defaultOpen="app.status === 'rejected'">
-					<template #icon><i :class="app.remoteHost ? 'ti ti-world-download' : 'ti ti-mood-smile'"></i></template>
+					<!--
+						**折りたたんだ状態でも画像で見分けられるようにする (#2989)。**
+						名前だけだと、似た名前の申請・再申請・リモート申請を見比べた
+						ときにどれがどれか分からない。画像を出せないときは従来の
+						種別アイコンへ戻す。
+					-->
+					<template #icon>
+						<img v-if="previewUrls.get(app.id)" :src="previewUrls.get(app.id)!" :alt="app.name" :class="$style.mineThumb" loading="lazy" @error="onPreviewError(app)"/>
+						<i v-else :class="app.remoteHost ? 'ti ti-world-download' : 'ti ti-mood-smile'"></i>
+					</template>
 					<template #label><span class="_monospace">:{{ app.name }}:</span></template>
 					<template #suffix>
 						<span :class="[$style.status, $style[app.status]]">{{ statusLabel(app.status) }}</span>
 					</template>
 
 					<div class="_gaps_s">
+						<!--
+							**「無い」の理由を出し分ける (#2989)。** 申請元が消えた /
+							承認後の絵文字が消された / 確認できなかった / 読み込みに
+							失敗した、は利用者に伝えるべきことが違う。API が
+							`preview.state` で返すので、こちらで推測しない。
+						-->
+						<div :class="$style.minePreviewBox">
+							<img v-if="previewUrls.get(app.id)" :src="previewUrls.get(app.id)!" :alt="app.name" :class="$style.minePreviewImg" loading="lazy" @error="onPreviewError(app)"/>
+							<span v-else :class="$style.minePreviewGone">{{ previewMessage(app) }}</span>
+						</div>
 						<MkKeyValue v-if="app.remoteHost" oneline>
 							<template #key>{{ i18n.ts._emojiApplication.remoteSource }}</template>
 							<template #value><span class="_monospace">:{{ app.remoteName }}:@{{ app.remoteHost }}</span></template>
@@ -161,6 +180,8 @@ import MkTextarea from '@/components/MkTextarea.vue';
 import MkLoading from '@/components/global/MkLoading.vue';
 import MkTime from '@/components/global/MkTime.vue';
 import { i18n } from '@/i18n.js';
+import { applicationPreviewMessage, applicationPreviewUrl } from '@/utility/emoji-request-preview.js';
+import type { ApplicationPreview } from '@/utility/emoji-request-preview.js';
 import { definePage } from '@/page.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { selectFile, uploadFile } from '@/utility/drive.js';
@@ -180,6 +201,10 @@ type Application = {
 	// kind = remote (#2935) のときだけ入る。
 	remoteHost?: string;
 	remoteName?: string;
+	// 画像の解決結果 (#2989)。**URL が空かどうかで状態を推測しない** —
+	// 「削除された」「確認できなかった」「承認後の絵文字が消された」は
+	// 出す文面が違う。
+	preview?: ApplicationPreview;
 };
 
 // upstream の admin/emoji/add と同じ制約。**申請側で先に弾く** — 承認まで
@@ -205,6 +230,30 @@ const comment = ref('');
 
 const mine = ref<Application[]>([]);
 const fetching = ref(false);
+
+// **読み込みに失敗した申請の id (#2989)。** `<img>` は失敗しても壊れた画像の
+// まま黙っているので、出ていないのに「ある」ように見える。API 上は存在するので
+// 「削除済み」とは別の文面を出す (審査画面 #2957 と同じ判断)。
+const brokenPreviews = ref<Set<string>>(new Set());
+
+function onPreviewError(app: Application): void {
+	// Set を差し替えないと template が再評価されない。
+	brokenPreviews.value = new Set(brokenPreviews.value).add(app.id);
+}
+
+// **1 行につき 1 回だけ解決する。** template から関数を呼ぶと再描画のたびに
+// `getProxiedImageUrl` が走り、同値でも別の URL インスタンスになる。
+const previewUrls = computed(() => {
+	const map = new Map<string, string | null>();
+	for (const app of mine.value) {
+		map.set(app.id, applicationPreviewUrl(app.preview, brokenPreviews.value.has(app.id)));
+	}
+	return map;
+});
+
+function previewMessage(app: Application): string {
+	return applicationPreviewMessage(app.preview, brokenPreviews.value.has(app.id));
+}
 
 const nameValid = computed(() => NAME_RE.test(name.value));
 // ライセンスも必須。出典が辿れないと、問題が出たときに消すしか手が無くなる。
@@ -416,6 +465,10 @@ function statusLabel(status: Application['status']): string {
 }
 
 async function loadMine() {
+	// **読み込み直したら失敗の記録も捨てる (#2989)。** 残すと、proxy の一時的な
+	// 失敗で 1 行が欠けたあと、画像が復旧してもその行だけ「読み込めません」の
+	// まま戻らない (審査画面が同じ判断をしている)。
+	brokenPreviews.value = new Set();
 	fetching.value = true;
 	try {
 		mine.value = await misskeyApi('emoji-application/list-mine' as never, { limit: 50 } as never) as unknown as Application[];
@@ -462,6 +515,47 @@ definePage(computed(() => ({
 </script>
 
 <style lang="scss" module>
+/*
+	「自分の申請」のプレビュー (#2989)。
+
+	**クラス名を申請タブと分ける。** この CSS module には申請タブ用の
+	`.preview` / `.previewImg` が既にあり、同じ名前で足すと後から来る側が勝つ。
+	実際それで枠が `grid-template-columns: 96px 1fr` になり、画像が左カラムへ
+	寄って中央から外れていた (本番で指摘された)。
+
+	枠の作りは審査画面 (`custom-emojis-manager.applications.vue`) の
+	`.previewBox` と同じ — 透過画像は `--MI_THEME-bg` が panel と対比するので、
+	白い絵文字でも輪郭が分かる。
+*/
+.mineThumb {
+	width: 1.4em;
+	height: 1.4em;
+	object-fit: contain;
+	vertical-align: middle;
+}
+
+.minePreviewBox {
+	width: 96px;
+	height: 96px;
+	display: grid;
+	place-items: center;
+	border-radius: var(--MI-radius-sm);
+	background: var(--MI_THEME-bg);
+}
+
+.minePreviewImg {
+	max-width: 96px;
+	max-height: 96px;
+	object-fit: contain;
+}
+
+.minePreviewGone {
+	padding: 0 8px;
+	font-size: 0.8em;
+	text-align: center;
+	opacity: 0.7;
+}
+
 .status {
 	font-size: 0.9em;
 	font-weight: bold;

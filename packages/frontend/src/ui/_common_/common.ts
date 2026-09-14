@@ -9,6 +9,7 @@ import type { MenuItem } from '@/types/menu.js';
 import * as os from '@/os.js';
 import { instance } from '@/instance.js';
 import { i18n } from '@/i18n.js';
+import { canShowEmojiRequestEntry } from '@/utility/emoji-request-entry.js';
 import { $i } from '@/i.js';
 
 function toolsMenuItems(): MenuItem[] {
@@ -109,6 +110,20 @@ export function openInstanceMenu(ev: PointerEvent) {
 		icon: 'ti ti-help-circle',
 		to: '/contact',
 	});
+
+	// カスタム絵文字の登録申請への導線 (#2989)。**お問い合わせの直下**に置く —
+	// 運営へ何かを頼む導線という点で近く、探す場所が同じになる。
+	//
+	// 判定は共通ヘルパー。3 つある導線で式を書き分けると、条件を変えたときに
+	// 一部の画面だけ違う状態が残る。
+	if (canShowEmojiRequestEntry()) {
+		menuItems.push({
+			type: 'link',
+			text: i18n.ts._emojiApplication.entryFromInstanceMenu,
+			icon: 'ti ti-mood-plus',
+			to: '/emoji-request',
+		});
+	}
 
 	if (instance.impressumUrl) {
 		menuItems.push({

@@ -3568,6 +3568,13 @@ _qr:
   raw: "Text"
   mfm: "MFM"
 _emojiApplication:
+  previewFileGone: "File deleted"
+  entryFromEmojiList: "Request an emoji"
+  entryFromInstanceMenu: "Emoji requests"
+  previewRemoteGone: "The source remote emoji was not found"
+  previewApprovedEmojiGone: "The emoji was deleted after approval"
+  previewUnknown: "Could not load the image"
+  previewLoadFailed: "The image failed to load"
   title: "Request a custom emoji"
   tabTitle: "Requests"
   tabApply: "Request"
