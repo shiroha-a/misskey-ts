@@ -371,6 +371,13 @@ export const ROUTE_DEF = [{
 }, {
 	path: '/custom-emojis-manager',
 	component: page(() => import('@/pages/custom-emojis-manager.vue')),
+	// 申請の通知から審査タブへ直接飛ぶ (#2987)。**宣言しないと props に
+	// 入らない** — nirax が query を渡すのは `query:` を持つルートだけで、
+	// 宣言が無いと props が常に空になり、同じパスへの遷移でコンポーネントが
+	// 作り直されず KeepAlive のキャッシュもそのまま返る。
+	query: {
+		tab: 'tab',
+	},
 }, {
 	path: '/avatar-decorations',
 	name: 'avatarDecorations',
@@ -413,6 +420,10 @@ export const ROUTE_DEF = [{
 		path: '/emojis',
 		name: 'emojis',
 		component: page(() => import('@/pages/custom-emojis-manager.vue')),
+		// 同じ画面なので `?tab=` の受け口も揃える (#2987)。
+		query: {
+			tab: 'tab',
+		},
 	}, {
 		path: '/emojis2',
 		name: 'emojis2',

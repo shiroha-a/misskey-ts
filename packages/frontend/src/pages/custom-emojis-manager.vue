@@ -78,7 +78,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <script lang="ts" setup>
 import * as Misskey from 'misskey-js';
-import { computed, markRaw, ref } from 'vue';
+import { computed, markRaw, ref, watch } from 'vue';
 import MkButton from '@/components/MkButton.vue';
 import MkInput from '@/components/MkInput.vue';
 import MkPagination from '@/components/MkPagination.vue';
@@ -98,6 +98,29 @@ import { Paginator } from '@/utility/paginator.js';
 // **型を明示する。** 素の `ref('local')` は `Ref<string>` になるので、
 // タブのキーを打ち間違えても何も言われない。
 const tab = ref<'local' | 'remote' | 'applications'>('local');
+
+/**
+ * 通知から審査タブへ直接来られるようにする (#2987)。
+ *
+ * **`window.location` を読まない。** nirax の props で受ける — 同じパスへの
+ * 遷移ではコンポーネントが作り直されず、`KeepAlive` がインスタンスを保持する
+ * ので、setup で 1 回読む形だと「既にこの画面を開いている」「一度開いてタブを
+ * 切り替えた後」のどちらでもタブが動かない。`/admin/abuses?reportId=` (#2868)
+ * と同じ受け方に揃える。
+ *
+ * **リンク先がこの画面なのは到達性のため** — `/admin/*` は `iAmModerator` gate
+ * を持つので、モデレーターではない絵文字管理者は beta 画面に入れない。この画面は
+ * `/custom-emojis-manager` でも配信されていて gate が無い。
+ */
+const props = defineProps<{
+	tab?: string;
+}>();
+
+watch(() => props.tab, v => {
+	if (v === 'local' || v === 'remote' || v === 'applications') {
+		tab.value = v;
+	}
+}, { immediate: true });
 const query = ref<string | null>(null);
 const queryRemote = ref<string | null>(null);
 const host = ref<string | null>(null);

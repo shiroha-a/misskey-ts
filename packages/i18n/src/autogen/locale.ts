@@ -13982,6 +13982,30 @@ export interface Locale extends ILocale {
     };
     "_mkgoNotification": {
         /**
+         * 絵文字 :{name}: の登録申請が届きました
+         */
+        "emojiApplicationReceived": ParameterizedString<"name">;
+        /**
+         * 絵文字の登録申請
+         */
+        "emojiApplicationReceivedLabel": string;
+        /**
+         * アカウントの登録申請が届きました
+         */
+        "signupApplicationReceived": string;
+        /**
+         * 処理済み
+         */
+        "applicationProcessed": string;
+        /**
+         * 申請を確認
+         */
+        "openApplication": string;
+        /**
+         * 絵文字の申請の通知は、カスタム絵文字を管理できる利用者にのみ届きます。モデレーター権限だけでは届きません。
+         */
+        "emojiApplicationReviewerOnly": string;
+        /**
          * 通報がありました
          */
         "abuseReport": string;
