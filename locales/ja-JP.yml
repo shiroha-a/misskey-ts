@@ -3721,6 +3721,8 @@ _signatureCapability:
 _mkgoRolePolicy:
   canRequestCustomEmojis: "カスタム絵文字の登録を申請できる"
   canRequestCustomEmojis_caption: "自作の絵文字の登録をモデレーターに申請できます。実際に登録されるのは承認された後です。"
+  canUseEmojiAsAvatarDecoration: "カスタム絵文字をアイコンに重ねられる"
+  canUseEmojiAsAvatarDecoration_caption: "このサーバーのカスタム絵文字を、アバターデコレーションとして自分のアイコンに重ねられるようにします。センシティブな絵文字は選べません。重ねられる個数は「アバターデコレーションの最大数」と共通で、管理者が登録したデコレーションと合計で数えます。"
   canUseChunkedUpload: "分割アップロードを許可"
   canUseChunkedUpload_caption: "大きなファイルを分割して送る方式を、このロールのメンバーに許可します。サーバー全体の設定 (コントロールパネル → オブジェクトストレージ) が無効なら、ここで許可しても使えません。"
   chunkedUploadMaxConcurrentSessions: "分割アップロードの同時セッション数"
@@ -3733,6 +3735,17 @@ _mkgoRolePolicy:
   emojiApplicationMaxPending_caption: "同時に審査待ちにできる申請の件数です。期間の上限と違い、却下・取り下げ・承認で枠が戻ります。モデレーターが見る一覧の長さを抑えるための設定で、期間の上限とは効く場面が違います。0 はこの上限なしという意味ですが、複数のロールに属している利用者には大きい方の値が採用されるため、個別のロールに 0 を入れてもベースロールの上限は外れません (外すにはそのロールの優先度を上げてください)。"
   emojiApplicationQuotaUnlimited: "上限なし"
   emojiApplicationQuota_caption: "直前のその期間に出された申請をすべて数えます (却下や取り下げも含みます)。0 はこの期間の上限なしという意味ですが、複数のロールに属している利用者には大きい方の値が採用されるため、個別のロールに 0 を入れてもベースロールの上限は外れません (外すにはそのロールの優先度を上げてください)。申請できるかどうか自体は「カスタム絵文字の登録を申請できる」で決まります。"
+
+_mkgoAvatarDecoration:
+  size: "大きさ"
+  chooseEmoji: "絵文字を選ぶ"
+  emojiCaption: "このサーバーのカスタム絵文字をアイコンに重ねられます。重ねられる個数は管理者が登録したデコレーションと共通です。"
+  customEmojiOnly: "カスタム絵文字を選んでください。Unicodeの絵文字は重ねられません。"
+  noSuchEmoji: "絵文字 :{name}: は見つかりませんでした。削除された可能性があります。"
+  emojiGone: "選んだ絵文字は見つかりませんでした。削除されたか、名前が変わった可能性があります。"
+  emojiRestrictedByRole: "この絵文字はアイコンに重ねられません。ロールの設定で許可されていません。"
+  sensitiveEmojiNotAllowed: "センシティブな絵文字はアイコンに重ねられません。"
+  emojiDisabledButWorn: "ロールの設定でカスタム絵文字のデコレーションが使えなくなっていますが、{n}個装着したままです。外すまで他のデコレーションも変更できません。上の「使用中」から選んで解除してください。"
 
 _mkgoNotification:
   abuseReport: "通報がありました"

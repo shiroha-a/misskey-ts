@@ -9,7 +9,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	@click="emit('click')"
 >
 	<div :class="$style.name"><MkCondensedLine :minScale="0.5">{{ decoration.name }}</MkCondensedLine></div>
-	<MkAvatar style="width: 60px; height: 60px;" :user="$i" :decorations="[{ url: decoration.url, angle, flipH, offsetX, offsetY }]" forceShowDecoration/>
+	<MkAvatar style="width: 60px; height: 60px;" :user="$i" :decorations="[{ url: decoration.url, angle, flipH, offsetX, offsetY, scale }]" forceShowDecoration/>
 	<i v-if="locked" :class="$style.lock" class="ti ti-lock"></i>
 </div>
 </template>
@@ -32,6 +32,8 @@ const props = defineProps<{
 	flipH?: boolean;
 	offsetX?: number;
 	offsetY?: number;
+	/** mk-go 独自 (#2975)。省略で 1。 */
+	scale?: number;
 }>();
 
 const emit = defineEmits<{

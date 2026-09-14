@@ -140,6 +140,7 @@ const mkGoRolePolicyKeys: string[] = [
 	...Misskey.rolePolicies,
 	'optOutNotificationTypes',
 	'canRequestCustomEmojis',
+	'canUseEmojiAsAvatarDecoration',
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',

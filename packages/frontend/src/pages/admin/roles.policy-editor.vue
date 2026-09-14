@@ -224,6 +224,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</template>
 		</XFolder>
 
+		<!--
+			カスタム絵文字をアバターデコレーションとして重ねられるか (#2975)。mk-go 独自。
+			**個数の policy は無い** — 既存の avatarDecorationLimit に合算する。
+		-->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canUseEmojiAsAvatarDecoration, 'canUseEmojiAsAvatarDecoration'])" v-model:policyMeta="canUseEmojiAsAvatarDecorationMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.canUseEmojiAsAvatarDecoration }}</template>
+			<template #valueText>{{ canUseEmojiAsAvatarDecoration ? i18n.ts.yes : i18n.ts.no }}</template>
+			<template #default="{ disabled }">
+				<MkSwitch v-model="canUseEmojiAsAvatarDecoration" :disabled="disabled">
+					<template #label>{{ i18n.ts.enable }}</template>
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.canUseEmojiAsAvatarDecoration_caption }}</template>
+				</MkSwitch>
+			</template>
+		</XFolder>
+
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canUseChunkedUpload, 'canUseChunkedUpload'])" v-model:policyMeta="canUseChunkedUploadMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload }}</template>
 			<template #valueText>{{ canUseChunkedUpload ? i18n.ts.yes : i18n.ts.no }}</template>
@@ -600,6 +615,7 @@ const mkGoPolicyMetaKeys: string[] = [
 	...Misskey.rolePolicies,
 	'optOutNotificationTypes',
 	'canRequestCustomEmojis',
+	'canUseEmojiAsAvatarDecoration',
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
@@ -673,6 +689,8 @@ const optOutPolicyMeta = mkGoPolicyMeta('optOutNotificationTypes');
 // そのものを既定で塞がない。effectivepolicy の default と揃えること。
 const canRequestCustomEmojis = mkGoPolicyValue('canRequestCustomEmojis', true);
 const canRequestCustomEmojisMeta = mkGoPolicyMeta('canRequestCustomEmojis');
+const canUseEmojiAsAvatarDecoration = mkGoPolicyValue('canUseEmojiAsAvatarDecoration', true);
+const canUseEmojiAsAvatarDecorationMeta = mkGoPolicyMeta('canUseEmojiAsAvatarDecoration');
 const canUseChunkedUpload = mkGoPolicyValue('canUseChunkedUpload', true);
 const canUseChunkedUploadMeta = mkGoPolicyMeta('canUseChunkedUpload');
 const chunkedUploadMaxConcurrentSessions = mkGoPolicyValue('chunkedUploadMaxConcurrentSessions', 4);
