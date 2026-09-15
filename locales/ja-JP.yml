@@ -2398,6 +2398,9 @@ _remoteEmojiImport:
   unsupported: "相手のサーバーからは詳細を取得できないため、カテゴリやタグは手で入力してください。"
   fetchFailed: "相手のサーバーから詳細を取得できませんでした。手で入力するか、時間をおいて試してください。"
   aliasesCaption: "スペース区切りで入力します。"
+  nameCaption: "英数字とアンダースコアのみ、128 文字以内。"
+  invalidName: "この名前はそのままでは使えません。直してからインポートしてください。"
+  invalidNameBulk: "名前をそのままでは使えない絵文字が含まれています。その絵文字は個別にインポートして名前を直してください。"
 
 _displayOfSensitiveMedia:
   respect: "センシティブ設定されたメディアを隠す"

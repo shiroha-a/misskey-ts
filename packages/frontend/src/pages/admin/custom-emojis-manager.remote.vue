@@ -151,6 +151,7 @@ import { misskeyApi } from '@/utility/misskey-api.js';
 import { getProxiedImageUrl, getStaticImageUrl } from '@/utility/media-proxy.js';
 import { prefer } from '@/preferences.js';
 import { i18n } from '@/i18n.js';
+import { isUsableEmojiName } from '@/utility/emoji-name.js';
 import MkButton from '@/components/MkButton.vue';
 import MkInput from '@/components/MkInput.vue';
 import MkGrid from '@/components/grid/MkGrid.vue';
@@ -313,6 +314,24 @@ function onGridCellValueChange(event: GridCellValueChangeEvent) {
 }
 
 async function importEmojis(targets: GridItem[]) {
+	// **そのまま使えない名前は先に外す (#2998)。** backend が 400 で弾くので、
+	// 混ざったまま投げると「何か問題が」としか出ず、どれが原因か分からない。
+	// 名前を直して取り込むには個別のダイアログが要るので、そちらへ誘導する。
+	const unusable = targets.filter(it => !isUsableEmojiName(it.name));
+	if (unusable.length > 0) {
+		// **どれを外したか出す。** 件数だけだと、100 行選んで 1 行外れたときに
+		// 何が落ちたのか分からない (この guard の動機がまさにそれ)。
+		await os.alert({
+			type: 'warning',
+			title: i18n.ts.somethingHappened,
+			text: `${i18n.ts._remoteEmojiImport.invalidNameBulk}\n\n${unusable.map(it => `:${it.name}:`).join(' ')}`,
+		});
+		targets = targets.filter(it => isUsableEmojiName(it.name));
+		if (targets.length === 0) {
+			return;
+		}
+	}
+
 	const confirm = await os.confirm({
 		type: 'info',
 		title: i18n.ts._customEmojisManager._remote.confirmImportEmojisTitle,

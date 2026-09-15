@@ -9168,6 +9168,18 @@ export interface Locale extends ILocale {
          * スペース区切りで入力します。
          */
         "aliasesCaption": string;
+        /**
+         * 英数字とアンダースコアのみ、128 文字以内。
+         */
+        "nameCaption": string;
+        /**
+         * この名前はそのままでは使えません。直してからインポートしてください。
+         */
+        "invalidName": string;
+        /**
+         * 名前をそのままでは使えない絵文字が含まれています。その絵文字は個別にインポートして名前を直してください。
+         */
+        "invalidNameBulk": string;
     };
     "_displayOfSensitiveMedia": {
         /**
