@@ -1,4 +1,9 @@
 /*
+ * SPDX-FileCopyrightText: syuilo and misskey-project
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+/*
  * mk-go 版の e2e setup。
  *
  * 本家の `setup.e2e.ts` は `initTestDb(false)` で TypeORM のエンティティ定義から
