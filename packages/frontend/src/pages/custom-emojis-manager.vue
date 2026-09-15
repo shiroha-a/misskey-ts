@@ -91,6 +91,7 @@ import { misskeyApi } from '@/utility/misskey-api.js';
 import { getProxiedImageUrl } from '@/utility/media-proxy.js';
 import XApplicationsComponent from '@/pages/admin/custom-emojis-manager.applications.vue';
 import { i18n } from '@/i18n.js';
+import { isUsableEmojiName } from '@/utility/emoji-name.js';
 import { iAmAdmin } from '@/i.js';
 import { definePage } from '@/page.js';
 import { Paginator } from '@/utility/paginator.js';
@@ -213,7 +214,18 @@ const detailRemoteEmoji = (emoji: {
 	});
 };
 
-const importEmoji = (emojiId: string) => {
+const importEmoji = (emojiId: string, name: string) => {
+	// **そのまま使えない名前はここでは取り込めない (#2998)。** backend が 400 で
+	// 弾くので、押しても「何か問題が」としか出ない。名前を直すには個別のダイアログ
+	// (`MkRemoteEmojiEditDialog`) が要るので、そちらへ誘導する。
+	if (!isUsableEmojiName(name)) {
+		os.alert({
+			type: 'warning',
+			title: i18n.ts.somethingHappened,
+			text: i18n.ts._remoteEmojiImport.invalidName,
+		});
+		return;
+	}
 	os.apiWithDialog('admin/emoji/copy', {
 		emojiId: emojiId,
 	});
@@ -236,7 +248,7 @@ const remoteMenu = (emoji: {
 	}, {
 		text: i18n.ts.import,
 		icon: 'ti ti-plus',
-		action: () => { importEmoji(emoji.id); },
+		action: () => { importEmoji(emoji.id, emoji.name); },
 	}], ev.currentTarget ?? ev.target);
 };
 

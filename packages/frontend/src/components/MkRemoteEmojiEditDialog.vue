@@ -32,10 +32,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 				</div>
 
-				<MkKeyValue>
+				<MkInput v-if="needsRename" v-model="nameInput">
+					<template #label>{{ i18n.ts.name }}</template>
+					<template #caption>{{ i18n.ts._remoteEmojiImport.nameCaption }}</template>
+				</MkInput>
+				<MkKeyValue v-else>
 					<template #key>{{ i18n.ts.name }}</template>
 					<template #value>{{ name }}</template>
 				</MkKeyValue>
+				<MkInfo v-if="needsRename" warn>{{ i18n.ts._remoteEmojiImport.invalidName }}</MkInfo>
 				<MkKeyValue>
 					<template #key>{{ i18n.ts.host }}</template>
 					<template #value>{{ host }}</template>
@@ -78,7 +83,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 		<div :class="$style.footer">
-			<MkButton primary rounded style="margin: 0 auto;" @click="done">
+			<MkButton primary rounded :disabled="!nameOk" style="margin: 0 auto;" @click="done">
 				<i class="ti ti-plus"></i> {{ i18n.ts.import }}
 			</MkButton>
 		</div>
@@ -98,9 +103,10 @@ import MkWindow from '@/components/MkWindow.vue';
 import { emptyStrToEmptyArray } from '@/pages/admin/custom-emojis-manager.impl.js';
 import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
-import type { RemoteEmojiMeta } from '@/utility/import-remote-emoji.js';
+import { isUsableEmojiName } from '@/utility/emoji-name.js';
 import { getProxiedImageUrl, getStaticImageUrl } from '@/utility/media-proxy.js';
 import { prefer } from '@/preferences.js';
+import type { RemoteEmojiMeta } from '@/utility/import-remote-emoji.js';
 
 const props = defineProps<{
 	emoji: {
@@ -133,6 +139,20 @@ const windowEl = useTemplateRef('windowEl');
 
 const name = computed(() => props.emoji.name);
 const host = computed(() => props.emoji.host);
+/**
+ * mk-go: 名前がそのままでは使えないときだけ編集させる (#2998)。
+ *
+ * backend は `^[a-zA-Z0-9_]+$` と 128 文字を要求するが、**リモートの名前は相手が
+ * 決める値**なので満たすとは限らない。満たさないまま取り込むと MFM の `:name:` から
+ * 参照できない絵文字ができるので backend が 400 で弾く。**弾かれるだけだと取り込む
+ * 手段が無くなる**ので、ここで直せるようにする。
+ *
+ * **常に編集可能にはしない。** 普通の絵文字で名前を変える動機は無く、欄を出すと
+ * 「変えてもよいもの」に見える。
+ */
+const needsRename = computed(() => !isUsableEmojiName(props.emoji.name));
+const nameInput = ref(props.emoji.name);
+const nameOk = computed(() => isUsableEmojiName(nameInput.value));
 /**
  * Image URL for the preview, routed through the media proxy (#2903).
  *
@@ -188,6 +208,11 @@ async function done() {
 	// 潰れる (この props は category / aliases / isSensitive を持たないため、
 	// フォームの初期値が空になる)。
 	const params: Record<string, unknown> = { emojiId: props.emoji.id };
+	// **名前は直したときだけ送る (#2998)。** そのまま使える名前に上書きを付けると、
+	// 送る値が増えるだけで挙動は変わらない。
+	if (needsRename.value) {
+		params.name = nameInput.value;
+	}
 	if (editable.value) {
 		params.category = category.value;
 		params.aliases = emptyStrToEmptyArray(aliases.value);
