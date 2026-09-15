@@ -193,7 +193,6 @@ const contributors = [
 	'nananek',
 	'Misaki0331',
 	'JO3QMA',
-	'4sterisk',
 ];
 
 const headerActions = computed(() => []);
