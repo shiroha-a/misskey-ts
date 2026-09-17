@@ -118,6 +118,20 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 				<XServerRules/>
 
+				<SearchMarker :keywords="['minimum', 'username', 'length']">
+					<MkFolder>
+						<template #icon><SearchIcon><i class="ti ti-letter-case"></i></SearchIcon></template>
+						<template #label><SearchLabel>{{ i18n.ts.minimumUsernameLength }}</SearchLabel></template>
+
+						<div class="_gaps">
+							<MkInput v-model="minimumUsernameLength" type="number" :min="MIN_USERNAME_LENGTH" :max="MAX_USERNAME_LENGTH">
+								<template #caption>{{ i18n.ts.minimumUsernameLengthDescription }}</template>
+							</MkInput>
+							<MkButton primary @click="save_minimumUsernameLength">{{ i18n.ts.save }}</MkButton>
+						</div>
+					</MkFolder>
+				</SearchMarker>
+
 				<SearchMarker :keywords="['preserved', 'usernames']">
 					<MkFolder>
 						<template #icon><SearchIcon><i class="ti ti-lock-star"></i></SearchIcon></template>
@@ -253,6 +267,7 @@ import MkButton from '@/components/MkButton.vue';
 import FormLink from '@/components/form/link.vue';
 import MkFolder from '@/components/MkFolder.vue';
 import MkSelect from '@/components/MkSelect.vue';
+import { MAX_USERNAME_LENGTH, MIN_USERNAME_LENGTH } from '@/utility/local-username.js';
 
 const meta = await misskeyApi('admin/meta');
 
@@ -307,6 +322,12 @@ const prohibitedWords = ref(meta.prohibitedWords.join('\n'));
 const prohibitedWordsForNameOfUser = ref(meta.prohibitedWordsForNameOfUser.join('\n'));
 const hiddenTags = ref(meta.hiddenTags.join('\n'));
 const preservedUsernames = ref(meta.preservedUsernames.join('\n'));
+// mk-go: ユーザー名の最小文字数 (#3015)。純正 backend の admin/meta には無い
+// フィールドなので、取れないときは既定値の 1 (= 制限なし) に倒す。
+const minimumUsernameLength = ref<number>(
+	typeof (meta as unknown as Record<string, unknown>).minimumUsernameLength === 'number'
+		? (meta as unknown as Record<string, unknown>).minimumUsernameLength as number
+		: MIN_USERNAME_LENGTH);
 const blockedHosts = ref(meta.blockedHosts.join('\n'));
 const silencedHosts = ref(meta.silencedHosts?.join('\n') ?? '');
 const mediaSilencedHosts = ref(meta.mediaSilencedHosts.join('\n'));
@@ -421,6 +442,14 @@ function onChange_ugcVisibilityForVisitor(value: typeof ugcVisibilityForVisitor.
 	os.apiWithDialog('admin/update-meta', {
 		ugcVisibilityForVisitor: value,
 	}).then(() => {
+		fetchInstance(true);
+	});
+}
+
+function save_minimumUsernameLength() {
+	os.apiWithDialog('admin/update-meta', {
+		minimumUsernameLength: Number(minimumUsernameLength.value),
+	} as never).then(() => {
 		fetchInstance(true);
 	});
 }

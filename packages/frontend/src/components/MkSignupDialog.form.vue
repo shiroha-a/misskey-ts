@@ -25,7 +25,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<span v-else-if="usernameState === 'unavailable'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.ts.unavailable }}</span>
 					<span v-else-if="usernameState === 'error'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.ts.error }}</span>
 					<span v-else-if="usernameState === 'invalid-format'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.ts.usernameInvalidFormat }}</span>
-					<span v-else-if="usernameState === 'min-range'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.ts.tooShort }}</span>
+					<span v-else-if="usernameState === 'min-range'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.tsx.usernameTooShort({ n: minimumUsernameLength }) }}</span>
 					<span v-else-if="usernameState === 'max-range'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.ts.tooLong }}</span>
 				</template>
 			</MkInput>
@@ -92,6 +92,7 @@ import { misskeyApi } from '@/utility/misskey-api.js';
 import { instance } from '@/instance.js';
 import { i18n } from '@/i18n.js';
 import { login } from '@/accounts.js';
+import { resolveLocalUsernameState, resolveMinimumUsernameLength } from '@/utility/local-username.js';
 
 const props = withDefaults(defineProps<{
 	autoSet?: boolean;
@@ -129,6 +130,10 @@ const turnstileResponse = ref<string | null>(null);
 const testcaptchaResponse = ref<string | null>(null);
 const usernameAbortController = ref<null | AbortController>(null);
 const emailAbortController = ref<null | AbortController>(null);
+
+// mk-go: ユーザー名の最小文字数はサーバー設定で決まる (#3015)。
+// 丸め方はサーバーと揃える必要があるので utility 側に置いてある。
+const minimumUsernameLength = computed<number>(() => resolveMinimumUsernameLength(instance));
 
 const shouldDisableSubmitting = computed((): boolean => {
 	return submitting.value ||
@@ -174,12 +179,11 @@ function onChangeUsername(): void {
 	}
 
 	{
-		const err =
-			!username.value.match(/^[a-zA-Z0-9_]+$/) ? 'invalid-format' :
-			username.value.length < 1 ? 'min-range' :
-			username.value.length > 20 ? 'max-range' :
-			null;
-
+		// **`pattern` 属性は触らない。** あちらが見ているのは format schema
+		// (`^[a-zA-Z0-9_]{1,20}$` = サーバーの ValidUsernameFormat と同じ) で、
+		// 最小文字数はそれとは別のサーバー設定。混ぜるとネイティブの検証バブルが
+		// この caption と食い違う。
+		const err = resolveLocalUsernameState(username.value, minimumUsernameLength.value);
 		if (err) {
 			usernameState.value = err;
 			return;

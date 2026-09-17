@@ -61,6 +61,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<MkInput v-model="username" :disabled="busy" pattern="^[a-zA-Z0-9_]+$">
 						<template #label>{{ i18n.ts.username }}</template>
 						<template #prefix>@</template>
+						<template v-if="usernameError" #caption>
+							<span style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i>
+								<template v-if="usernameError === 'invalid-format'">{{ i18n.ts.usernameInvalidFormat }}</template>
+								<template v-else-if="usernameError === 'min-range'">{{ i18n.tsx.usernameTooShort({ n: minimumUsernameLength }) }}</template>
+								<template v-else>{{ i18n.ts.tooLong }}</template>
+							</span>
+						</template>
 					</MkInput>
 					<MkInput v-model="password" type="password" :disabled="busy">
 						<template #label>{{ i18n.ts.password }}</template>
@@ -72,7 +79,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<template #caption>確認メールを送ります。リンクを開くと登録が完了します。</template>
 					</MkInput>
 
-					<MkButton primary rounded :disabled="busy || username === '' || password === '' || (emailRequired && emailAddress === '')" @click="register">
+					<MkButton primary rounded :disabled="busy || username === '' || usernameError != null || password === '' || (emailRequired && emailAddress === '')" @click="register">
 						<i class="ti ti-user-plus"></i> {{ i18n.ts.signup }}
 					</MkButton>
 				</template>
@@ -168,6 +175,7 @@ import { definePage } from '@/page.js';
 import { i18n } from '@/i18n.js';
 import { instance } from '@/instance.js';
 import { login } from '@/accounts.js';
+import { resolveLocalUsernameState, resolveMinimumUsernameLength } from '@/utility/local-username.js';
 
 type ApplicationStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'completed';
 
@@ -193,6 +201,15 @@ function api<T>(endpoint: string, params: Record<string, unknown> = {}): Promise
 const claimCode = ref('');
 const issuedCode = ref('');
 const username = ref('');
+// mk-go: この画面は承認制の登録経路で、`MkSignupDialog.form.vue` と**同じ制限**を
+// 受ける (#3015)。**事前チェックが無いと理由が一切伝わらない** — サーバーは
+// `signupServiceError` 経由で Fastify 形式の 400 を返すが、あの形は code を
+// `message` にしか載せないので `message()` の switch には届かず、
+// 「処理に失敗しました。時間をおいて試してください。」だけが出る (時間をおいても直らない)。
+const minimumUsernameLength = computed<number>(() => resolveMinimumUsernameLength(instance));
+const usernameError = computed(() => username.value === ''
+	? null
+	: resolveLocalUsernameState(username.value, minimumUsernameLength.value));
 const password = ref('');
 const emailAddress = ref('');
 const confirmationSent = ref(false);
@@ -316,6 +333,7 @@ function message(err: unknown): string {
 		case 'UNAVAILABLE': return 'このサーバーでは承認制の登録を受け付けていません。';
 		case 'INVALID_USERNAME': return 'そのユーザー名は使えません。';
 		case 'USED_USERNAME': return 'そのユーザー名は既に使われています。';
+		case 'USERNAME_TOO_SHORT': return `ユーザー名は${minimumUsernameLength.value}文字以上にしてください。`;
 		case 'DUPLICATED_USERNAME': return 'そのユーザー名は既に使われています。';
 		case 'PASSWORD_TOO_LONG': return 'パスワードが長すぎます。';
 		default: return '処理に失敗しました。時間をおいて試してください。';
