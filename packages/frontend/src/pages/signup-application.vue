@@ -124,7 +124,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 								<template #label>{{ field.label }}<span v-if="field.required"> *</span></template>
 							</MkInput>
 						</template>
-						<MkCaptcha v-if="captchaProvider" v-model="captchaResponse" :provider="captchaProvider" :sitekey="captchaSiteKey"/>
+						<MkCaptcha v-if="instance.enableHcaptcha" v-model="hCaptchaResponse" provider="hcaptcha" :sitekey="instance.hcaptchaSiteKey"/>
+						<MkCaptcha v-if="instance.enableMcaptcha" v-model="mCaptchaResponse" provider="mcaptcha" :sitekey="instance.mcaptchaSiteKey" :instanceUrl="instance.mcaptchaInstanceUrl"/>
+						<MkCaptcha v-if="instance.enableRecaptcha" v-model="reCaptchaResponse" provider="recaptcha" :sitekey="instance.recaptchaSiteKey"/>
+						<MkCaptcha v-if="instance.enableTurnstile" v-model="turnstileResponse" provider="turnstile" :sitekey="instance.turnstileSiteKey"/>
+						<MkCaptcha v-if="instance.enableTestcaptcha" v-model="testcaptchaResponse" provider="testcaptcha" :sitekey="null"/>
 						<MkButton primary rounded :disabled="busy || waitingForForm" @click="apply">
 							<i class="ti ti-send"></i> 申請する
 						</MkButton>
@@ -219,7 +223,17 @@ const emailRequired = computed(() => instance.emailRequiredForSignup === true);
 const busy = ref(false);
 const fatal = ref<string | null>(null);
 const application = ref<ApplicationView | null>(null);
-const captchaResponse = ref<string | null>(null);
+// **有効な provider のトークンを全部送る (#3037 レビュー)。**
+//
+// サーバーは有効な provider を**全部**検証する (upstream `SignupApiService` と
+// 同じ)。1 つだけ選んで送る形にしていると、運営者が 2 つ有効にした瞬間に
+// **残りが空トークンで検証され、申請が 1 件も通らなくなる**。`MkSignupDialog`
+// と `MkSignin.password` は元からこの形。
+const hCaptchaResponse = ref<string | null>(null);
+const mCaptchaResponse = ref<string | null>(null);
+const reCaptchaResponse = ref<string | null>(null);
+const turnstileResponse = ref<string | null>(null);
+const testcaptchaResponse = ref<string | null>(null);
 
 // captcha の実 provider が 1 つも無いときに申請を守る署名付きトークン (#2806)。
 // **captcha の代替ではない** — 止まるのは「フォームを取得せずに endpoint を
@@ -284,37 +298,16 @@ const form = computed<FormField[]>(() => {
 // こちらから送らない (送れると審査画面に偽のラベルを流し込める)。
 const answers = ref<string[]>(form.value.map(() => ''));
 
-// 有効な captcha があればそれを使う。**申請フォームは誰でも叩けるので、ここが
-// 唯一の防波堤になる** — 連絡先という自然キーが無くなり、重複申請を DB で抑止
-// できなくなったため (#2569)。
-const captchaProvider = computed(() => {
-	if (instance.enableHcaptcha) return 'hcaptcha';
-	if (instance.enableRecaptcha) return 'recaptcha';
-	if (instance.enableTurnstile) return 'turnstile';
-	if (instance.enableMcaptcha) return 'mcaptcha';
-	if (instance.enableTestcaptcha) return 'testcaptcha';
-	return null;
-});
-
-const captchaSiteKey = computed(() => {
-	switch (captchaProvider.value) {
-		case 'hcaptcha': return instance.hcaptchaSiteKey;
-		case 'recaptcha': return instance.recaptchaSiteKey;
-		case 'turnstile': return instance.turnstileSiteKey;
-		case 'mcaptcha': return instance.mcaptchaSiteKey;
-		default: return null;
-	}
-});
-
+// **申請フォームは誰でも叩けるので、captcha が唯一の防波堤になる** — 連絡先と
+// いう自然キーが無くなり、重複申請を DB で抑止できなくなったため (#2569)。
 function captchaParams(): Record<string, unknown> {
-	if (captchaProvider.value == null || captchaResponse.value == null) return {};
-	switch (captchaProvider.value) {
-		case 'hcaptcha': return { 'hcaptcha-response': captchaResponse.value };
-		case 'recaptcha': return { 'g-recaptcha-response': captchaResponse.value };
-		case 'turnstile': return { 'turnstile-response': captchaResponse.value };
-		case 'mcaptcha': return { 'm-captcha-response': captchaResponse.value };
-		default: return { 'testcaptcha-response': captchaResponse.value };
-	}
+	return {
+		'hcaptcha-response': hCaptchaResponse.value,
+		'm-captcha-response': mCaptchaResponse.value,
+		'g-recaptcha-response': reCaptchaResponse.value,
+		'turnstile-response': turnstileResponse.value,
+		'testcaptcha-response': testcaptchaResponse.value,
+	};
 }
 
 function message(err: unknown): string {
