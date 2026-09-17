@@ -332,6 +332,18 @@ function resetCaptchas(): void {
 	recaptcha.value?.reset();
 	turnstile.value?.reset();
 	testcaptcha.value?.reset();
+	// **トークンも捨てる (#3037 レビュー 3 周目)。**
+	// `MkCaptcha.reset()` はウィジェットを作り直すだけで `v-model` を
+	// **戻さない** (戻す必要がある sitekey watcher は `callback(undefined)` を
+	// 別に呼んでいる)。捨てないと `captchaIncomplete` が焼けたトークンを
+	// 「解答済み」と読むので、**送信ボタンが活性のまま**になり、押すと同じ
+	// トークンをもう一度送って `CAPTCHA_FAILED` + 枠を 1 消費する。
+	// ゲートを足した意味が無くなる。
+	hCaptchaResponse.value = null;
+	mCaptchaResponse.value = null;
+	reCaptchaResponse.value = null;
+	turnstileResponse.value = null;
+	testcaptchaResponse.value = null;
 }
 
 function captchaParams(): Record<string, unknown> {
