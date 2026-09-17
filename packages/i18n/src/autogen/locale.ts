@@ -2049,6 +2049,10 @@ export interface Locale extends ILocale {
      */
     "usernameInvalidFormat": string;
     /**
+     * {n}文字以上にしてください
+     */
+    "usernameTooShort": ParameterizedString<"n">;
+    /**
      * 短すぎます
      */
     "tooShort": string;
@@ -4684,6 +4688,14 @@ export interface Locale extends ILocale {
      * 予約するユーザー名を改行で列挙します。ここで指定されたユーザー名はアカウント作成時に使えなくなりますが、管理者によるアカウント作成時はこの制限を受けません。また、既に存在するアカウントも影響を受けません。
      */
     "preservedUsernamesDescription": string;
+    /**
+     * ユーザー名の最小文字数
+     */
+    "minimumUsernameLength": string;
+    /**
+     * アカウント作成時に必要なユーザー名の文字数の下限を1〜20で指定します。管理者によるアカウント作成時はこの制限を受けません。また、既に存在するアカウントも影響を受けません。
+     */
+    "minimumUsernameLengthDescription": string;
     /**
      * このファイルからノートを作成
      */
