@@ -15,13 +15,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #prefix><i class="ti ti-key"></i></template>
 			</MkInput>
 			<!--
-				**`:debounce` が要る (#3037 レビュー)。** 無いと `MkInput` は
-				1 打鍵ごとに `update:modelValue` を出すので `username/available` を
-				毎打鍵叩く。20 文字打って打ち直すだけで 59 回になり、サーバー側の
-				上限に当たると `usernameState` が `'error'` のまま張り付いて
-				**送信ボタンが押せなくなる**。メール欄は元からこの形。
+				**`MkInput` の `:debounce` は使わない (#3037 レビュー 2 周目)。**
+				あれは `update:modelValue` ごと遅らせるので `username` の値自体が
+				1 秒遅れる。打ち直した直後に Enter を押すと、画面に出ている名前と
+				違う名前で登録が確定する (`usernameState` も遅れるので送信ボタンは
+				活性のまま)。**利用者名は後から変更できない**。
+				叩く回数を抑えるのは `onChangeUsername` の中で API 呼び出しだけを
+				debounce する形で行う。
 			-->
-			<MkInput v-model="username" :debounce="true" type="text" pattern="^[a-zA-Z0-9_]{1,20}$" :spellcheck="false" autocomplete="username" required data-testid="signup-username" @update:modelValue="onChangeUsername">
+			<MkInput v-model="username" type="text" pattern="^[a-zA-Z0-9_]{1,20}$" :spellcheck="false" autocomplete="username" required data-testid="signup-username" @update:modelValue="onChangeUsername">
 				<template #label>{{ i18n.ts.username }} <div v-tooltip:dialog="i18n.ts.usernameInfo" class="_button _help"><i class="ti ti-help-circle"></i></div></template>
 				<template #prefix>@</template>
 				<template #suffix>@{{ host }}</template>
@@ -36,7 +38,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<span v-else-if="usernameState === 'max-range'" style="color: var(--MI_THEME-error)"><i class="ti ti-alert-triangle ti-fw"></i> {{ i18n.ts.tooLong }}</span>
 				</template>
 			</MkInput>
-			<MkInput v-if="instance.emailRequiredForSignup" v-model="email" :debounce="true" type="email" :spellcheck="false" required data-testid="signup-email" @update:modelValue="onChangeEmail">
+			<!--
+				**利用者名欄と同じ理由で `:debounce` を使わない。** `email` の値ごと
+				遅れると、打ち直した直後の送信で古いアドレスが飛ぶ。問い合わせの
+				間引きは `onChangeEmail` の中で行う。
+			-->
+			<MkInput v-if="instance.emailRequiredForSignup" v-model="email" type="email" :spellcheck="false" required data-testid="signup-email" @update:modelValue="onChangeEmail">
 				<template #label>{{ i18n.ts.emailAddress }} <div v-tooltip:dialog="i18n.ts._signup.emailAddressInfo" class="_button _help"><i class="ti ti-help-circle"></i></div></template>
 				<template #prefix><i class="ti ti-mail"></i></template>
 				<template #caption>
@@ -100,6 +107,7 @@ import { instance } from '@/instance.js';
 import { i18n } from '@/i18n.js';
 import { login } from '@/accounts.js';
 import { resolveLocalUsernameState, resolveMinimumUsernameLength } from '@/utility/local-username.js';
+import { debounce } from 'throttle-debounce';
 
 const props = withDefaults(defineProps<{
 	autoSet?: boolean;
@@ -200,19 +208,31 @@ function onChangeUsername(): void {
 	if (usernameAbortController.value != null) {
 		usernameAbortController.value.abort();
 	}
+	// **`'wait'` は打鍵ごとに同期で立てる。** 下の問い合わせは debounce する
+	// ので、ここを遅らせると「まだ確かめていない名前」が `'ok'` のまま残り、
+	// 送信ボタンが活性になる。
 	usernameState.value = 'wait';
 	usernameAbortController.value = new AbortController();
 
+	checkUsernameAvailable(username.value, usernameAbortController.value.signal);
+}
+
+// **問い合わせだけを debounce する (#3037 レビュー 2 周目)。**
+// `MkInput` の `:debounce` は `update:modelValue` ごと遅らせるので `username`
+// の値が古いまま送信されうる。こちらなら値と `usernameState` は即座に追従し、
+// `username/available` を叩く回数だけが打鍵の止まった後の 1 回に減る。
+const checkUsernameAvailable = debounce(1000, (name: string, signal: AbortSignal): void => {
 	misskeyApi('username/available', {
-		username: username.value,
-	}, undefined, usernameAbortController.value.signal).then(result => {
+		username: name,
+	}, undefined, signal).then(result => {
+		if (signal.aborted) return;
 		usernameState.value = result.available ? 'ok' : 'unavailable';
 	}).catch((err) => {
 		if (err.name !== 'AbortError') {
 			usernameState.value = 'error';
 		}
 	});
-}
+});
 
 function onChangeEmail(): void {
 	if (email.value === '') {
@@ -226,9 +246,14 @@ function onChangeEmail(): void {
 	emailState.value = 'wait';
 	emailAbortController.value = new AbortController();
 
+	checkEmailAvailable(email.value, emailAbortController.value.signal);
+}
+
+const checkEmailAvailable = debounce(1000, (address: string, signal: AbortSignal): void => {
 	misskeyApi('email-address/available', {
-		emailAddress: email.value,
-	}, undefined, emailAbortController.value.signal).then(result => {
+		emailAddress: address,
+	}, undefined, signal).then(result => {
+		if (signal.aborted) return;
 		emailState.value = result.available ? 'ok' :
 			result.reason === 'used' ? 'unavailable:used' :
 			result.reason === 'format' ? 'unavailable:format' :
@@ -242,7 +267,7 @@ function onChangeEmail(): void {
 			emailState.value = 'error';
 		}
 	});
-}
+});
 
 function onChangePassword(): void {
 	if (password.value === '') {

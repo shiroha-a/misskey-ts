@@ -124,12 +124,12 @@ SPDX-License-Identifier: AGPL-3.0-only
 								<template #label>{{ field.label }}<span v-if="field.required"> *</span></template>
 							</MkInput>
 						</template>
-						<MkCaptcha v-if="instance.enableHcaptcha" v-model="hCaptchaResponse" provider="hcaptcha" :sitekey="instance.hcaptchaSiteKey"/>
-						<MkCaptcha v-if="instance.enableMcaptcha" v-model="mCaptchaResponse" provider="mcaptcha" :sitekey="instance.mcaptchaSiteKey" :instanceUrl="instance.mcaptchaInstanceUrl"/>
-						<MkCaptcha v-if="instance.enableRecaptcha" v-model="reCaptchaResponse" provider="recaptcha" :sitekey="instance.recaptchaSiteKey"/>
-						<MkCaptcha v-if="instance.enableTurnstile" v-model="turnstileResponse" provider="turnstile" :sitekey="instance.turnstileSiteKey"/>
-						<MkCaptcha v-if="instance.enableTestcaptcha" v-model="testcaptchaResponse" provider="testcaptcha" :sitekey="null"/>
-						<MkButton primary rounded :disabled="busy || waitingForForm" @click="apply">
+						<MkCaptcha v-if="instance.enableHcaptcha" ref="hcaptcha" v-model="hCaptchaResponse" provider="hcaptcha" :sitekey="instance.hcaptchaSiteKey"/>
+						<MkCaptcha v-if="instance.enableMcaptcha" ref="mcaptcha" v-model="mCaptchaResponse" provider="mcaptcha" :sitekey="instance.mcaptchaSiteKey" :instanceUrl="instance.mcaptchaInstanceUrl"/>
+						<MkCaptcha v-if="instance.enableRecaptcha" ref="recaptcha" v-model="reCaptchaResponse" provider="recaptcha" :sitekey="instance.recaptchaSiteKey"/>
+						<MkCaptcha v-if="instance.enableTurnstile" ref="turnstile" v-model="turnstileResponse" provider="turnstile" :sitekey="instance.turnstileSiteKey"/>
+						<MkCaptcha v-if="instance.enableTestcaptcha" ref="testcaptcha" v-model="testcaptchaResponse" provider="testcaptcha" :sitekey="null"/>
+						<MkButton primary rounded :disabled="busy || waitingForForm || captchaIncomplete" @click="apply">
 							<i class="ti ti-send"></i> 申請する
 						</MkButton>
 						<div v-if="waitingForForm" style="font-size: 0.9em; opacity: 0.8;">
@@ -173,6 +173,7 @@ import MkInfo from '@/components/MkInfo.vue';
 import MkInput from '@/components/MkInput.vue';
 import MkTextarea from '@/components/MkTextarea.vue';
 import MkCaptcha from '@/components/MkCaptcha.vue';
+import type { Captcha } from '@/components/MkCaptcha.vue';
 import * as os from '@/os.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { definePage } from '@/page.js';
@@ -229,6 +230,12 @@ const application = ref<ApplicationView | null>(null);
 // 同じ)。1 つだけ選んで送る形にしていると、運営者が 2 つ有効にした瞬間に
 // **残りが空トークンで検証され、申請が 1 件も通らなくなる**。`MkSignupDialog`
 // と `MkSignin.password` は元からこの形。
+const hcaptcha = ref<Captcha | undefined>();
+const mcaptcha = ref<Captcha | undefined>();
+const recaptcha = ref<Captcha | undefined>();
+const turnstile = ref<Captcha | undefined>();
+const testcaptcha = ref<Captcha | undefined>();
+
 const hCaptchaResponse = ref<string | null>(null);
 const mCaptchaResponse = ref<string | null>(null);
 const reCaptchaResponse = ref<string | null>(null);
@@ -300,6 +307,33 @@ const answers = ref<string[]>(form.value.map(() => ''));
 
 // **申請フォームは誰でも叩けるので、captcha が唯一の防波堤になる** — 連絡先と
 // いう自然キーが無くなり、重複申請を DB で抑止できなくなったため (#2569)。
+//
+// **有効な provider が 1 つでも未解答なら送信させない (#3037 レビュー 2 周目)。**
+// サーバーは有効な provider を全部検証するので、未解答のまま送ると
+// `CAPTCHA_FAILED` で 400 になり、1 時間 5 回の枠を 1 消費したうえに
+// **解けていた側のトークンまで焼ける**。`MkSignupDialog.form.vue` と
+// `MkSignin.password.vue` は元からこのゲートを持っている。
+const captchaIncomplete = computed((): boolean => {
+	return (instance.enableHcaptcha && !hCaptchaResponse.value) ||
+		(instance.enableMcaptcha && !mCaptchaResponse.value) ||
+		(instance.enableRecaptcha && !reCaptchaResponse.value) ||
+		(instance.enableTurnstile && !turnstileResponse.value) ||
+		(instance.enableTestcaptcha && !testcaptchaResponse.value);
+});
+
+// **失敗したらウィジェットを取り直す (#3037 レビュー 2 周目)。**
+// captcha のトークンは単回使用なので、`ANSWER_REQUIRED` のように captcha を
+// 消費した後で落ちる経路を踏むと、項目を直して送り直しても必ず
+// `CAPTCHA_FAILED` になる。reset の口が無いと**再読み込みするまで申請が
+// 通らない**。`MkSignupDialog.form.vue` の `onSignupApiError` と同じ形。
+function resetCaptchas(): void {
+	hcaptcha.value?.reset();
+	mcaptcha.value?.reset();
+	recaptcha.value?.reset();
+	turnstile.value?.reset();
+	testcaptcha.value?.reset();
+}
+
 function captchaParams(): Record<string, unknown> {
 	return {
 		'hcaptcha-response': hCaptchaResponse.value,
@@ -346,6 +380,7 @@ async function apply() {
 		application.value = res.application;
 	} catch (err) {
 		fatal.value = message(err);
+		resetCaptchas();
 		// トークンが失効・使用済みなら取り直す。**そのままだと何度送っても
 		// 同じエラーになる。**
 		if ((err as { code?: string } | null)?.code === 'FORM_TOKEN_INVALID') {
