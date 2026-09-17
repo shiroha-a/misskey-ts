@@ -189,6 +189,11 @@ function getPasswordStrength(source: string): number {
 
 function onChangeUsername(): void {
 	if (username.value === '') {
+		// **保留中の問い合わせを取り消す (#3037 レビュー 3 周目)。**
+		// ここで抜けるだけだと、直前の打鍵で予約された trailing 呼び出しが
+		// 1 秒後に発火し、**もう画面に無い名前の結果**で `usernameState` を
+		// `'ok'` に書き換える。空欄に「利用可能」が出て送信ボタンが活性になる。
+		cancelUsernameCheck();
 		usernameState.value = null;
 		return;
 	}
@@ -200,6 +205,10 @@ function onChangeUsername(): void {
 		// この caption と食い違う。
 		const err = resolveLocalUsernameState(username.value, minimumUsernameLength.value);
 		if (err) {
+			// **同上。** 「alicex」→ 1 秒以内に「alic」へ縮めると、
+			// `min-range` を出した直後に「alicex」の結果が届いて `'ok'` に
+			// 化ける。送信ボタンが活性になり、短すぎる名前で POST される。
+			cancelUsernameCheck();
 			usernameState.value = err;
 			return;
 		}
@@ -221,6 +230,13 @@ function onChangeUsername(): void {
 // `MkInput` の `:debounce` は `update:modelValue` ごと遅らせるので `username`
 // の値が古いまま送信されうる。こちらなら値と `usernameState` は即座に追従し、
 // `username/available` を叩く回数だけが打鍵の止まった後の 1 回に減る。
+// cancelUsernameCheck drops a scheduled lookup and the in-flight request.
+function cancelUsernameCheck(): void {
+	checkUsernameAvailable.cancel();
+	usernameAbortController.value?.abort();
+	usernameAbortController.value = null;
+}
+
 const checkUsernameAvailable = debounce(1000, (name: string, signal: AbortSignal): void => {
 	misskeyApi('username/available', {
 		username: name,
@@ -236,6 +252,8 @@ const checkUsernameAvailable = debounce(1000, (name: string, signal: AbortSignal
 
 function onChangeEmail(): void {
 	if (email.value === '') {
+		// 利用者名欄と同じ理由で、保留中の問い合わせを取り消す。
+		cancelEmailCheck();
 		emailState.value = null;
 		return;
 	}
@@ -247,6 +265,12 @@ function onChangeEmail(): void {
 	emailAbortController.value = new AbortController();
 
 	checkEmailAvailable(email.value, emailAbortController.value.signal);
+}
+
+function cancelEmailCheck(): void {
+	checkEmailAvailable.cancel();
+	emailAbortController.value?.abort();
+	emailAbortController.value = null;
 }
 
 const checkEmailAvailable = debounce(1000, (address: string, signal: AbortSignal): void => {
