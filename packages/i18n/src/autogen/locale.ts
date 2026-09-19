@@ -14104,10 +14104,6 @@ export interface Locale extends ILocale {
          */
         "ipPlaceholder": string;
         /**
-         * 検索
-         */
-        "search": string;
-        /**
          * 対象期間
          */
         "period": string;
@@ -14124,7 +14120,7 @@ export interface Locale extends ILocale {
          */
         "disclaimer": string;
         /**
-         * IPアドレスの記録が現在無効になっています。新しい観測は残りません。以下は無効にする前に記録されたぶんです。
+         * IPアドレスの記録が現在無効になっています。新しい観測は残らないので、表示できるのは無効にする前に記録されたぶんだけです。
          */
         "loggingDisabled": string;
         /**
@@ -14147,6 +14143,14 @@ export interface Locale extends ILocale {
          * このページに表示できる候補はありません。記録は残っていますが、該当するアカウントがすべて削除済みです。「さらに表示」で続きを確認できます。
          */
         "noneOnThisPage": string;
+        /**
+         * このIPアドレスからの接続は記録されていますが、該当するアカウントはすべて削除済みで表示できません。
+         */
+        "noneResolvable": string;
+        /**
+         * このほかに{n}件の観測がありますが、該当するアカウントが削除済みのため表示していません。
+         */
+        "droppedNote": ParameterizedString<"n">;
         /**
          * IPアドレスからの検索を許可されていません。ロールの設定で「IPアドレスから関連アカウントを探せる」を有効にしてもらってください。
          */
@@ -14172,17 +14176,37 @@ export interface Locale extends ILocale {
          */
         "observationCountValue": ParameterizedString<"n">;
         /**
-         * 接続回数そのものではありません。1時間に1件までにまとめて記録しています。
+         * 接続回数そのものではありません。おおむね1時間に1件までにまとめて記録しています。ページを送っている間に新しい観測が入ると並びが変わり、候補が前のページへ移ることがあります。
          */
         "observationCaption": string;
-        /**
-         * 最終アクティビティ
-         */
-        "lastActive": string;
         /**
          * 不明
          */
         "lastActiveUnknown": string;
+        /**
+         * 最終観測がこの期間に入る利用者を出します。
+         */
+        "periodMeaning": string;
+        /**
+         * これ以上は表示できません。対象期間を絞ってください。
+         */
+        "pagingLimit": string;
+        /**
+         * 通信に失敗しました。時間をおいてもう一度試してください。
+         */
+        "networkFailed": string;
+        /**
+         * 検索しています
+         */
+        "searching": string;
+        /**
+         * 候補は見つかりませんでした
+         */
+        "noneFound": string;
+        /**
+         * {n}件の候補が見つかりました
+         */
+        "foundAccounts": ParameterizedString<"n">;
         /**
          * 凍結済み
          */
@@ -14191,10 +14215,6 @@ export interface Locale extends ILocale {
          * 削除済み
          */
         "deleted": string;
-        /**
-         * さらに表示
-         */
-        "loadMore": string;
         /**
          * 検索できませんでした。サーバーのログを確認してください。
          */
