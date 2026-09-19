@@ -14124,6 +14124,10 @@ export interface Locale extends ILocale {
          */
         "nothing": string;
         /**
+         * リモートの{n}件はすべて実体を持たない参照です。mk-goはリモートメディアをローカルにキャッシュしないため、使用量には乗りません。
+         */
+        "remoteNoBytes": ParameterizedString<"n">;
+        /**
          * 集計: {at} ({ms}ms)
          */
         "calculatedAt": ParameterizedString<"at" | "ms">;
@@ -14156,7 +14160,7 @@ export interface Locale extends ILocale {
          */
         "remoteMediaCache": string;
         /**
-         * mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。
+         * mk-goはリモートメディアをローカルにキャッシュしないため、mk-goが作ったファイルに削除対象はありません。Misskeyから引き継いだデータベースにだけ対象が残ることがあり、その場合はAPIを直接呼ぶ必要があります。
          */
         "cleanRemoteFiles": string;
     };
