@@ -3774,6 +3774,24 @@ _mkgoNotification:
   optOutNotificationTypes_caption: "このロールのメンバーが受け取らない通知の種類。複数のロールに属している場合は、すべてのロールで切られている種類だけが届かなくなります。"
   abuseReportModeratorOnly: "通報の通知は、モデレーター権限を持つ利用者と初期ユーザーにのみ届きます。権限を持たないロールでこれを切っても変わりません。"
 
+_driveUsage:
+  tab: "使用量"
+  databaseOnly: "ここに出るのはデータベースが把握している量 (drive_fileのsizeの合計) です。オブジェクトストレージに実際に置かれている量とは、削除の失敗や孤児があればずれます。"
+  unavailable: "使用量を取得できませんでした。純正のMisskeyバックエンドにはこの機能がないため常に取得できません。mk-goで出ない場合はサーバーのログを確認してください。"
+  byKind: "種類別"
+  byKindNote: "「添付・アップロード」は利用者のドライブにある実体すべてです。一度も添付していないファイルも含みます。"
+  byHost: "ホスト別 (上位{n}件)"
+  byUser: "利用者別 (ローカルのみ・上位{n}件)"
+  files: "{n}件"
+  linkOnly: "うち実体なし{n}件"
+  nothing: "対象がありません。"
+  calculatedAt: "集計: {at} ({ms}ms)"
+  _kind:
+    attachment: "添付・アップロード"
+    avatar: "アイコン"
+    banner: "バナー"
+    emoji: "カスタム絵文字"
+    other: "その他"
 _mkgoUnsupported:
   remoteMediaCache: "mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。"
   cleanRemoteFiles: "mk-goはリモートメディアをローカルにキャッシュしないため、削除する対象がありません。"

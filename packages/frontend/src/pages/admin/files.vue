@@ -4,9 +4,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 -->
 
 <template>
-<PageWithHeader :actions="headerActions" :tabs="headerTabs">
+<PageWithHeader v-model:tab="tab" :actions="headerActions" :tabs="headerTabs">
 	<div class="_spacer" style="--MI_SPACER-w: 900px;">
-		<div class="_gaps">
+		<!--
+			インスタンス全体のストレージ使用量 (mk-go #3053)。純正 backend には
+			endpoint ごと無いので、取得に失敗したらタブの中で理由を出す。
+		-->
+		<XUsage v-if="tab === 'usage'"/>
+		<div v-else class="_gaps">
 			<div class="inputs" style="display: flex; gap: var(--MI-margin); flex-wrap: wrap;">
 				<MkSelect v-model="origin" :items="originDef" style="margin: 0; flex: 1;">
 					<template #label>{{ i18n.ts.instance }}</template>
@@ -35,6 +40,7 @@ import * as Misskey from 'misskey-js';
 import MkInput from '@/components/MkInput.vue';
 import MkSelect from '@/components/MkSelect.vue';
 import MkFileListForAdmin from '@/components/MkFileListForAdmin.vue';
+import XUsage from '@/pages/admin/files.usage.vue';
 import * as os from '@/os.js';
 import { lookupFile } from '@/utility/admin-lookup.js';
 import { i18n } from '@/i18n.js';
@@ -53,6 +59,7 @@ const {
 	],
 	initialValue: 'local',
 });
+const tab = ref<'files' | 'usage'>('files');
 const type = ref<string | null>(null);
 const searchHost = ref('');
 const userId = ref('');
@@ -92,7 +99,15 @@ const headerActions = computed(() => [{
 	handler: clear,
 }]);
 
-const headerTabs = computed(() => []);
+const headerTabs = computed(() => [{
+	key: 'files',
+	title: i18n.ts.files,
+	icon: 'ti ti-cloud',
+}, {
+	key: 'usage',
+	title: i18n.ts._driveUsage.tab,
+	icon: 'ti ti-chart-pie',
+}]);
 
 definePage(() => ({
 	title: i18n.ts.files,

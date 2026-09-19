@@ -14082,6 +14082,74 @@ export interface Locale extends ILocale {
          */
         "abuseReportModeratorOnly": string;
     };
+    "_driveUsage": {
+        /**
+         * 使用量
+         */
+        "tab": string;
+        /**
+         * ここに出るのはデータベースが把握している量 (drive_fileのsizeの合計) です。オブジェクトストレージに実際に置かれている量とは、削除の失敗や孤児があればずれます。
+         */
+        "databaseOnly": string;
+        /**
+         * 使用量を取得できませんでした。純正のMisskeyバックエンドにはこの機能がないため常に取得できません。mk-goで出ない場合はサーバーのログを確認してください。
+         */
+        "unavailable": string;
+        /**
+         * 種類別
+         */
+        "byKind": string;
+        /**
+         * 「添付・アップロード」は利用者のドライブにある実体すべてです。一度も添付していないファイルも含みます。
+         */
+        "byKindNote": string;
+        /**
+         * ホスト別 (上位{n}件)
+         */
+        "byHost": ParameterizedString<"n">;
+        /**
+         * 利用者別 (ローカルのみ・上位{n}件)
+         */
+        "byUser": ParameterizedString<"n">;
+        /**
+         * {n}件
+         */
+        "files": ParameterizedString<"n">;
+        /**
+         * うち実体なし{n}件
+         */
+        "linkOnly": ParameterizedString<"n">;
+        /**
+         * 対象がありません。
+         */
+        "nothing": string;
+        /**
+         * 集計: {at} ({ms}ms)
+         */
+        "calculatedAt": ParameterizedString<"at" | "ms">;
+        "_kind": {
+            /**
+             * 添付・アップロード
+             */
+            "attachment": string;
+            /**
+             * アイコン
+             */
+            "avatar": string;
+            /**
+             * バナー
+             */
+            "banner": string;
+            /**
+             * カスタム絵文字
+             */
+            "emoji": string;
+            /**
+             * その他
+             */
+            "other": string;
+        };
+    };
     "_mkgoUnsupported": {
         /**
          * mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。
