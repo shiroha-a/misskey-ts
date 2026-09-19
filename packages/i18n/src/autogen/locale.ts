@@ -14152,6 +14152,10 @@ export interface Locale extends ILocale {
          */
         "droppedNote": ParameterizedString<"n">;
         /**
+         * サインインの状態が切れています。再度サインインしてから試してください。
+         */
+        "sessionExpired": string;
+        /**
          * IPアドレスからの検索を許可されていません。ロールの設定で「IPアドレスから関連アカウントを探せる」を有効にしてもらってください。
          */
         "notPermitted": string;
