@@ -26,7 +26,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div :class="$style.totalValue">{{ bytes(usage.local.size) }}</div>
 				<div :class="$style.totalSub">{{ i18n.tsx._driveUsage.files({ n: number(usage.local.count) }) }}</div>
 			</div>
-			<div :class="$style.total">
+			<div v-if="hasRemoteBytes" :class="$style.total">
 				<div :class="$style.totalLabel">{{ i18n.ts.remote }}</div>
 				<div :class="$style.totalValue">{{ bytes(usage.remote.size) }}</div>
 				<div :class="$style.totalSub">
@@ -36,19 +36,29 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 
+		<!--
+			リモートに実体が無いときは欄ごと出さず 1 行で済ませる。**黙って消さない** —
+			合計はリモートの件数を含むので、触れないと「合計とローカルが合わない」に
+			なる。
+		-->
+		<div v-if="!hasRemoteBytes && usage.remote.count > 0" :class="$style.note">
+			{{ i18n.tsx._driveUsage.remoteNoBytes({ n: number(usage.remote.count) }) }}
+		</div>
+
 		<MkFolder :defaultOpen="true">
 			<template #label>{{ i18n.ts._driveUsage.byKind }}</template>
 			<div class="_gaps_s">
 				<div :class="$style.note">{{ i18n.ts._driveUsage.byKindNote }}</div>
 				<div v-if="kindRows.length === 0" :class="$style.note">{{ i18n.ts._driveUsage.nothing }}</div>
 				<div v-for="row in kindRows" :key="row.origin + '/' + row.kind" :class="$style.row">
-					<span :class="$style.rowLabel">{{ kindLabel(row.kind) }} ({{ row.origin === 'local' ? i18n.ts.local : i18n.ts.remote }})</span>
+					<!-- リモートを出していないときは全行が「(ローカル)」になるので添えない。 -->
+					<span :class="$style.rowLabel">{{ kindLabel(row.kind) }}<template v-if="hasRemoteBytes"> ({{ row.origin === 'local' ? i18n.ts.local : i18n.ts.remote }})</template></span>
 					<span :class="$style.rowValue">{{ bytes(row.size) }} / {{ i18n.tsx._driveUsage.files({ n: number(row.count) }) }}</span>
 				</div>
 			</div>
 		</MkFolder>
 
-		<MkFolder :defaultOpen="true">
+		<MkFolder v-if="hasRemoteBytes" :defaultOpen="true">
 			<template #label>{{ i18n.tsx._driveUsage.byHost({ n: number(usage.topLimit) }) }}</template>
 			<div class="_gaps_s">
 				<div v-if="usage.byHost.length === 0" :class="$style.note">{{ i18n.ts._driveUsage.nothing }}</div>
@@ -126,8 +136,16 @@ const loading = ref(true);
 const refreshing = ref(false);
 const failed = ref(false);
 
+// **リモートは実体があるときだけ出す。** mk-go はリモートメディアをキャッシュしない
+// ので、mk-go が作ったデータでは常に 0 バイト。件数だけの行を並べても「どこを消せば
+// 効くか」の役に立たず、ローカルの内訳を押し下げるだけになる。純正 Misskey から
+// 引き継いだ DB には実体のあるリモート行が残るので、そのときだけ従来どおり出す。
+const hasRemoteBytes = computed(() => (usage.value?.remote.size ?? 0) > 0);
+
 // 0 の行まで並べると 10 行の大半が空になるので、値のあるものだけ出す。
-const kindRows = computed(() => (usage.value?.byKind ?? []).filter(row => row.count > 0));
+const kindRows = computed(() => (usage.value?.byKind ?? [])
+	.filter(row => row.count > 0)
+	.filter(row => hasRemoteBytes.value || row.origin === 'local'));
 
 const calculatedAtLabel = computed(() => {
 	if (usage.value == null) return '';
