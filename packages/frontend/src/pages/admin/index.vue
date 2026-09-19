@@ -41,6 +41,7 @@ import { serverPlugins } from '@/server-plugins.generated.js';
 import MkSuperMenu from '@/components/MkSuperMenu.vue';
 import MkInfo from '@/components/MkInfo.vue';
 import { instance } from '@/instance.js';
+import { $i, iAmAdmin } from '@/i.js';
 
 // mk-go 独自の meta なので misskey-js の型集合には無い (#2557)。
 const approvalRequiredForSignup = (instance as unknown as Record<string, unknown>).approvalRequiredForSignup === true;
@@ -78,6 +79,10 @@ const noEmailServer = computed(() => !instance.enableEmail);
 const noInquiryUrl = computed(() => isEmpty(instance.inquiryUrl));
 const thereIsUnresolvedAbuseReport = ref(false);
 const currentPage = computed(() => router.currentRef.value.child);
+
+// IP からの関連アカウント検索 (#3104) を出せるか。既定は管理者のみで、
+// 運営者がロールでモデレーターに開ける。
+const canSearchIpHistory = computed(() => iAmAdmin || ($i != null && ($i.policies as unknown as Record<string, unknown>).canSearchIpHistory === true));
 
 misskeyApi('admin/abuse-user-reports', {
 	state: 'unresolved',
@@ -192,7 +197,18 @@ const menuDef = computed<SuperMenuDef[]>(() => [{
 		text: i18n.ts.abuseReports,
 		to: '/admin/abuses',
 		active: currentPage.value?.route.name === 'abuses',
-	}, {
+	}, ...(canSearchIpHistory.value ? [{
+		// mk-go: IP アドレスから関連アカウントを探す (#3104)。
+		//
+		// **`$i.policies` だけでは足りない。** `HasRolePolicy` は管理者を短絡
+		// するが `GetUserPolicies` はしないので、`policies.canSearchIpHistory` は
+		// 管理者でも false のまま。それだけで絞ると、既定 (= 管理者のみ) の
+		// 構成でメニューが誰にも出ない。
+		icon: 'ti ti-network',
+		text: i18n.ts._mkgoIpSearch.title,
+		to: '/admin/ip-search',
+		active: currentPage.value?.route.name === 'ip-search',
+	}] : []), {
 		icon: 'ti ti-list-search',
 		text: i18n.ts.moderationLogs,
 		to: '/admin/modlog',
