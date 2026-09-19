@@ -13910,6 +13910,14 @@ export interface Locale extends ILocale {
          */
         "canRequestCustomEmojis_caption": string;
         /**
+         * IPアドレスから関連アカウントを探せる
+         */
+        "canSearchIpHistory": string;
+        /**
+         * IPアドレスを入力して、そのアドレスから接続したローカルアカウントを一覧できるようにします。既定では管理者だけが使えます。同じIPアドレスを使ったことは同一人物であることを意味しません(家庭・職場・学校・公衆Wi-Fi・携帯回線・VPNではアドレスが共有されます)。調査の手掛かりとして使ってください。
+         */
+        "canSearchIpHistory_caption": string;
+        /**
          * カスタム絵文字をアイコンに重ねられる
          */
         "canUseEmojiAsAvatarDecoration": string;
@@ -14081,6 +14089,120 @@ export interface Locale extends ILocale {
          * 通報の通知は、モデレーター権限を持つ利用者と初期ユーザーにのみ届きます。権限を持たないロールでこれを切っても変わりません。
          */
         "abuseReportModeratorOnly": string;
+    };
+    "_mkgoIpSearch": {
+        /**
+         * IPアドレスから探す
+         */
+        "title": string;
+        /**
+         * IPアドレス
+         */
+        "ipAddress": string;
+        /**
+         * 203.0.113.10 または 2001:db8::1
+         */
+        "ipPlaceholder": string;
+        /**
+         * 検索
+         */
+        "search": string;
+        /**
+         * 対象期間
+         */
+        "period": string;
+        /**
+         * 直近{n}日
+         */
+        "periodDays": ParameterizedString<"n">;
+        /**
+         * IPアドレスとして読めません。IPv4またはIPv6のアドレスを入力してください。
+         */
+        "notAnIp": string;
+        /**
+         * 同じIPアドレスを使ったことは同一人物であることを意味しません。家庭・職場・学校・公衆Wi-Fi・携帯回線のCGNAT・VPNではアドレスが共有されます。ここに出るのは調査の候補とその根拠であって、判定結果ではありません。
+         */
+        "disclaimer": string;
+        /**
+         * IPアドレスの記録が現在無効になっています。新しい観測は残りません。以下は無効にする前に記録されたぶんです。
+         */
+        "loggingDisabled": string;
+        /**
+         * IPアドレスの記録が無効で、記録も残っていません。コントロールパネルのモデレーションで記録を有効にすると、以降の接続から集まります。
+         */
+        "loggingDisabledNoHistory": string;
+        /**
+         * IPアドレスの記録が1件もありません。有効にした直後か、保持期間({n}日)を過ぎて消えた可能性があります。
+         */
+        "noHistory": ParameterizedString<"n">;
+        /**
+         * このIPアドレスからの接続は記録されていません。
+         */
+        "noMatch": string;
+        /**
+         * この期間にこのIPアドレスからの接続は記録されていません。期間を広げると見つかることがあります。
+         */
+        "noMatchInPeriod": string;
+        /**
+         * このページに表示できる候補はありません。記録は残っていますが、該当するアカウントがすべて削除済みです。「さらに表示」で続きを確認できます。
+         */
+        "noneOnThisPage": string;
+        /**
+         * IPアドレスからの検索を許可されていません。ロールの設定で「IPアドレスから関連アカウントを探せる」を有効にしてもらってください。
+         */
+        "notPermitted": string;
+        /**
+         * 検索したアドレス
+         */
+        "searched": string;
+        /**
+         * 最初の観測
+         */
+        "firstSeen": string;
+        /**
+         * 最後の観測
+         */
+        "lastSeen": string;
+        /**
+         * 記録した観測
+         */
+        "observationCount": string;
+        /**
+         * {n}件
+         */
+        "observationCountValue": ParameterizedString<"n">;
+        /**
+         * 接続回数そのものではありません。1時間に1件までにまとめて記録しています。
+         */
+        "observationCaption": string;
+        /**
+         * 最終アクティビティ
+         */
+        "lastActive": string;
+        /**
+         * 不明
+         */
+        "lastActiveUnknown": string;
+        /**
+         * 凍結済み
+         */
+        "suspended": string;
+        /**
+         * 削除済み
+         */
+        "deleted": string;
+        /**
+         * さらに表示
+         */
+        "loadMore": string;
+        /**
+         * 検索できませんでした。サーバーのログを確認してください。
+         */
+        "failed": string;
+        /**
+         * 記録は{n}日で消えます。それより前の接続は残っていません。
+         */
+        "retentionNote": ParameterizedString<"n">;
     };
     "_driveUsage": {
         /**

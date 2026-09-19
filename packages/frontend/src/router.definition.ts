@@ -495,6 +495,11 @@ export const ROUTE_DEF = [{
 			reportId: 'reportId',
 		},
 	}, {
+		// mk-go: IP アドレスから関連アカウントを探す (#3104)
+		path: '/ip-search',
+		name: 'ip-search',
+		component: page(() => import('@/pages/admin/ip-search.vue')),
+	}, {
 		path: '/modlog',
 		name: 'modlog',
 		component: page(() => import('@/pages/admin/modlog.vue')),

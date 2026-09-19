@@ -1,0 +1,377 @@
+<!--
+SPDX-FileCopyrightText: mk-go project
+SPDX-License-Identifier: AGPL-3.0-only
+-->
+
+<!--
+	mk-go: IP アドレスからローカルアカウントを探す画面 (#3104 / 親 #3066)。
+
+	純正には逆向き (利用者 → IP、`admin/get-user-ips`) しか無い。荒らしの
+	使い捨てアカウントを追うときに要るのはこちら向きで、純正では DB を直接
+	引くしかなかった。
+
+	**出るのは候補であって判定ではない。** 同じ IP を使ったことは同一人物である
+	ことを意味しない (家庭・職場・学校・公衆 Wi-Fi・携帯回線の CGNAT・VPN)。
+	注意書きは結果の上に常設し、結果が出たときだけ出す形にしない。
+-->
+<template>
+<PageWithHeader>
+	<div class="_spacer" style="--MI_SPACER-w: 800px; --MI_SPACER-min: 16px; --MI_SPACER-max: 32px;">
+		<div class="_gaps_m">
+			<MkInfo>{{ i18n.ts._mkgoIpSearch.disclaimer }}</MkInfo>
+
+			<form class="_gaps_s" @submit.prevent="search(0)">
+				<MkInput v-model="ip" type="search" :spellcheck="false" :placeholder="i18n.ts._mkgoIpSearch.ipPlaceholder">
+					<template #label>{{ i18n.ts._mkgoIpSearch.ipAddress }}</template>
+				</MkInput>
+				<MkSelect v-model="sinceDays" :items="periodDef">
+					<template #label>{{ i18n.ts._mkgoIpSearch.period }}</template>
+					<!-- 保持期間はサーバーが教える。来るまでは出さない (決め打ちを事実として描かない)。 -->
+					<template v-if="retentionDays != null" #caption>{{ i18n.tsx._mkgoIpSearch.retentionNote({ n: retentionDays }) }}</template>
+				</MkSelect>
+				<MkButton primary type="submit" :disabled="loading || loadingMore"><i class="ti ti-search"></i> {{ i18n.ts._mkgoIpSearch.search }}</MkButton>
+			</form>
+
+			<!--
+				**ページング由来の失敗はここに出さない。** 「さらに表示」は一覧の
+				いちばん下にあるので、数ページ読んだ後の失敗を画面の最上部へ出すと
+				視界の外で消える。押したボタンの隣に出す (下の同じ MkInfo)。
+			-->
+			<MkInfo v-if="error && !errorWhilePaging" warn>{{ error }}</MkInfo>
+
+			<div v-if="loading" :class="$style.placeholder"><MkLoading/></div>
+
+			<template v-else-if="result">
+				<!--
+					**「記録が無効」と「結果がある」は同時に成り立つ。** 無効にした
+					後も残っている記録は引けるので、単一の状態に潰さない (#3066 §7)。
+				-->
+				<MkInfo v-if="!result.loggingEnabled && result.hasAnyHistory" warn>{{ i18n.ts._mkgoIpSearch.loggingDisabled }}</MkInfo>
+				<MkInfo v-else-if="!result.loggingEnabled" warn>{{ i18n.ts._mkgoIpSearch.loggingDisabledNoHistory }}</MkInfo>
+				<MkInfo v-else-if="!result.hasAnyHistory" warn>{{ i18n.tsx._mkgoIpSearch.noHistory({ n: result.retentionDays }) }}</MkInfo>
+
+				<!--
+					**検索した条件は IP と期間の両方を出す。** 期間のセレクトは検索の
+					後も自由に動かせるので、IP だけ出すと「セレクトは 365 日、本文は
+					『この期間に記録がありません』」という、調べた範囲を偽る並びになる。
+				-->
+				<MkKeyValue oneline>
+					<template #key>{{ i18n.ts._mkgoIpSearch.searched }}</template>
+					<template #value><span class="_monospace">{{ result.ip }}</span></template>
+				</MkKeyValue>
+				<MkKeyValue oneline>
+					<template #key>{{ i18n.ts._mkgoIpSearch.period }}</template>
+					<template #value>{{ i18n.tsx._mkgoIpSearch.periodDays({ n: result.sinceDays }) }}</template>
+				</MkKeyValue>
+
+				<!--
+					**「該当なし」と「記録が無い」を言い分ける。** 記録が 1 件でも
+					あれば「このアドレスからの接続は無い」と言えるが、無ければ
+					それは分からない (上の MkInfo がその場合を説明している)。
+
+					**`hasMore` が立っているときは断定しない。** サーバーは行を引けて
+					いるのに「利用者の行を引けない観測」を落とすので、1 ページが丸ごと
+					消えて `accounts` が空・`hasMore` が true になりうる。そこで
+					「記録されていません」と言うと、直後の「さらに表示」で候補が出て
+					きて嘘だったと分かる。
+				-->
+				<MkInfo v-if="accounts.length === 0 && result.hasAnyHistory && result.hasMore">
+					{{ i18n.ts._mkgoIpSearch.noneOnThisPage }}
+				</MkInfo>
+				<MkInfo v-else-if="accounts.length === 0 && result.hasAnyHistory">
+					{{ result.sinceDays >= result.retentionDays ? i18n.ts._mkgoIpSearch.noMatch : i18n.ts._mkgoIpSearch.noMatchInPeriod }}
+				</MkInfo>
+
+				<div v-if="accounts.length > 0" class="_gaps_s" aria-live="polite">
+					<div v-for="a in accounts" :key="a.user.id" :class="$style.row">
+						<MkA :to="`/admin/user/${a.user.id}`" :class="$style.card">
+							<MkUserCardMini :user="a.user" :withChart="false"/>
+						</MkA>
+						<div :class="$style.meta">
+							<span v-if="a.isSuspended" :class="[$style.badge, $style.danger]">{{ i18n.ts._mkgoIpSearch.suspended }}</span>
+							<span v-if="a.isDeleted" :class="[$style.badge, $style.danger]">{{ i18n.ts._mkgoIpSearch.deleted }}</span>
+						</div>
+						<div :class="$style.facts">
+							<MkKeyValue oneline>
+								<template #key>{{ i18n.ts._mkgoIpSearch.firstSeen }}</template>
+								<template #value><MkTime :time="a.firstSeenAt" mode="detail"/></template>
+							</MkKeyValue>
+							<MkKeyValue oneline>
+								<template #key>{{ i18n.ts._mkgoIpSearch.lastSeen }}</template>
+								<template #value><MkTime :time="a.lastSeenAt" mode="detail"/></template>
+							</MkKeyValue>
+							<MkKeyValue oneline>
+								<template #key>{{ i18n.ts._mkgoIpSearch.observationCount }}</template>
+								<template #value>{{ i18n.tsx._mkgoIpSearch.observationCountValue({ n: number(a.observationCount) }) }}</template>
+							</MkKeyValue>
+							<MkKeyValue oneline>
+								<template #key>{{ i18n.ts._mkgoIpSearch.lastActive }}</template>
+								<template #value>
+									<MkTime v-if="a.lastActiveDate != null" :time="a.lastActiveDate" mode="detail"/>
+									<span v-else>{{ i18n.ts._mkgoIpSearch.lastActiveUnknown }}</span>
+								</template>
+							</MkKeyValue>
+						</div>
+					</div>
+					<div :class="$style.caption">{{ i18n.ts._mkgoIpSearch.observationCaption }}</div>
+				</div>
+
+				<!--
+					**結果ブロックの外に置く。** 1 ページが丸ごと「利用者の行を引けない
+					観測」だと accounts は空になるが、次のページにはまだ候補が居る。
+					中に置くと、そこから先へ進めなくなる。
+				-->
+				<MkInfo v-if="error && errorWhilePaging" warn>{{ error }}</MkInfo>
+				<MkButton v-if="result.hasMore" :disabled="loadingMore" @click="loadMore()">{{ i18n.ts._mkgoIpSearch.loadMore }}</MkButton>
+			</template>
+		</div>
+	</div>
+</PageWithHeader>
+</template>
+
+<script lang="ts" setup>
+import { reactive, ref } from 'vue';
+import type * as Misskey from 'misskey-js';
+import MkButton from '@/components/MkButton.vue';
+import MkInfo from '@/components/MkInfo.vue';
+import MkInput from '@/components/MkInput.vue';
+import MkKeyValue from '@/components/MkKeyValue.vue';
+import MkSelect from '@/components/MkSelect.vue';
+import MkUserCardMini from '@/components/MkUserCardMini.vue';
+import { useMkSelect } from '@/composables/use-mkselect.js';
+import { i18n } from '@/i18n.js';
+import number from '@/filters/number.js';
+import { definePage } from '@/page.js';
+import { misskeyApi } from '@/utility/misskey-api.js';
+
+type IPAccount = {
+	user: Misskey.entities.UserLite;
+	isSuspended: boolean;
+	isDeleted: boolean;
+	lastActiveDate: string | null;
+	firstSeenAt: string;
+	lastSeenAt: string;
+	observationCount: number;
+};
+
+type IPAccountsResponse = {
+	ip: string;
+	loggingEnabled: boolean;
+	hasAnyHistory: boolean;
+	sinceDays: number;
+	retentionDays: number;
+	limit: number;
+	offset: number;
+	hasMore: boolean;
+	accounts: IPAccount[];
+};
+
+// mk-go 独自のエンドポイントなので misskey-js の型集合には無い。
+// signup-applications.vue と同じ理由の cast。
+function api<T>(endpoint: string, params: Record<string, unknown> = {}): Promise<T> {
+	return misskeyApi(endpoint as never, params as never) as unknown as Promise<T>;
+}
+
+// 保持期間はサーバーが教える。**画面で決め打ちしない** — 決め打ちした値を
+// 事実として出すと、サーバーが変えたときに黙って嘘になる。来るまでは出さない。
+const retentionDays = ref<number | null>(null);
+
+const ip = ref('');
+const loading = ref(false);
+const loadingMore = ref(false);
+const error = ref<string | null>(null);
+// 失敗がページング由来かどうか。一覧の末尾で押したボタンの失敗を画面の最上部に
+// 出すと、数ページ読んだ後では視界の外に出る。
+const errorWhilePaging = ref(false);
+const result = ref<IPAccountsResponse | null>(null);
+const accounts = ref<IPAccount[]>([]);
+// ページングで使う「実際に検索した条件」。入力欄とは別に持つ。
+const searched = reactive({ ip: '', sinceDays: 90 });
+
+const {
+	model: sinceDays,
+	def: periodDef,
+} = useMkSelect({
+	// **リテラルで書く。** `map` で作ると value が number に潰れ、
+	// `useMkSelect` の initialValue の型検査 (全 item を含むか) が通らない。
+	items: [
+		{ label: i18n.tsx._mkgoIpSearch.periodDays({ n: 7 }), value: 7 },
+		{ label: i18n.tsx._mkgoIpSearch.periodDays({ n: 30 }), value: 30 },
+		{ label: i18n.tsx._mkgoIpSearch.periodDays({ n: 90 }), value: 90 },
+		{ label: i18n.tsx._mkgoIpSearch.periodDays({ n: 365 }), value: 365 },
+	],
+	initialValue: 90,
+});
+
+/**
+ * Runs one page of the search.
+ *
+ * **2 ページ目以降は最初の検索の条件を使う。** 入力欄の現在値を読むと、
+ * 利用者が IP や期間を変えた後に「さらに表示」を押したときに**別の検索の結果を
+ * 同じ一覧へ継ぎ足す**ことになる。
+ */
+/**
+ * **世代で古い応答を捨てる。** 「さらに表示」の最中は `loading` が false なので
+ * フォームは生きており、そこで別の IP を検索できる。捨てないと (a) 応答の順番に
+ * よっては「検索したアドレス」と一覧の中身が食い違い、(b) 次の「さらに表示」が
+ * 別の結果集合から採った offset を渡して**以降の候補が永久に出てこない**。
+ * `admin-user.emoji-applications.vue` が同じ形で解いている。
+ */
+let generation = 0;
+
+async function search(offset: number) {
+	const first = offset === 0;
+	const raw = first ? ip.value.trim() : searched.ip;
+	const days = first ? sinceDays.value : searched.sinceDays;
+	// **失敗の表示は入力の検査より先に消す。** 後ろに置くと、空のまま押したときに
+	// 前回のエラーが残り、押したこと自体が伝わらない。
+	error.value = null;
+	errorWhilePaging.value = false;
+	if (raw === '') return;
+	// **形の判定はサーバーに任せる。** ここでは空かどうかだけ見る
+	// (記録側と同じ正規化を 2 箇所に持たない)。
+	const gen = ++generation;
+	if (first) {
+		loading.value = true;
+		accounts.value = [];
+		searched.ip = raw;
+		searched.sinceDays = days;
+	} else {
+		loadingMore.value = true;
+	}
+	try {
+		const res = await api<IPAccountsResponse>('admin/ip/accounts', {
+			ip: raw,
+			sinceDays: days,
+			offset,
+		});
+		if (gen !== generation) return;
+		result.value = res;
+		retentionDays.value = res.retentionDays;
+		// **追記のときは userId で重複を落とす。** offset ページングなので、
+		// ページを送る間に観測が入ると行が後ろへずれ、直前のページの末尾が
+		// 次のページの先頭に再登場しうる (Vue の duplicate key にもなる)。
+		accounts.value = first ? res.accounts : mergeAccounts(accounts.value, res.accounts);
+	} catch (err) {
+		if (gen !== generation) return;
+		// **前回の結果を消す。** 残したまま失敗だけ添えると、古い候補を
+		// 今回の検索結果として読ませることになる。
+		if (first) {
+			result.value = null;
+			accounts.value = [];
+		}
+		// **`INVALID_PARAM` を「IP が読めない」に写すのは初回だけ。** ページングで
+		// offset の上限に当たっても同じコードが返るので、入力欄と無関係な指摘になる。
+		error.value = errorMessage(err, first);
+		errorWhilePaging.value = !first;
+	} finally {
+		// **最新の要求だけが解除する。** 古い応答が解除すると、まだ飛んでいるのに
+		// スピナーが消えて古い結果が「今の結果」として描かれる。
+		if (gen === generation) {
+			loading.value = false;
+			loadingMore.value = false;
+		}
+	}
+}
+
+function mergeAccounts(current: IPAccount[], incoming: IPAccount[]): IPAccount[] {
+	const seen = new Set(current.map(a => a.user.id));
+	return [...current, ...incoming.filter(a => !seen.has(a.user.id))];
+}
+
+function errorCode(err: unknown): string | null {
+	if (typeof err !== 'object' || err == null || !('code' in err)) return null;
+	const code = (err as { code: unknown }).code;
+	return typeof code === 'string' ? code : null;
+}
+
+/**
+ * Picks the message for a failed search.
+ *
+ * **権限不足を「サーバーのログを確認してください」にしない。** ポリシーを持たない
+ * モデレーターは URL 直打ちでこの画面を開けるが、`RequireRolePolicy` の 403 は
+ * サーバーのログに何も残さない。本人に手の打ちようがない案内になる。
+ */
+function errorMessage(err: unknown, first: boolean): string {
+	const code = errorCode(err);
+	if (code === 'ROLE_PERMISSION_DENIED' || code === 'PERMISSION_DENIED') {
+		return i18n.ts._mkgoIpSearch.notPermitted;
+	}
+	if (first && code === 'INVALID_PARAM') {
+		return i18n.ts._mkgoIpSearch.notAnIp;
+	}
+	return i18n.ts._mkgoIpSearch.failed;
+}
+
+/**
+ * **次の offset は消費した行数で、表示件数ではない。**
+ * サーバーは `limit` 行引いてから「利用者の行を引けない観測」を落とすので、
+ * `accounts.length` を offset にすると落とした分だけ候補を読み飛ばす。
+ */
+function loadMore() {
+	if (result.value == null) return Promise.resolve();
+	return search(result.value.offset + result.value.limit);
+}
+
+definePage(() => ({
+	title: i18n.ts._mkgoIpSearch.title,
+	icon: 'ti ti-network',
+}));
+</script>
+
+<style lang="scss" module>
+.placeholder {
+	padding: 32px;
+	text-align: center;
+}
+
+/*
+	**背景を敷かない。** 中に置く MkUserCardMini 自身が `--MI_THEME-panel` を
+	持つので、同じ色を重ねるとカードが枠に溶けて 1 件の区切りが見えなくなる。
+*/
+.row {
+	padding: 12px 0;
+	border-bottom: solid 0.5px var(--MI_THEME-divider);
+
+	&:last-child {
+		border-bottom: none;
+	}
+}
+
+.card {
+	display: block;
+}
+
+.meta {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-top: 8px;
+
+	&:empty {
+		margin-top: 0;
+	}
+}
+
+.badge {
+	padding: 2px 8px;
+	border-radius: 999px;
+	font-size: 0.85em;
+}
+
+.danger {
+	color: var(--MI_THEME-error);
+	border: solid 1px var(--MI_THEME-error);
+}
+
+.facts {
+	margin-top: 8px;
+	display: grid;
+	gap: 4px;
+}
+
+.caption {
+	font-size: 0.85em;
+	opacity: 0.7;
+}
+</style>

@@ -239,6 +239,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</template>
 		</XFolder>
 
+		<!--
+			IP アドレスから関連アカウントを引く権限 (#3104)。mk-go 独自。
+			**既定 false = 管理者のみ。** upstream の `admin/get-user-ips` は
+			requireAdmin なので、既定でモデレーターへ開くと同じ機密情報に
+			既存より緩い経路を新設することになる。開くかどうかは運営者が決める。
+		-->
+		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canSearchIpHistory, 'canSearchIpHistory'])" v-model:policyMeta="canSearchIpHistoryMeta" :isBaseRole="isBaseRole" :readonly="readonly">
+			<template #label>{{ i18n.ts._mkgoRolePolicy.canSearchIpHistory }}</template>
+			<template #valueText>{{ canSearchIpHistory ? i18n.ts.yes : i18n.ts.no }}</template>
+			<template #default="{ disabled }">
+				<MkSwitch v-model="canSearchIpHistory" :disabled="disabled">
+					<template #label>{{ i18n.ts.enable }}</template>
+					<template #caption>{{ i18n.ts._mkgoRolePolicy.canSearchIpHistory_caption }}</template>
+				</MkSwitch>
+			</template>
+		</XFolder>
+
 		<XFolder v-if="matchQuery([i18n.ts._mkgoRolePolicy.canUseChunkedUpload, 'canUseChunkedUpload'])" v-model:policyMeta="canUseChunkedUploadMeta" :isBaseRole="isBaseRole" :readonly="readonly">
 			<template #label>{{ i18n.ts._mkgoRolePolicy.canUseChunkedUpload }}</template>
 			<template #valueText>{{ canUseChunkedUpload ? i18n.ts.yes : i18n.ts.no }}</template>
@@ -622,6 +639,7 @@ const mkGoPolicyMetaKeys: string[] = [
 	'optOutNotificationTypes',
 	'canRequestCustomEmojis',
 	'canUseEmojiAsAvatarDecoration',
+	'canSearchIpHistory',
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
@@ -697,6 +715,10 @@ const canRequestCustomEmojis = mkGoPolicyValue('canRequestCustomEmojis', true);
 const canRequestCustomEmojisMeta = mkGoPolicyMeta('canRequestCustomEmojis');
 const canUseEmojiAsAvatarDecoration = mkGoPolicyValue('canUseEmojiAsAvatarDecoration', true);
 const canUseEmojiAsAvatarDecorationMeta = mkGoPolicyMeta('canUseEmojiAsAvatarDecoration');
+// IP からの関連アカウント検索 (#3104)。**既定 false** — 管理者のみ。
+// internal/effectivepolicy/validation.go の default と揃えること。
+const canSearchIpHistory = mkGoPolicyValue('canSearchIpHistory', false);
+const canSearchIpHistoryMeta = mkGoPolicyMeta('canSearchIpHistory');
 const canUseChunkedUpload = mkGoPolicyValue('canUseChunkedUpload', true);
 const canUseChunkedUploadMeta = mkGoPolicyMeta('canUseChunkedUpload');
 const chunkedUploadMaxConcurrentSessions = mkGoPolicyValue('chunkedUploadMaxConcurrentSessions', 4);

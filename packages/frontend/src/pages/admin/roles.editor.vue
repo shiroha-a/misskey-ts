@@ -141,6 +141,7 @@ const mkGoRolePolicyKeys: string[] = [
 	'optOutNotificationTypes',
 	'canRequestCustomEmojis',
 	'canUseEmojiAsAvatarDecoration',
+	'canSearchIpHistory',
 	'canUseChunkedUpload',
 	'chunkedUploadMaxConcurrentSessions',
 	'chunkedUploadMaxPendingMb',
