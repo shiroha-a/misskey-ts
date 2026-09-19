@@ -14228,6 +14228,72 @@ export interface Locale extends ILocale {
          */
         "retentionNote": ParameterizedString<"n">;
     };
+    "_mkgoIpRelated": {
+        /**
+         * 関連アカウント
+         */
+        "tab": string;
+        /**
+         * 関連アカウントを検索
+         */
+        "run": string;
+        /**
+         * 同じIPアドレスを使ったことは同一人物であることを意味しません。家庭・職場・学校・公衆Wi-Fi・携帯回線のCGNAT・VPNではアドレスが共有されます。ここに出るのは調査の候補とその根拠であって、判定結果ではありません。IPの一致だけで処分を決めないでください。
+         */
+        "disclaimer": string;
+        /**
+         * この期間に対象が使ったIPアドレスを起点に、同じIPアドレスを使った他のローカルアカウントを探します。
+         */
+        "periodMeaning": string;
+        /**
+         * 起点にしたIPアドレス
+         */
+        "targetIpCount": string;
+        /**
+         * {n}件
+         */
+        "targetIpCountValue": ParameterizedString<"n">;
+        /**
+         * 共有したIPアドレス
+         */
+        "sharedIpCount": string;
+        /**
+         * {n}件
+         */
+        "sharedIpCountValue": ParameterizedString<"n">;
+        /**
+         * 対象の最終観測
+         */
+        "targetLastSeen": string;
+        /**
+         * 候補の最終観測
+         */
+        "candidateLastSeen": string;
+        /**
+         * このIPアドレスを使ったアカウント: {n}件
+         */
+        "ipAccountCount": ParameterizedString<"n">;
+        /**
+         * 並び順は共有したIPアドレスの重みの合計です。重みは古い観測ほど小さく、半減期は{n}日です。両者の観測日時が違う場合、同時に使っていたことは意味しません。同じIPアドレスを使ったアカウントが多いほど、その一致は弱い手掛かりです。
+         */
+        "rankingBasis": ParameterizedString<"n">;
+        /**
+         * この期間に同じIPアドレスを使った他のローカルアカウントは記録されていません。
+         */
+        "noMatch": string;
+        /**
+         * この期間に同じIPアドレスを使った他のローカルアカウントは記録されていません。期間を広げると見つかることがあります。
+         */
+        "noMatchInPeriod": string;
+        /**
+         * 同じIPアドレスを使ったアカウントは記録されていますが、すべて削除済みで表示できません。
+         */
+        "noneResolvable": string;
+        /**
+         * 候補が多いため途中で打ち切りました。表示している順位とその根拠は不完全で、続きを読むと順位が入れ替わることがあります。
+         */
+        "truncated": string;
+    };
     "_driveUsage": {
         /**
          * 使用量
