@@ -201,6 +201,10 @@ SPDX-License-Identifier: AGPL-3.0-only
 			**権限は backend と揃える** (canManageCustomEmojis か管理者)。
 			moderator というだけで出すと、押した先が必ず 403 になる。
 		-->
+		<div v-else-if="tab === 'relatedAccounts'" class="_gaps_m">
+			<XRelatedAccounts :userId="user.id"/>
+		</div>
+
 		<div v-else-if="tab === 'emojiApplication'" class="_gaps_m">
 			<XEmojiApplications :userId="user.id"/>
 		</div>
@@ -257,6 +261,7 @@ import { i18n } from '@/i18n.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import { ensureSignin, iAmAdmin, iAmModerator } from '@/i.js';
 import XEmojiApplications from '@/pages/admin-user.emoji-applications.vue';
+import XRelatedAccounts from '@/pages/admin-user.related-accounts.vue';
 import MkRolePreview from '@/components/MkRolePreview.vue';
 import MkPagination from '@/components/MkPagination.vue';
 import { Paginator } from '@/utility/paginator.js';
@@ -298,6 +303,16 @@ const isSystem = ref(user.value.host == null && user.value.username.includes('.'
 const canSeeEmojiApplications = computed(() => !isSystem.value &&
 	user.value.host == null &&
 	(iAmAdmin || $i.policies.canManageCustomEmojis === true));
+// **backend の gate と同じ条件にする (#3105)。** `admin/ip/related-accounts` は
+// `canSearchIpHistory` (既定 false = 管理者のみ) を要求するので、moderator という
+// だけでタブを出すと、開いた先が必ず 403 になる。**`$i.policies` だけでは足りない**
+// — `HasRolePolicy` は管理者を短絡するが `GetUserPolicies` はしないので、管理者でも
+// false のまま返る。リモートのユーザーとシステムアカウントは `user_ip` に行を持た
+// ないので、そもそも出さない。
+const canSeeRelatedAccounts = computed(() => !isSystem.value &&
+	user.value.host == null &&
+	// mk-go 固有 policy は autogen 型に無いのでキャストする (admin/index.vue と同じ)。
+	(iAmAdmin || ($i.policies as unknown as Record<string, unknown>).canSearchIpHistory === true));
 const moderationNote = ref(info.value.moderationNote);
 const filesPaginator = markRaw(new Paginator('admin/drive/files', {
 	limit: 10,
@@ -596,7 +611,12 @@ const headerTabs = computed(() => isSystem.value ? [{
 	key: 'drive',
 	title: i18n.ts.drive,
 	icon: 'ti ti-cloud',
-}, ...(canSeeEmojiApplications.value ? [{
+}, ...(canSeeRelatedAccounts.value ? [{
+	// mk-go: 同じ IP を使ったローカルアカウントの候補 (#3105)
+	key: 'relatedAccounts',
+	title: i18n.ts._mkgoIpRelated.tab,
+	icon: 'ti ti-users-group',
+}] : []), ...(canSeeEmojiApplications.value ? [{
 	key: 'emojiApplication',
 	title: i18n.ts._emojiApplication.tabUserApplications,
 	icon: 'ti ti-icons',
