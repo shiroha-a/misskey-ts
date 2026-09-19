@@ -352,7 +352,18 @@ const status = computed(() => {
 	// **画面と同じことを言う。** 「候補は見つかりませんでした」だけを読み上げると、
 	// 「記録はあるが候補が全員消えている」という**この機能でいちばん重要な区別**が
 	// 視覚表示にしか無い状態になる。
-	if (outcome.value !== 'accounts') return i18n.ts._mkgoIpSearch[outcome.value];
+	//
+	// **enum を直接 index しない。** 共有モジュールに結末が増えると、この画面に
+	// 無いキーを引いて `undefined` を読み上げる (実際 #3105 で増えた)。
+	switch (outcome.value) {
+		case 'noneOnThisPage': return i18n.ts._mkgoIpSearch.noneOnThisPage;
+		case 'noneResolvable': return i18n.ts._mkgoIpSearch.noneResolvable;
+		case 'noMatch': return i18n.ts._mkgoIpSearch.noMatch;
+		case 'noMatchInPeriod': return i18n.ts._mkgoIpSearch.noMatchInPeriod;
+		// `noTargetRecords` / `partial` は利用者を起点にする検索でだけ出る
+		// (この画面は `targetIPCount` も `truncated` も渡さない)。
+		default: break;
+	}
 	if (accounts.value.length === 0) return i18n.ts._mkgoIpSearch.noneFound;
 	return i18n.tsx._mkgoIpSearch.foundAccounts({ n: number(accounts.value.length) });
 });

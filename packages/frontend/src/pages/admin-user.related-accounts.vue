@@ -43,19 +43,30 @@ SPDX-License-Identifier: AGPL-3.0-only
 			**打ち切ったことを黙らない。** 立っているときは順位もスコアも下限で、
 			続きを見れば順位が入れ替わりうる。
 		-->
-		<MkInfo v-if="result.truncated" warn>{{ i18n.ts._mkgoIpRelated.truncated }}</MkInfo>
+		<MkInfo v-if="result.targetIpsTruncated" warn>{{ i18n.tsx._mkgoIpRelated.targetIpsTruncated({ n: number(result.targetIpCount) }) }}</MkInfo>
+		<MkInfo v-else-if="result.truncated" warn>{{ i18n.ts._mkgoIpRelated.candidatesTruncated }}</MkInfo>
 
 		<MkKeyValue oneline>
 			<template #key>{{ i18n.ts._mkgoIpRelated.targetIpCount }}</template>
-			<template #value>{{ i18n.tsx._mkgoIpRelated.targetIpCountValue({ n: number(result.targetIpCount) }) }}</template>
+			<template #value>
+				{{ i18n.tsx._mkgoIpRelated.targetIpCountValue({ n: number(result.targetIpCount) }) }}
+				<span v-if="result.targetIpsTruncated">{{ i18n.ts._mkgoIpRelated.capped }}</span>
+			</template>
 		</MkKeyValue>
 		<MkKeyValue oneline>
 			<template #key>{{ i18n.ts._mkgoIpSearch.period }}</template>
 			<template #value>{{ i18n.tsx._mkgoIpSearch.periodDays({ n: result.sinceDays }) }}</template>
 		</MkKeyValue>
 
-		<MkInfo v-if="outcome === 'noneOnThisPage'">{{ i18n.ts._mkgoIpSearch.noneOnThisPage }}</MkInfo>
+		<!--
+			**「照合していない」と「照合したが一致が無い」を言い分ける。**
+			対象の IP 記録が窓の中に 1 件も無ければ、候補側は 1 回も引いていない。
+			打ち切ったときも同じで、見たのは全体の一部なので断定できない。
+		-->
+		<MkInfo v-if="outcome === 'noTargetRecords'" warn>{{ i18n.tsx._mkgoIpRelated.noTargetRecords({ n: result.sinceDays }) }}</MkInfo>
+		<MkInfo v-else-if="outcome === 'noneOnThisPage'">{{ i18n.ts._mkgoIpSearch.noneOnThisPage }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noneResolvable'">{{ i18n.ts._mkgoIpRelated.noneResolvable }}</MkInfo>
+		<MkInfo v-else-if="outcome === 'partial'">{{ i18n.ts._mkgoIpRelated.noneInSearchedRange }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noMatch'">{{ i18n.ts._mkgoIpRelated.noMatch }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noMatchInPeriod'">{{ i18n.ts._mkgoIpRelated.noMatchInPeriod }}</MkInfo>
 
@@ -66,7 +77,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					なく、パーセントとして読めない。ここで数値を出すと「関連度 87%」の
 					ように読まれる (#3105)。読む側が使うのは下の根拠のほう。
 				-->
-				<div :class="$style.rank">#{{ offsetOf(i) }}</div>
+				<div :class="$style.rank">{{ i18n.tsx._mkgoIpRelated.displayOrder({ n: displayOrder(i) }) }}</div>
 				<MkA :to="`/admin/user/${c.user.id}`" :class="$style.card">
 					<MkUserCardMini :user="c.user" :withChart="false"/>
 				</MkA>
@@ -96,15 +107,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<div :class="$style.matchFacts">
 							<span>{{ i18n.ts._mkgoIpRelated.targetLastSeen }}: <MkTime :time="p.targetLastSeenAt" mode="detail"/></span>
 							<span>{{ i18n.ts._mkgoIpRelated.candidateLastSeen }}: <MkTime :time="p.candidateLastSeenAt" mode="detail"/></span>
-							<span>{{ i18n.tsx._mkgoIpRelated.ipAccountCount({ n: number(p.ipAccountCount) }) }}</span>
+							<span>
+								{{ p.ipAccountCountIsLowerBound
+									? i18n.tsx._mkgoIpRelated.ipAccountCountAtLeast({ n: number(p.ipAccountCount) })
+									: i18n.tsx._mkgoIpRelated.ipAccountCount({ n: number(p.ipAccountCount) }) }}
+							</span>
+							<span>{{ i18n.tsx._mkgoIpRelated.elapsedDays({ n: Math.round(p.elapsedDays) }) }}</span>
 						</div>
 					</div>
 				</div>
 			</div>
 			<div :class="$style.caption">{{ i18n.tsx._mkgoIpRelated.rankingBasis({ n: result.halfLifeDays }) }}</div>
 			<div v-if="droppedTotal > 0" :class="$style.caption">
-				{{ i18n.tsx._mkgoIpSearch.droppedNote({ n: number(droppedTotal) }) }}
+				{{ i18n.tsx._mkgoIpRelated.droppedNote({ n: number(droppedTotal) }) }}
 			</div>
+			<div :class="$style.caption">{{ i18n.ts._mkgoIpRelated.pagingNote }}</div>
 		</div>
 
 		<MkInfo v-if="error && errorWhilePaging" warn>{{ error }}</MkInfo>
@@ -129,12 +146,19 @@ import { ipSearchErrorKind, ipSearchNotice, ipSearchOutcome } from '@/utility/ip
 
 const props = defineProps<{ userId: string }>();
 
+// **`userId` は watch していない。** `/admin/user/:userId` は RouterView が
+// full path で key するので、別の利用者へ移ると component ごと作り直される。
+// その前提が変わったら、ここで検索結果を捨てる必要がある。
+
 type SharedIP = {
 	ip: string;
 	targetLastSeenAt: string;
 	candidateLastSeenAt: string;
 	ipAccountCount: number;
-	weight: number;
+	// **正確な数とは限らない。** 上限まで見えたときは「これ以上」を意味する。
+	ipAccountCountIsLowerBound: boolean;
+	// 減衰に使った経過日数。重みそのものは [0,1] でパーセントと見分けが付かない。
+	elapsedDays: number;
 };
 
 type RelatedCandidate = {
@@ -156,11 +180,11 @@ type RelatedResponse = {
 	halfLifeDays: number;
 	targetIpCount: number;
 	truncated: boolean;
+	targetIpsTruncated: boolean;
 	limit: number;
 	offset: number;
 	hasMore: boolean;
 	droppedCount: number;
-	totalCount: number;
 	candidates: RelatedCandidate[];
 };
 
@@ -203,6 +227,11 @@ const snapshot = computed(() => (result.value == null ? null : {
 	sinceDays: result.value.sinceDays,
 	retentionDays: result.value.retentionDays,
 	hasMore: result.value.hasMore,
+	// **起点と打ち切りを渡す。** `hasAnyHistory` はテーブル全体を見る値なので、
+	// これが無いと「対象の IP 記録が 1 件も無いので照合していない」と
+	// 「照合したが一致が無い」を区別できない (#3105)。
+	targetIPCount: result.value.targetIpCount,
+	truncated: result.value.truncated,
 }));
 
 const totals = computed(() => ({
@@ -221,16 +250,24 @@ const status = computed(() => {
 	if (loading.value) return i18n.ts._mkgoIpSearch.searching;
 	if (error.value != null) return error.value;
 	if (result.value == null) return '';
+	if (outcome.value === 'noTargetRecords') return i18n.tsx._mkgoIpRelated.noTargetRecords({ n: result.value.sinceDays });
 	if (outcome.value === 'noneOnThisPage') return i18n.ts._mkgoIpSearch.noneOnThisPage;
 	if (outcome.value === 'noneResolvable') return i18n.ts._mkgoIpRelated.noneResolvable;
+	if (outcome.value === 'partial') return i18n.ts._mkgoIpRelated.noneInSearchedRange;
 	if (outcome.value === 'noMatch') return i18n.ts._mkgoIpRelated.noMatch;
 	if (outcome.value === 'noMatchInPeriod') return i18n.ts._mkgoIpRelated.noMatchInPeriod;
 	if (candidates.value.length === 0) return i18n.ts._mkgoIpSearch.noneFound;
 	return i18n.tsx._mkgoIpSearch.foundAccounts({ n: number(candidates.value.length) });
 });
 
-/** 表示順は API が返した順。順位はページをまたいで通し番号にする。 */
-function offsetOf(index: number): number {
+/**
+ * Display position in the accumulated list.
+ *
+ * **サーバーの順位そのものではない。** 利用者の行を解決できなかった候補を
+ * 落としているので、前のページで落ちた分だけ番号が詰まる。単調ではあるので
+ * 「上ほど手掛かりが強い」は読めるが、「N 位」とは読ませない。
+ */
+function displayOrder(index: number): number {
 	return index + 1;
 }
 
