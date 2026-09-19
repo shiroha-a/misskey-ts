@@ -94,12 +94,19 @@ export function ipSearchOutcome(snapshot: IPSearchSnapshot, totals: IPSearchTota
 	// FK が無いので、アカウントを完全削除しても観測は残る。ここを `hasMore` で
 	// 分けると、行数が limit 以下の最後のページで同じ嘘が残る。
 	if (totals.droppedCount > 0) {
+		// **続きのページがあるなら、まずそれを案内する。** 「このページには」と
+		// 範囲を限った言い方になるので、打ち切っていても嘘にならない。ここを
+		// 打ち切り判定より後ろに置くと、**次ページへの案内が消えたまま「集めた範囲は
+		// すべて削除済み」と断定する** (ボタンは出たままなので画面内で矛盾する)。
+		if (snapshot.hasMore) return 'noneOnThisPage';
 		// **打ち切っていたら「すべて」と言わない。** 言えるのは「集めた範囲の候補は
 		// 全員消えている」までで、集めていない候補が居るかは分からない。
-		// 到達条件は「1 つの IP に上限以上が載り、集めた候補が全員削除済み」= 
-		// 使い捨てアカウントが一斉に消された後、まさにこの機能が要る場面 (#3105)。
+		// 到達条件は使い捨てアカウントが一斉に消された後、この機能が要る場面そのもの。
+		//
+		// **何を切ったかはここでは言わない。** 原因 (起点 / 候補) は別の banner が
+		// 説明するので、ここで片方を名指しすると取り違える。
 		if (snapshot.truncated === true) return 'noneResolvablePartial';
-		return snapshot.hasMore ? 'noneOnThisPage' : 'noneResolvable';
+		return 'noneResolvable';
 	}
 	// **打ち切った検索から「一致なし」を出さない。** 見たのは全体の一部なので、
 	// 調べた範囲に無かったとしか言えない (#3105)。

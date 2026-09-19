@@ -125,7 +125,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 				</div>
 			</div>
-			<div :class="$style.caption">{{ i18n.tsx._mkgoIpRelated.rankingBasis({ n: result.halfLifeDays, m: number(accountCountCap) }) }}</div>
+			<div :class="$style.caption">{{ i18n.tsx._mkgoIpRelated.rankingBasis({ n: result.halfLifeDays }) }}</div>
+			<!-- 上限で頭打ちになった候補があるときだけ。無いときに出すと存在しない表示を指す。 -->
+			<div v-if="accountCountCap > 0" :class="$style.caption">
+				{{ i18n.tsx._mkgoIpRelated.accountCountCapNote({ n: number(accountCountCap) }) }}
+			</div>
 			<div v-if="droppedTotal > 0" :class="$style.caption">
 				{{ i18n.tsx._mkgoIpRelated.droppedNote({ n: number(droppedTotal) }) }}
 			</div>
@@ -232,7 +236,9 @@ const {
 	initialValue: 90,
 });
 
-// 「N 件以上」と出る境目。サーバーが下限を立てた最小の数を使う。
+// 「N 件以上」と出る境目。**下限が立った候補が無ければ 0** で、そのときは
+// 但し書きを出さない (存在しない表示を指してしまう)。サーバーは常に同じ上限で
+// 頭打ちにするので実際は 0 か上限値のどちらかにしかならない。
 const accountCountCap = computed(() => {
 	let cap = 0;
 	for (const c of candidates.value) {
