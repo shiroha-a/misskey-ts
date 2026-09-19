@@ -116,7 +116,7 @@ export function ipSearchOutcome(snapshot: IPSearchSnapshot, totals: IPSearchTota
 }
 
 /** Which message a failed request deserves. */
-export type IPSearchErrorKind = 'notPermitted' | 'sessionExpired' | 'notAnIp' | 'pagingLimit' | 'networkFailed' | 'failed';
+export type IPSearchErrorKind = 'notPermitted' | 'sessionExpired' | 'notAnIp' | 'pagingLimit' | 'rateLimited' | 'networkFailed' | 'failed';
 
 /**
  * Classifies a rejected `misskeyApi` call.
@@ -131,6 +131,11 @@ export function ipSearchErrorKind(err: unknown, first: boolean): IPSearchErrorKi
 	const code = errorCode(err);
 	if (code === 'ROLE_PERMISSION_DENIED' || code === 'PERMISSION_DENIED') return 'notPermitted';
 	if (code === 'CREDENTIAL_REQUIRED' || code === 'AUTHENTICATION_FAILED') return 'sessionExpired';
+	// **429 を「サーバーのログを確認してください」に倒さない。** rejectRequest は
+	// ログを 1 行も残さないので、確認しても何も無い。しかも正しい対処は「待つ」で、
+	// サーバーは `Retry-After` まで返している。#3106 でこの 3 endpoint に
+	// レート制限を入れたことで、初めて到達しうる経路になった。
+	if (code === 'RATE_LIMIT_EXCEEDED') return 'rateLimited';
 	if (code === 'INVALID_PARAM') {
 		// ページング側の 400 は offset の上限にしか起きない。
 		return first ? 'notAnIp' : 'pagingLimit';

@@ -500,6 +500,11 @@ export const ROUTE_DEF = [{
 		name: 'ip-search',
 		component: page(() => import('@/pages/admin/ip-search.vue')),
 	}, {
+		// mk-go: IP 照会の監査記録 (#3106)
+		path: '/ip-lookup-log',
+		name: 'ip-lookup-log',
+		component: page(() => import('@/pages/admin/ip-lookup-log.vue')),
+	}, {
 		path: '/modlog',
 		name: 'modlog',
 		component: page(() => import('@/pages/admin/modlog.vue')),
