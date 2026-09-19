@@ -68,6 +68,7 @@ export type IPSearchOutcome =
 	| 'noTargetRecords'
 	| 'noneOnThisPage'
 	| 'noneResolvable'
+	| 'noneResolvablePartial'
 	| 'partial'
 	| 'noMatch'
 	| 'noMatchInPeriod';
@@ -93,6 +94,11 @@ export function ipSearchOutcome(snapshot: IPSearchSnapshot, totals: IPSearchTota
 	// FK が無いので、アカウントを完全削除しても観測は残る。ここを `hasMore` で
 	// 分けると、行数が limit 以下の最後のページで同じ嘘が残る。
 	if (totals.droppedCount > 0) {
+		// **打ち切っていたら「すべて」と言わない。** 言えるのは「集めた範囲の候補は
+		// 全員消えている」までで、集めていない候補が居るかは分からない。
+		// 到達条件は「1 つの IP に上限以上が載り、集めた候補が全員削除済み」= 
+		// 使い捨てアカウントが一斉に消された後、まさにこの機能が要る場面 (#3105)。
+		if (snapshot.truncated === true) return 'noneResolvablePartial';
 		return snapshot.hasMore ? 'noneOnThisPage' : 'noneResolvable';
 	}
 	// **打ち切った検索から「一致なし」を出さない。** 見たのは全体の一部なので、

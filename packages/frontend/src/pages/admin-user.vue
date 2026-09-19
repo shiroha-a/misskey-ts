@@ -201,12 +201,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 			**権限は backend と揃える** (canManageCustomEmojis か管理者)。
 			moderator というだけで出すと、押した先が必ず 403 になる。
 		-->
-		<div v-else-if="tab === 'relatedAccounts'" class="_gaps_m">
-			<XRelatedAccounts :userId="user.id"/>
-		</div>
-
 		<div v-else-if="tab === 'emojiApplication'" class="_gaps_m">
 			<XEmojiApplications :userId="user.id"/>
+		</div>
+
+		<!--
+			mk-go: 同じ IP を使ったローカルアカウントの候補 (#3105)。
+			**権限は backend と揃える** (canSearchIpHistory か管理者)。
+		-->
+		<div v-else-if="tab === 'relatedAccounts'" class="_gaps_m">
+			<XRelatedAccounts :userId="user.id"/>
 		</div>
 
 		<div v-else-if="tab === 'chart'" class="_gaps_m">
