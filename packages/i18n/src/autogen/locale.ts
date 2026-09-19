@@ -14270,6 +14270,10 @@ export interface Locale extends ILocale {
          */
         "kindUserIps": string;
         /**
+         * 利用者のログイン履歴を見る
+         */
+        "kindSignins": string;
+        /**
          * 照会した対象
          */
         "subject": string;

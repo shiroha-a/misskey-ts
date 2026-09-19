@@ -226,6 +226,7 @@ function kindLabel(kind: string): string {
 		case 'ip': return i18n.ts._mkgoIpLookupLog.kindIp;
 		case 'relatedAccounts': return i18n.ts._mkgoIpLookupLog.kindRelated;
 		case 'userIps': return i18n.ts._mkgoIpLookupLog.kindUserIps;
+		case 'signins': return i18n.ts._mkgoIpLookupLog.kindSignins;
 		default: return kind;
 	}
 }

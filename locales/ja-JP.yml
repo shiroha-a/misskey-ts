@@ -3823,6 +3823,7 @@ _mkgoIpLookupLog:
   kindIp: "IPアドレスから探す"
   kindRelated: "関連アカウントを探す"
   kindUserIps: "利用者のIP履歴を見る"
+  kindSignins: "利用者のログイン履歴を見る"
   subject: "照会した対象"
   period: "対象期間"
   periodDays: "直近{n}日"
