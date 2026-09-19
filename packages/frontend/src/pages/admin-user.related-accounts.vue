@@ -343,7 +343,7 @@ async function search(offset: number) {
 			droppedTotal.value = 0;
 			everHadHistory.value = false;
 		}
-		error.value = i18n.ts._mkgoIpSearch[ipSearchErrorKind(err, first)];
+		error.value = errorMessage(err, first);
 		errorWhilePaging.value = !first;
 	} finally {
 		// 最新の要求だけが解除する。
@@ -356,6 +356,18 @@ async function search(offset: number) {
 
 // **追記のときは userId で重複を落とす。** offset ページングなので、ページを
 // 送る間に観測が入ると順位が動き、直前のページの末尾が次の先頭に再登場しうる。
+/**
+ * **この画面に IP の入力欄は無い。** 共有の分類は初回の `INVALID_PARAM` を
+ * 「IP アドレスとして読めません」に写すが、ここで初回に 400 が返る現実的な
+ * 原因は**対象がリモート利用者**であること (期間は固定の選択肢から選ぶ)。
+ * 入力欄の無い画面で入力を直せと言わない。
+ */
+function errorMessage(err: unknown, first: boolean): string {
+	const kind = ipSearchErrorKind(err, first);
+	if (kind === 'notAnIp') return i18n.ts._mkgoIpRelated.notLocalUser;
+	return i18n.ts._mkgoIpSearch[kind];
+}
+
 function mergeCandidates(current: RelatedCandidate[], incoming: RelatedCandidate[]): RelatedCandidate[] {
 	const seen = new Set(current.map(c => c.user.id));
 	return [...current, ...incoming.filter(c => !seen.has(c.user.id))];
