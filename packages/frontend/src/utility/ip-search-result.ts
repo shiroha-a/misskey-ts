@@ -19,6 +19,25 @@ export type IPSearchSnapshot = {
 	sinceDays: number;
 	retentionDays: number;
 	hasMore: boolean;
+	/**
+	 * How many of the target's own IPs the search was built from (#3105).
+	 *
+	 * **利用者を起点にする検索でだけ意味を持つ。** IP を直接指定する検索 (#3104)
+	 * には起点という概念が無いので `undefined`。
+	 *
+	 * **0 のときは「一致が無かった」ではなく「比較していない」。** 対象の IP 記録が
+	 * 窓の中に 1 件も無ければ候補側のクエリは 1 回も飛ばない。`hasAnyHistory` は
+	 * テーブル全体を見る値なので、ここを見ないと**照合していないのに
+	 * 「記録されていません」と断定する**。
+	 */
+	targetIPCount?: number;
+	/**
+	 * Whether the candidate set was cut short by a server-side cap (#3105).
+	 *
+	 * **立っているときは何も断定できない。** 見たのは全体の一部なので、
+	 * 「一致が無い」も「これが上位」も言えない。
+	 */
+	truncated?: boolean;
 };
 
 /** Totals accumulated over every page fetched for one search. */
@@ -39,8 +58,19 @@ export type IPSearchTotals = {
  */
 export type IPSearchNotice = 'loggingDisabled' | 'loggingDisabledNoHistory' | 'noHistory' | null;
 
-/** What to show in place of (or alongside) the candidate list. */
-export type IPSearchOutcome = 'accounts' | 'noneOnThisPage' | 'noneResolvable' | 'noMatch' | 'noMatchInPeriod';
+/**
+ * What to show in place of (or alongside) the candidate list.
+ *
+ * `noTargetRecords` / `partial` は利用者を起点にする検索でだけ出る (#3105)。
+ */
+export type IPSearchOutcome =
+	| 'accounts'
+	| 'noTargetRecords'
+	| 'noneOnThisPage'
+	| 'noneResolvable'
+	| 'partial'
+	| 'noMatch'
+	| 'noMatchInPeriod';
 
 export function ipSearchNotice(snapshot: IPSearchSnapshot, totals: IPSearchTotals): IPSearchNotice {
 	if (!snapshot.loggingEnabled) {
@@ -54,12 +84,20 @@ export function ipSearchNotice(snapshot: IPSearchSnapshot, totals: IPSearchTotal
 export function ipSearchOutcome(snapshot: IPSearchSnapshot, totals: IPSearchTotals): IPSearchOutcome {
 	if (totals.accountCount > 0) return 'accounts';
 	if (!totals.hasAnyHistory) return 'accounts';
+	// **起点が無ければ照合していない。** 対象の IP 記録が窓の中に 1 件も無ければ
+	// 候補側のクエリは 1 回も飛ばないので、「一致が無い」とは言えない。
+	// `hasAnyHistory` はテーブル全体を見る値なので、ここを見ないと**比較して
+	// いないのに「記録されていません」と断定する** (#3105)。
+	if (snapshot.targetIPCount === 0) return 'noTargetRecords';
 	// **落としたものがあれば「記録されていない」とは言えない。** `user_ip` に
 	// FK が無いので、アカウントを完全削除しても観測は残る。ここを `hasMore` で
 	// 分けると、行数が limit 以下の最後のページで同じ嘘が残る。
 	if (totals.droppedCount > 0) {
 		return snapshot.hasMore ? 'noneOnThisPage' : 'noneResolvable';
 	}
+	// **打ち切った検索から「一致なし」を出さない。** 見たのは全体の一部なので、
+	// 調べた範囲に無かったとしか言えない (#3105)。
+	if (snapshot.truncated === true) return 'partial';
 	// 窓が保持期間以上なら「残っている記録の全部を見た」と言える。
 	return snapshot.sinceDays >= snapshot.retentionDays ? 'noMatch' : 'noMatchInPeriod';
 }

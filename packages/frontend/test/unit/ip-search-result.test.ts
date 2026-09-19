@@ -68,6 +68,41 @@ describe('ipSearchOutcome', () => {
 			.toBe('noneResolvable');
 	});
 
+	// **これが #3105 のレビュー 1 周目に落とした側。** 対象の IP 記録が窓の中に
+	// 1 件も無ければ候補側のクエリは 1 回も飛ばないので、「一致が無い」とは
+	// 言えない。`hasAnyHistory` はテーブル全体を見る値なので、そちらだけを見ると
+	// **照合していないのに「記録されていません」と断定する。**
+	test('起点が 0 件なら「比較していない」と言う', () => {
+		expect(ipSearchOutcome(snapshot({ targetIPCount: 0 }), totals())).toBe('noTargetRecords');
+	});
+
+	test('起点があれば通常どおり判定する', () => {
+		expect(ipSearchOutcome(snapshot({ targetIPCount: 3 }), totals())).toBe('noMatch');
+	});
+
+	// IP を直接指定する検索 (#3104) には起点という概念が無い。
+	test('targetIPCount が無い検索では影響しない', () => {
+		expect(ipSearchOutcome(snapshot(), totals())).toBe('noMatch');
+	});
+
+	// **打ち切った検索から「一致なし」を出さない。** 見たのは全体の一部。
+	test('打ち切っていたら断定しない', () => {
+		expect(ipSearchOutcome(snapshot({ truncated: true }), totals())).toBe('partial');
+		expect(ipSearchOutcome(snapshot({ truncated: true, sinceDays: 7 }), totals())).toBe('partial');
+	});
+
+	// 起点が無いほうが先。打ち切りより前に「そもそも比較していない」。
+	test('起点が 0 件なら打ち切りより先に伝える', () => {
+		expect(ipSearchOutcome(snapshot({ targetIPCount: 0, truncated: true }), totals()))
+			.toBe('noTargetRecords');
+	});
+
+	// 候補が消えているほうが打ち切りより具体的なので先。
+	test('落としたものがあれば打ち切りより先に伝える', () => {
+		expect(ipSearchOutcome(snapshot({ truncated: true, hasMore: false }), totals({ droppedCount: 2 })))
+			.toBe('noneResolvable');
+	});
+
 	test('落としたものが無く窓が保持期間以上なら、一致なしと言い切る', () => {
 		expect(ipSearchOutcome(snapshot({ sinceDays: 90, retentionDays: 90 }), totals())).toBe('noMatch');
 	});
