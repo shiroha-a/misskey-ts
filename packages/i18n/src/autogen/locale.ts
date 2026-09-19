@@ -14320,6 +14320,10 @@ export interface Locale extends ILocale {
          */
         "tab": string;
         /**
+         * このアカウントでは関連アカウントを検索できません。IPの記録が残るのはこのサーバーでサインインしたローカルアカウントだけです。
+         */
+        "notLocalUser": string;
+        /**
          * 関連アカウントを検索
          */
         "run": string;
