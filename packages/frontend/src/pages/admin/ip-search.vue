@@ -20,16 +20,31 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div class="_gaps_m">
 			<MkInfo>{{ i18n.ts._mkgoIpSearch.disclaimer }}</MkInfo>
 
+			<!--
+				**live region は常設する。** 中身と一緒に v-if で挿入すると、
+				初回の結果は読み上げられない。ここには短い状況だけを入れる
+				(一覧そのものを region にすると 30 件ぶんが読み上げられる)。
+			-->
+			<div :class="$style.status" aria-live="polite">{{ status }}</div>
+
 			<form class="_gaps_s" @submit.prevent="search(0)">
 				<MkInput v-model="ip" type="search" :spellcheck="false" :placeholder="i18n.ts._mkgoIpSearch.ipPlaceholder">
 					<template #label>{{ i18n.ts._mkgoIpSearch.ipAddress }}</template>
 				</MkInput>
 				<MkSelect v-model="sinceDays" :items="periodDef">
 					<template #label>{{ i18n.ts._mkgoIpSearch.period }}</template>
-					<!-- 保持期間はサーバーが教える。来るまでは出さない (決め打ちを事実として描かない)。 -->
-					<template v-if="retentionDays != null" #caption>{{ i18n.tsx._mkgoIpSearch.retentionNote({ n: retentionDays }) }}</template>
+					<!--
+						**何を絞る期間なのかを言う。** SQL の条件は最終観測なので、
+						「直近 7 日」の結果に「最初の観測: 100 日前」が並ぶ。
+						保持期間はサーバーが教えるので、来るまでは出さない
+						(決め打ちを事実として描かない)。
+					-->
+					<template #caption>
+						{{ i18n.ts._mkgoIpSearch.periodMeaning }}
+						<template v-if="retentionDays != null">{{ i18n.tsx._mkgoIpSearch.retentionNote({ n: retentionDays }) }}</template>
+					</template>
 				</MkSelect>
-				<MkButton primary type="submit" :disabled="loading || loadingMore"><i class="ti ti-search"></i> {{ i18n.ts._mkgoIpSearch.search }}</MkButton>
+				<MkButton primary type="submit" :disabled="loading || ip.trim() === ''"><i class="ti ti-search"></i> {{ i18n.ts.search }}</MkButton>
 			</form>
 
 			<!--
@@ -65,24 +80,24 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkKeyValue>
 
 				<!--
-					**「該当なし」と「記録が無い」を言い分ける。** 記録が 1 件でも
-					あれば「このアドレスからの接続は無い」と言えるが、無ければ
-					それは分からない (上の MkInfo がその場合を説明している)。
+					**「該当なし」と「記録が無い」と「候補が全員消えている」を言い分ける。**
 
-					**`hasMore` が立っているときは断定しない。** サーバーは行を引けて
-					いるのに「利用者の行を引けない観測」を落とすので、1 ページが丸ごと
-					消えて `accounts` が空・`hasMore` が true になりうる。そこで
-					「記録されていません」と言うと、直後の「さらに表示」で候補が出て
-					きて嘘だったと分かる。
+					判定に使うのは `hasMore` ではなく **`droppedCount`**。サーバーは
+					行を引けていても「利用者の行を解決できない観測」を落とすので、
+					`accounts` が空でも `droppedCount > 0` なら**その IP からの接続は
+					記録されている** (アカウントが完全削除されているだけ)。そこで
+					「記録されていません」と言うのは事実と正反対で、しかもそれは
+					荒らしの使い捨てアカウントが消された後 = この機能が要る場面その
+					ものになる。`hasMore` で分けると、最後のページで同じ嘘が残る。
 				-->
-				<MkInfo v-if="accounts.length === 0 && result.hasAnyHistory && result.hasMore">
-					{{ i18n.ts._mkgoIpSearch.noneOnThisPage }}
+				<MkInfo v-if="accounts.length === 0 && result.hasAnyHistory && result.droppedCount > 0">
+					{{ result.hasMore ? i18n.ts._mkgoIpSearch.noneOnThisPage : i18n.ts._mkgoIpSearch.noneResolvable }}
 				</MkInfo>
 				<MkInfo v-else-if="accounts.length === 0 && result.hasAnyHistory">
 					{{ result.sinceDays >= result.retentionDays ? i18n.ts._mkgoIpSearch.noMatch : i18n.ts._mkgoIpSearch.noMatchInPeriod }}
 				</MkInfo>
 
-				<div v-if="accounts.length > 0" class="_gaps_s" aria-live="polite">
+				<div v-if="accounts.length > 0" class="_gaps_s">
 					<div v-for="a in accounts" :key="a.user.id" :class="$style.row">
 						<MkA :to="`/admin/user/${a.user.id}`" :class="$style.card">
 							<MkUserCardMini :user="a.user" :withChart="false"/>
@@ -105,13 +120,20 @@ SPDX-License-Identifier: AGPL-3.0-only
 								<template #value>{{ i18n.tsx._mkgoIpSearch.observationCountValue({ n: number(a.observationCount) }) }}</template>
 							</MkKeyValue>
 							<MkKeyValue oneline>
-								<template #key>{{ i18n.ts._mkgoIpSearch.lastActive }}</template>
+								<template #key>{{ i18n.ts.lastActiveDate }}</template>
 								<template #value>
 									<MkTime v-if="a.lastActiveDate != null" :time="a.lastActiveDate" mode="detail"/>
 									<span v-else>{{ i18n.ts._mkgoIpSearch.lastActiveUnknown }}</span>
 								</template>
 							</MkKeyValue>
 						</div>
+					</div>
+					<!--
+						**落とした件数は候補が出ているときも伝える。** 黙って減らすと
+						「これで全部」と読まれる。消えたアカウントも調査の材料になる。
+					-->
+					<div v-if="result.droppedCount > 0" :class="$style.caption">
+						{{ i18n.tsx._mkgoIpSearch.droppedNote({ n: number(result.droppedCount) }) }}
 					</div>
 					<div :class="$style.caption">{{ i18n.ts._mkgoIpSearch.observationCaption }}</div>
 				</div>
@@ -122,7 +144,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					中に置くと、そこから先へ進めなくなる。
 				-->
 				<MkInfo v-if="error && errorWhilePaging" warn>{{ error }}</MkInfo>
-				<MkButton v-if="result.hasMore" :disabled="loadingMore" @click="loadMore()">{{ i18n.ts._mkgoIpSearch.loadMore }}</MkButton>
+				<MkButton v-if="result.hasMore" :disabled="loadingMore" @click="loadMore()">{{ i18n.ts.loadMore }}</MkButton>
 			</template>
 		</div>
 	</div>
@@ -130,7 +152,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import type * as Misskey from 'misskey-js';
 import MkButton from '@/components/MkButton.vue';
 import MkInfo from '@/components/MkInfo.vue';
@@ -163,6 +185,7 @@ type IPAccountsResponse = {
 	limit: number;
 	offset: number;
 	hasMore: boolean;
+	droppedCount: number;
 	accounts: IPAccount[];
 };
 
@@ -246,6 +269,10 @@ async function search(offset: number) {
 			offset,
 		});
 		if (gen !== generation) return;
+		// **案内文は最新ページの result、一覧は累積の accounts を読む。**
+		// ページ送りの途中で `user_ip` が空になる (掃除が走る) と、page2 の
+		// `hasAnyHistory: false` が page1 由来の一覧の上に出る。窓は極めて狭い
+		// ので放置しているが、2 つのスナップショットを同じ画面に混ぜている。
 		result.value = res;
 		retentionDays.value = res.retentionDays;
 		// **追記のときは userId で重複を落とす。** offset ページングなので、
@@ -297,8 +324,15 @@ function errorMessage(err: unknown, first: boolean): string {
 	if (code === 'ROLE_PERMISSION_DENIED' || code === 'PERMISSION_DENIED') {
 		return i18n.ts._mkgoIpSearch.notPermitted;
 	}
-	if (first && code === 'INVALID_PARAM') {
-		return i18n.ts._mkgoIpSearch.notAnIp;
+	if (code === 'INVALID_PARAM') {
+		// **ページング側の 400 は offset の上限にしか起きない。** そこで
+		// 「IP が読めない」を出すと入力欄と無関係な指摘になる。
+		return first ? i18n.ts._mkgoIpSearch.notAnIp : i18n.ts._mkgoIpSearch.pagingLimit;
+	}
+	if (code == null) {
+		// **サーバーが返したエラーではない = 通信そのものが失敗した。**
+		// 「サーバーのログを確認してください」と案内しても何も残っていない。
+		return i18n.ts._mkgoIpSearch.networkFailed;
 	}
 	return i18n.ts._mkgoIpSearch.failed;
 }
@@ -308,6 +342,20 @@ function errorMessage(err: unknown, first: boolean): string {
  * サーバーは `limit` 行引いてから「利用者の行を引けない観測」を落とすので、
  * `accounts.length` を offset にすると落とした分だけ候補を読み飛ばす。
  */
+/**
+ * Short sentence for the live region.
+ *
+ * **一覧そのものを読み上げさせない。** 30 件のカードが丸ごと読まれるので、
+ * 件数と結末だけを入れる。
+ */
+const status = computed(() => {
+	if (loading.value) return i18n.ts._mkgoIpSearch.searching;
+	if (error.value != null) return error.value;
+	if (result.value == null) return '';
+	if (accounts.value.length === 0) return i18n.ts._mkgoIpSearch.noneFound;
+	return i18n.tsx._mkgoIpSearch.foundAccounts({ n: number(accounts.value.length) });
+});
+
 function loadMore() {
 	if (result.value == null) return Promise.resolve();
 	return search(result.value.offset + result.value.limit);
@@ -328,14 +376,28 @@ definePage(() => ({
 /*
 	**背景を敷かない。** 中に置く MkUserCardMini 自身が `--MI_THEME-panel` を
 	持つので、同じ色を重ねるとカードが枠に溶けて 1 件の区切りが見えなくなる。
+
+	**区切りは `+` で入れる。** `:last-child` は当たらない — この div の最後の子は
+	注釈のほうなので、末尾の行を指せない。
 */
 .row {
 	padding: 12px 0;
-	border-bottom: solid 0.5px var(--MI_THEME-divider);
+}
 
-	&:last-child {
-		border-bottom: none;
-	}
+.row + .row {
+	border-top: solid 0.5px var(--MI_THEME-divider);
+}
+
+/* 読み上げ専用。見た目には出さないが display:none にすると読まれない。 */
+.status {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
 }
 
 .card {
