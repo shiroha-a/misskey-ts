@@ -1,0 +1,136 @@
+/*
+ * SPDX-FileCopyrightText: mk-go project
+ * SPDX-License-Identifier: AGPL-3.0-only
+ */
+
+import { describe, test, expect } from 'vitest';
+import { ipSearchNotice, ipSearchOutcome, ipSearchErrorKind } from '@/utility/ip-search-result.js';
+import type { IPSearchSnapshot, IPSearchTotals } from '@/utility/ip-search-result.js';
+
+function snapshot(over: Partial<IPSearchSnapshot> = {}): IPSearchSnapshot {
+	return { loggingEnabled: true, hasAnyHistory: true, sinceDays: 90, retentionDays: 90, hasMore: false, ...over };
+}
+
+function totals(over: Partial<IPSearchTotals> = {}): IPSearchTotals {
+	return { accountCount: 0, droppedCount: 0, hasAnyHistory: true, ...over };
+}
+
+describe('ipSearchNotice', () => {
+	test('記録が有効で記録もあるなら何も言わない', () => {
+		expect(ipSearchNotice(snapshot(), totals())).toBe(null);
+	});
+
+	test('記録が無効でも、残っている記録があるなら検索結果の断りだけ出す', () => {
+		expect(ipSearchNotice(snapshot({ loggingEnabled: false }), totals())).toBe('loggingDisabled');
+	});
+
+	test('記録が無効で記録も無いなら、有効にする案内を出す', () => {
+		expect(ipSearchNotice(snapshot({ loggingEnabled: false }), totals({ hasAnyHistory: false })))
+			.toBe('loggingDisabledNoHistory');
+	});
+
+	test('記録は有効だが 1 件も無いなら、保持期間を添えて言う', () => {
+		expect(ipSearchNotice(snapshot(), totals({ hasAnyHistory: false }))).toBe('noHistory');
+	});
+
+	// **累積で見る。** ページを送っている間に掃除が走って最後のページが
+	// 「記録は無い」と答えても、既に引けている一覧の上で記録を否定しない。
+	test('最新ページが「記録なし」でも、累積で記録があれば否定しない', () => {
+		expect(ipSearchNotice(snapshot({ hasAnyHistory: false }), totals({ accountCount: 3 }))).toBe(null);
+	});
+});
+
+describe('ipSearchOutcome', () => {
+	test('候補が 1 件でもあれば一覧を出す', () => {
+		expect(ipSearchOutcome(snapshot(), totals({ accountCount: 1 }))).toBe('accounts');
+	});
+
+	test('記録が 1 件も無いときは案内側に任せる', () => {
+		expect(ipSearchOutcome(snapshot(), totals({ hasAnyHistory: false }))).toBe('accounts');
+	});
+
+	// **これが 1 周目に落とした側。** hasMore で分けると、行数が limit 以下の
+	// 最後のページで「記録されていません」と、記録が残っているのに断定する。
+	test('落としたものがあり続きも無いなら、「消えている」と言う', () => {
+		expect(ipSearchOutcome(snapshot({ hasMore: false }), totals({ droppedCount: 2 })))
+			.toBe('noneResolvable');
+	});
+
+	test('落としたものがあり続きもあるなら、「このページには」と言う', () => {
+		expect(ipSearchOutcome(snapshot({ hasMore: true }), totals({ droppedCount: 2 })))
+			.toBe('noneOnThisPage');
+	});
+
+	// **これが 2 周目に落とした側。** ページごとの droppedCount を見ると、
+	// 落ちの無いページを引いた時点で「落としたものは無い」に化ける。
+	test('落としたのが前のページでも「消えている」と言う', () => {
+		expect(ipSearchOutcome(snapshot({ hasMore: false }), totals({ droppedCount: 3, accountCount: 0 })))
+			.toBe('noneResolvable');
+	});
+
+	test('落としたものが無く窓が保持期間以上なら、一致なしと言い切る', () => {
+		expect(ipSearchOutcome(snapshot({ sinceDays: 90, retentionDays: 90 }), totals())).toBe('noMatch');
+	});
+
+	test('窓が保持期間より狭いなら、期間を広げる余地を残す', () => {
+		expect(ipSearchOutcome(snapshot({ sinceDays: 7, retentionDays: 90 }), totals())).toBe('noMatchInPeriod');
+	});
+
+	test('窓が保持期間より広ければ言い切ってよい', () => {
+		expect(ipSearchOutcome(snapshot({ sinceDays: 365, retentionDays: 90 }), totals())).toBe('noMatch');
+	});
+});
+
+// **`loggingEnabled` × `hasAnyHistory` × 候補の有無 × 落ちの有無 × `hasMore`**
+// の全 32 通りで、案内と結末が同時に出ないこと・どちらも出ないことが無いこと。
+describe('ipSearchNotice と ipSearchOutcome の組み合わせ', () => {
+	test('候補が無いときは必ず 1 つは伝える', () => {
+		for (const loggingEnabled of [true, false]) {
+			for (const hasAnyHistory of [true, false]) {
+				for (const droppedCount of [0, 2]) {
+					for (const hasMore of [true, false]) {
+						const s = snapshot({ loggingEnabled, hasMore });
+						const t = totals({ hasAnyHistory, droppedCount });
+						const notice = ipSearchNotice(s, t);
+						const outcome = ipSearchOutcome(s, t);
+						// 案内が無いなら、結末のほうが必ず何かを言っている。
+						expect(notice != null || outcome !== 'accounts').toBe(true);
+					}
+				}
+			}
+		}
+	});
+
+	test('記録が無いと分かっているときに「記録されていません」と断定しない', () => {
+		const s = snapshot();
+		const t = totals({ hasAnyHistory: false });
+		expect(ipSearchNotice(s, t)).toBe('noHistory');
+		expect(ipSearchOutcome(s, t)).not.toBe('noMatch');
+	});
+});
+
+describe('ipSearchErrorKind', () => {
+	test.each([
+		['ROLE_PERMISSION_DENIED', true, 'notPermitted'],
+		['PERMISSION_DENIED', false, 'notPermitted'],
+		['CREDENTIAL_REQUIRED', true, 'sessionExpired'],
+		['AUTHENTICATION_FAILED', false, 'sessionExpired'],
+		['INVALID_PARAM', true, 'notAnIp'],
+		['INVALID_PARAM', false, 'pagingLimit'],
+		['INTERNAL_ERROR', true, 'failed'],
+	] as const)('%s (first=%s) -> %s', (code, first, want) => {
+		expect(ipSearchErrorKind({ code }, first)).toBe(want);
+	});
+
+	// **サーバーが返したエラーでないものを「サーバーのログを確認してください」に
+	// しない。** 通信断ではログに何も残らない。
+	test.each([
+		[new Error('network down')],
+		[{ message: 'no code' }],
+		[{ code: 42 }],
+		[null],
+		[undefined],
+	])('サーバー由来でないエラーは通信失敗として扱う (%s)', (err) => {
+		expect(ipSearchErrorKind(err, true)).toBe('networkFailed');
+	});
+});

@@ -61,9 +61,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 					**「記録が無効」と「結果がある」は同時に成り立つ。** 無効にした
 					後も残っている記録は引けるので、単一の状態に潰さない (#3066 §7)。
 				-->
-				<MkInfo v-if="!result.loggingEnabled && result.hasAnyHistory" warn>{{ i18n.ts._mkgoIpSearch.loggingDisabled }}</MkInfo>
-				<MkInfo v-else-if="!result.loggingEnabled" warn>{{ i18n.ts._mkgoIpSearch.loggingDisabledNoHistory }}</MkInfo>
-				<MkInfo v-else-if="!result.hasAnyHistory" warn>{{ i18n.tsx._mkgoIpSearch.noHistory({ n: result.retentionDays }) }}</MkInfo>
+				<MkInfo v-if="notice === 'loggingDisabled'" warn>{{ i18n.ts._mkgoIpSearch.loggingDisabled }}</MkInfo>
+				<MkInfo v-else-if="notice === 'loggingDisabledNoHistory'" warn>{{ i18n.ts._mkgoIpSearch.loggingDisabledNoHistory }}</MkInfo>
+				<MkInfo v-else-if="notice === 'noHistory'" warn>{{ i18n.tsx._mkgoIpSearch.noHistory({ n: result.retentionDays }) }}</MkInfo>
 
 				<!--
 					**検索した条件は IP と期間の両方を出す。** 期間のセレクトは検索の
@@ -80,22 +80,16 @@ SPDX-License-Identifier: AGPL-3.0-only
 				</MkKeyValue>
 
 				<!--
-					**「該当なし」と「記録が無い」と「候補が全員消えている」を言い分ける。**
-
-					判定に使うのは `hasMore` ではなく **`droppedCount`**。サーバーは
-					行を引けていても「利用者の行を解決できない観測」を落とすので、
-					`accounts` が空でも `droppedCount > 0` なら**その IP からの接続は
-					記録されている** (アカウントが完全削除されているだけ)。そこで
-					「記録されていません」と言うのは事実と正反対で、しかもそれは
-					荒らしの使い捨てアカウントが消された後 = この機能が要る場面その
-					ものになる。`hasMore` で分けると、最後のページで同じ嘘が残る。
+					**判定は `@/utility/ip-search-result.js` が持つ。** 「該当なし」と
+					「記録が無い」と「候補が全員消えている」の言い分けをここで 2 度
+					間違えた (`hasMore` で分けて最後のページに嘘が残り、ページごとの
+					`droppedCount` を見て累積の一覧と食い違った) ので、分岐を純粋関数
+					へ出して `test/unit/ip-search-result.test.ts` で表にして固定した。
 				-->
-				<MkInfo v-if="accounts.length === 0 && result.hasAnyHistory && result.droppedCount > 0">
-					{{ result.hasMore ? i18n.ts._mkgoIpSearch.noneOnThisPage : i18n.ts._mkgoIpSearch.noneResolvable }}
-				</MkInfo>
-				<MkInfo v-else-if="accounts.length === 0 && result.hasAnyHistory">
-					{{ result.sinceDays >= result.retentionDays ? i18n.ts._mkgoIpSearch.noMatch : i18n.ts._mkgoIpSearch.noMatchInPeriod }}
-				</MkInfo>
+				<MkInfo v-if="outcome === 'noneOnThisPage'">{{ i18n.ts._mkgoIpSearch.noneOnThisPage }}</MkInfo>
+				<MkInfo v-else-if="outcome === 'noneResolvable'">{{ i18n.ts._mkgoIpSearch.noneResolvable }}</MkInfo>
+				<MkInfo v-else-if="outcome === 'noMatch'">{{ i18n.ts._mkgoIpSearch.noMatch }}</MkInfo>
+				<MkInfo v-else-if="outcome === 'noMatchInPeriod'">{{ i18n.ts._mkgoIpSearch.noMatchInPeriod }}</MkInfo>
 
 				<div v-if="accounts.length > 0" class="_gaps_s">
 					<div v-for="a in accounts" :key="a.user.id" :class="$style.row">
@@ -132,8 +126,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 						**落とした件数は候補が出ているときも伝える。** 黙って減らすと
 						「これで全部」と読まれる。消えたアカウントも調査の材料になる。
 					-->
-					<div v-if="result.droppedCount > 0" :class="$style.caption">
-						{{ i18n.tsx._mkgoIpSearch.droppedNote({ n: number(result.droppedCount) }) }}
+					<div v-if="droppedTotal > 0" :class="$style.caption">
+						{{ i18n.tsx._mkgoIpSearch.droppedNote({ n: number(droppedTotal) }) }}
 					</div>
 					<div :class="$style.caption">{{ i18n.ts._mkgoIpSearch.observationCaption }}</div>
 				</div>
@@ -165,6 +159,7 @@ import { i18n } from '@/i18n.js';
 import number from '@/filters/number.js';
 import { definePage } from '@/page.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
+import { ipSearchErrorKind, ipSearchNotice, ipSearchOutcome } from '@/utility/ip-search-result.js';
 
 type IPAccount = {
 	user: Misskey.entities.UserLite;
@@ -208,6 +203,11 @@ const error = ref<string | null>(null);
 const errorWhilePaging = ref(false);
 const result = ref<IPAccountsResponse | null>(null);
 const accounts = ref<IPAccount[]>([]);
+// **累積で持つ。** 一覧は全ページの累積なので、注釈や判定を最新ページの値で
+// 出すと、落ちの無いページを引いた時点で「落としたものは無い」という新しい嘘に
+// なる。`hasAnyHistory` も同じ理由で「どれか 1 ページでも真だったか」を持つ。
+const droppedTotal = ref(0);
+const everHadHistory = ref(false);
 // ページングで使う「実際に検索した条件」。入力欄とは別に持つ。
 const searched = reactive({ ip: '', sinceDays: 90 });
 
@@ -257,6 +257,8 @@ async function search(offset: number) {
 	if (first) {
 		loading.value = true;
 		accounts.value = [];
+		droppedTotal.value = 0;
+		everHadHistory.value = false;
 		searched.ip = raw;
 		searched.sinceDays = days;
 	} else {
@@ -279,6 +281,8 @@ async function search(offset: number) {
 		// ページを送る間に観測が入ると行が後ろへずれ、直前のページの末尾が
 		// 次のページの先頭に再登場しうる (Vue の duplicate key にもなる)。
 		accounts.value = first ? res.accounts : mergeAccounts(accounts.value, res.accounts);
+		droppedTotal.value += res.droppedCount;
+		everHadHistory.value = everHadHistory.value || res.hasAnyHistory;
 	} catch (err) {
 		if (gen !== generation) return;
 		// **前回の結果を消す。** 残したまま失敗だけ添えると、古い候補を
@@ -286,6 +290,8 @@ async function search(offset: number) {
 		if (first) {
 			result.value = null;
 			accounts.value = [];
+			droppedTotal.value = 0;
+			everHadHistory.value = false;
 		}
 		// **`INVALID_PARAM` を「IP が読めない」に写すのは初回だけ。** ページングで
 		// offset の上限に当たっても同じコードが返るので、入力欄と無関係な指摘になる。
@@ -306,35 +312,9 @@ function mergeAccounts(current: IPAccount[], incoming: IPAccount[]): IPAccount[]
 	return [...current, ...incoming.filter(a => !seen.has(a.user.id))];
 }
 
-function errorCode(err: unknown): string | null {
-	if (typeof err !== 'object' || err == null || !('code' in err)) return null;
-	const code = (err as { code: unknown }).code;
-	return typeof code === 'string' ? code : null;
-}
-
-/**
- * Picks the message for a failed search.
- *
- * **権限不足を「サーバーのログを確認してください」にしない。** ポリシーを持たない
- * モデレーターは URL 直打ちでこの画面を開けるが、`RequireRolePolicy` の 403 は
- * サーバーのログに何も残さない。本人に手の打ちようがない案内になる。
- */
+/** 分類は `@/utility/ip-search-result.js`。ここは文面を当てるだけ。 */
 function errorMessage(err: unknown, first: boolean): string {
-	const code = errorCode(err);
-	if (code === 'ROLE_PERMISSION_DENIED' || code === 'PERMISSION_DENIED') {
-		return i18n.ts._mkgoIpSearch.notPermitted;
-	}
-	if (code === 'INVALID_PARAM') {
-		// **ページング側の 400 は offset の上限にしか起きない。** そこで
-		// 「IP が読めない」を出すと入力欄と無関係な指摘になる。
-		return first ? i18n.ts._mkgoIpSearch.notAnIp : i18n.ts._mkgoIpSearch.pagingLimit;
-	}
-	if (code == null) {
-		// **サーバーが返したエラーではない = 通信そのものが失敗した。**
-		// 「サーバーのログを確認してください」と案内しても何も残っていない。
-		return i18n.ts._mkgoIpSearch.networkFailed;
-	}
-	return i18n.ts._mkgoIpSearch.failed;
+	return i18n.ts._mkgoIpSearch[ipSearchErrorKind(err, first)];
 }
 
 /**
@@ -342,6 +322,23 @@ function errorMessage(err: unknown, first: boolean): string {
  * サーバーは `limit` 行引いてから「利用者の行を引けない観測」を落とすので、
  * `accounts.length` を offset にすると落とした分だけ候補を読み飛ばす。
  */
+const snapshot = computed(() => (result.value == null ? null : {
+	loggingEnabled: result.value.loggingEnabled,
+	hasAnyHistory: result.value.hasAnyHistory,
+	sinceDays: result.value.sinceDays,
+	retentionDays: result.value.retentionDays,
+	hasMore: result.value.hasMore,
+}));
+
+const totals = computed(() => ({
+	accountCount: accounts.value.length,
+	droppedCount: droppedTotal.value,
+	hasAnyHistory: everHadHistory.value,
+}));
+
+const notice = computed(() => (snapshot.value == null ? null : ipSearchNotice(snapshot.value, totals.value)));
+const outcome = computed(() => (snapshot.value == null ? 'accounts' : ipSearchOutcome(snapshot.value, totals.value)));
+
 /**
  * Short sentence for the live region.
  *
@@ -352,6 +349,10 @@ const status = computed(() => {
 	if (loading.value) return i18n.ts._mkgoIpSearch.searching;
 	if (error.value != null) return error.value;
 	if (result.value == null) return '';
+	// **画面と同じことを言う。** 「候補は見つかりませんでした」だけを読み上げると、
+	// 「記録はあるが候補が全員消えている」という**この機能でいちばん重要な区別**が
+	// 視覚表示にしか無い状態になる。
+	if (outcome.value !== 'accounts') return i18n.ts._mkgoIpSearch[outcome.value];
 	if (accounts.value.length === 0) return i18n.ts._mkgoIpSearch.noneFound;
 	return i18n.tsx._mkgoIpSearch.foundAccounts({ n: number(accounts.value.length) });
 });
