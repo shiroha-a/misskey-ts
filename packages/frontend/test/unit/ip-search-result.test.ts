@@ -97,10 +97,21 @@ describe('ipSearchOutcome', () => {
 			.toBe('noTargetRecords');
 	});
 
-	// 候補が消えているほうが打ち切りより具体的なので先。
-	test('落としたものがあれば打ち切りより先に伝える', () => {
+	// **打ち切っていたら「すべて削除済み」と断定しない。** 言えるのは「集めた
+	// 範囲の候補は全員消えている」までで、集めていない候補が居るかは分からない。
+	test('打ち切っていたら「すべて」と言わない', () => {
 		expect(ipSearchOutcome(snapshot({ truncated: true, hasMore: false }), totals({ droppedCount: 2 })))
+			.toBe('noneResolvablePartial');
+		expect(ipSearchOutcome(snapshot({ truncated: true, hasMore: true }), totals({ droppedCount: 2 })))
+			.toBe('noneResolvablePartial');
+	});
+
+	// 打ち切っていなければ従来どおり言い切れる。
+	test('打ち切っていなければ「すべて削除済み」と言える', () => {
+		expect(ipSearchOutcome(snapshot({ hasMore: false }), totals({ droppedCount: 2 })))
 			.toBe('noneResolvable');
+		expect(ipSearchOutcome(snapshot({ hasMore: true }), totals({ droppedCount: 2 })))
+			.toBe('noneOnThisPage');
 	});
 
 	test('落としたものが無く窓が保持期間以上なら、一致なしと言い切る', () => {

@@ -43,8 +43,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 			**打ち切ったことを黙らない。** 立っているときは順位もスコアも下限で、
 			続きを見れば順位が入れ替わりうる。
 		-->
+		<!--
+			**両方立つことがあるので独立して出す。** `v-else-if` にすると、起点と
+			候補の両方を切ったときに候補側の説明 (「集めていない候補のほうが強い
+			可能性がある」「アカウント数も『以上』になる」「ページを送っても
+			解消しない」) が丸ごと落ちる。IPv6 の起点 50 本超と CGNAT の IP は
+			同時に起きやすい。
+		-->
 		<MkInfo v-if="result.targetIpsTruncated" warn>{{ i18n.tsx._mkgoIpRelated.targetIpsTruncated({ n: number(result.targetIpCount) }) }}</MkInfo>
-		<MkInfo v-else-if="result.truncated" warn>{{ i18n.ts._mkgoIpRelated.candidatesTruncated }}</MkInfo>
+		<MkInfo v-if="result.candidatesTruncated" warn>{{ i18n.ts._mkgoIpRelated.candidatesTruncated }}</MkInfo>
 
 		<MkKeyValue oneline>
 			<template #key>{{ i18n.ts._mkgoIpRelated.targetIpCount }}</template>
@@ -66,6 +73,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<MkInfo v-if="outcome === 'noTargetRecords'" warn>{{ i18n.tsx._mkgoIpRelated.noTargetRecords({ n: result.sinceDays }) }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noneOnThisPage'">{{ i18n.ts._mkgoIpSearch.noneOnThisPage }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noneResolvable'">{{ i18n.ts._mkgoIpRelated.noneResolvable }}</MkInfo>
+		<MkInfo v-else-if="outcome === 'noneResolvablePartial'">{{ i18n.ts._mkgoIpRelated.noneResolvablePartial }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'partial'">{{ i18n.ts._mkgoIpRelated.noneInSearchedRange }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noMatch'">{{ i18n.ts._mkgoIpRelated.noMatch }}</MkInfo>
 		<MkInfo v-else-if="outcome === 'noMatchInPeriod'">{{ i18n.ts._mkgoIpRelated.noMatchInPeriod }}</MkInfo>
@@ -117,7 +125,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 				</div>
 			</div>
-			<div :class="$style.caption">{{ i18n.tsx._mkgoIpRelated.rankingBasis({ n: result.halfLifeDays }) }}</div>
+			<div :class="$style.caption">{{ i18n.tsx._mkgoIpRelated.rankingBasis({ n: result.halfLifeDays, m: number(accountCountCap) }) }}</div>
 			<div v-if="droppedTotal > 0" :class="$style.caption">
 				{{ i18n.tsx._mkgoIpRelated.droppedNote({ n: number(droppedTotal) }) }}
 			</div>
@@ -180,7 +188,10 @@ type RelatedResponse = {
 	halfLifeDays: number;
 	targetIpCount: number;
 	truncated: boolean;
+	// **原因ごとに分かれている。両方立つことがある。** 起点を切ったなら期間を
+	// 絞れば絞り込めるが、候補側の打ち切りはどうにもならない。
 	targetIpsTruncated: boolean;
+	candidatesTruncated: boolean;
 	limit: number;
 	offset: number;
 	hasMore: boolean;
@@ -221,6 +232,17 @@ const {
 	initialValue: 90,
 });
 
+// 「N 件以上」と出る境目。サーバーが下限を立てた最小の数を使う。
+const accountCountCap = computed(() => {
+	let cap = 0;
+	for (const c of candidates.value) {
+		for (const p of c.sharedIps) {
+			if (p.ipAccountCountIsLowerBound && (cap === 0 || p.ipAccountCount < cap)) cap = p.ipAccountCount;
+		}
+	}
+	return cap;
+});
+
 const snapshot = computed(() => (result.value == null ? null : {
 	loggingEnabled: result.value.loggingEnabled,
 	hasAnyHistory: result.value.hasAnyHistory,
@@ -253,6 +275,7 @@ const status = computed(() => {
 	if (outcome.value === 'noTargetRecords') return i18n.tsx._mkgoIpRelated.noTargetRecords({ n: result.value.sinceDays });
 	if (outcome.value === 'noneOnThisPage') return i18n.ts._mkgoIpSearch.noneOnThisPage;
 	if (outcome.value === 'noneResolvable') return i18n.ts._mkgoIpRelated.noneResolvable;
+	if (outcome.value === 'noneResolvablePartial') return i18n.ts._mkgoIpRelated.noneResolvablePartial;
 	if (outcome.value === 'partial') return i18n.ts._mkgoIpRelated.noneInSearchedRange;
 	if (outcome.value === 'noMatch') return i18n.ts._mkgoIpRelated.noMatch;
 	if (outcome.value === 'noMatchInPeriod') return i18n.ts._mkgoIpRelated.noMatchInPeriod;
