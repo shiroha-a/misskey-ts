@@ -102,8 +102,15 @@ describe('ipSearchOutcome', () => {
 	test('打ち切っていたら「すべて」と言わない', () => {
 		expect(ipSearchOutcome(snapshot({ truncated: true, hasMore: false }), totals({ droppedCount: 2 })))
 			.toBe('noneResolvablePartial');
+	});
+
+	// **続きがあるならまずそれを案内する。** 「このページには」と範囲を限った
+	// 言い方になるので、打ち切っていても嘘にならない。打ち切り判定を先に置くと、
+	// 次ページへの案内が消えたまま「集めた範囲はすべて削除済み」と断定する
+	// (ボタンは出たままなので画面内で矛盾する)。
+	test('続きがあれば打ち切っていてもページの話に閉じる', () => {
 		expect(ipSearchOutcome(snapshot({ truncated: true, hasMore: true }), totals({ droppedCount: 2 })))
-			.toBe('noneResolvablePartial');
+			.toBe('noneOnThisPage');
 	});
 
 	// 打ち切っていなければ従来どおり言い切れる。
@@ -127,31 +134,133 @@ describe('ipSearchOutcome', () => {
 	});
 });
 
-// **`loggingEnabled` × `hasAnyHistory` × 候補の有無 × 落ちの有無 × `hasMore`**
-// の全 32 通りで、案内と結末が同時に出ないこと・どちらも出ないことが無いこと。
-describe('ipSearchNotice と ipSearchOutcome の組み合わせ', () => {
-	test('候補が無いときは必ず 1 つは伝える', () => {
+// **全入力を網羅して不変条件を固定する。**
+//
+// この判定は 3 周続けて間違えており、毎周「画面が事実と違うことを言う」を 1 つ直して
+// 隣の枝で 1 つ作っている。原因は個別の判断ではなく、**組み合わせを網羅していな
+// かったこと** — 以前の表は 16 通りしか回さず、候補の有無・起点・打ち切りの 3 軸を
+// 一度も振っていなかった。ここで全部回し、言ってよいことを枝ごとに固定する。
+describe('ipSearchNotice / ipSearchOutcome の全組み合わせ', () => {
+	type Case = { s: IPSearchSnapshot; t: IPSearchTotals; label: string };
+
+	function allCases(): Case[] {
+		const out: Case[] = [];
 		for (const loggingEnabled of [true, false]) {
 			for (const hasAnyHistory of [true, false]) {
-				for (const droppedCount of [0, 2]) {
-					for (const hasMore of [true, false]) {
-						const s = snapshot({ loggingEnabled, hasMore });
-						const t = totals({ hasAnyHistory, droppedCount });
-						const notice = ipSearchNotice(s, t);
-						const outcome = ipSearchOutcome(s, t);
-						// 案内が無いなら、結末のほうが必ず何かを言っている。
-						expect(notice != null || outcome !== 'accounts').toBe(true);
+				for (const accountCount of [0, 2]) {
+					for (const droppedCount of [0, 2]) {
+						for (const hasMore of [true, false]) {
+							for (const targetIPCount of [undefined, 0, 3] as const) {
+								for (const truncated of [undefined, false, true] as const) {
+									for (const sinceDays of [7, 90]) {
+										out.push({
+											s: { loggingEnabled, hasAnyHistory, sinceDays, retentionDays: 90, hasMore, targetIPCount, truncated },
+											t: { accountCount, droppedCount, hasAnyHistory },
+											label: `logging=${loggingEnabled} history=${hasAnyHistory} accounts=${accountCount} dropped=${droppedCount} hasMore=${hasMore} targetIPs=${targetIPCount} truncated=${truncated} since=${sinceDays}`,
+										});
+									}
+								}
+							}
+						}
 					}
 				}
 			}
 		}
+		return out;
+	}
+
+	test('候補が無いときは必ず何かを伝える', () => {
+		for (const c of allCases()) {
+			if (c.t.accountCount > 0) continue;
+			const said = ipSearchNotice(c.s, c.t) != null || ipSearchOutcome(c.s, c.t) !== 'accounts';
+			expect(said, c.label).toBe(true);
+		}
 	});
 
-	test('記録が無いと分かっているときに「記録されていません」と断定しない', () => {
-		const s = snapshot();
-		const t = totals({ hasAnyHistory: false });
-		expect(ipSearchNotice(s, t)).toBe('noHistory');
-		expect(ipSearchOutcome(s, t)).not.toBe('noMatch');
+	test('候補があれば一覧を出す', () => {
+		for (const c of allCases()) {
+			if (c.t.accountCount === 0) continue;
+			expect(ipSearchOutcome(c.s, c.t), c.label).toBe('accounts');
+		}
+	});
+
+	// **「一致が無い」と言えるのは全部見たときだけ。** 起点が無い / 打ち切った /
+	// 候補を落とした、のいずれかがあれば断定できない。
+	test('調べきっていないときに「一致なし」と断定しない', () => {
+		for (const c of allCases()) {
+			const outcome = ipSearchOutcome(c.s, c.t);
+			if (outcome !== 'noMatch' && outcome !== 'noMatchInPeriod') continue;
+			expect(c.s.truncated, c.label).not.toBe(true);
+			expect(c.s.targetIPCount, c.label).not.toBe(0);
+			expect(c.t.droppedCount, c.label).toBe(0);
+		}
+	});
+
+	// **「すべて削除済み」と言い切れるのは、切っておらず続きも無いときだけ。**
+	test('打ち切った検索や続きがあるときに「すべて削除済み」と断定しない', () => {
+		for (const c of allCases()) {
+			if (ipSearchOutcome(c.s, c.t) !== 'noneResolvable') continue;
+			expect(c.s.truncated, c.label).not.toBe(true);
+			expect(c.s.hasMore, c.label).toBe(false);
+			expect(c.t.droppedCount, c.label).toBeGreaterThan(0);
+		}
+	});
+
+	// **「このページには」と言えるのは続きがあるときだけ。**
+	test('続きが無いのに「このページには」と言わない', () => {
+		for (const c of allCases()) {
+			if (ipSearchOutcome(c.s, c.t) !== 'noneOnThisPage') continue;
+			expect(c.s.hasMore, c.label).toBe(true);
+			expect(c.t.droppedCount, c.label).toBeGreaterThan(0);
+		}
+	});
+
+	// **打ち切りを理由にする 2 つは、実際に打ち切ったときだけ。**
+	test('打ち切っていないのに打ち切りを理由にしない', () => {
+		for (const c of allCases()) {
+			const outcome = ipSearchOutcome(c.s, c.t);
+			if (outcome === 'partial') {
+				expect(c.s.truncated, c.label).toBe(true);
+				expect(c.t.droppedCount, c.label).toBe(0);
+			}
+			if (outcome === 'noneResolvablePartial') {
+				expect(c.s.truncated, c.label).toBe(true);
+				expect(c.s.hasMore, c.label).toBe(false);
+				expect(c.t.droppedCount, c.label).toBeGreaterThan(0);
+			}
+		}
+	});
+
+	// **「比較していない」は起点が 0 件のときに限る。**
+	test('起点がある検索で「比較していない」と言わない', () => {
+		for (const c of allCases()) {
+			if (ipSearchOutcome(c.s, c.t) !== 'noTargetRecords') continue;
+			expect(c.s.targetIPCount, c.label).toBe(0);
+			expect(c.t.hasAnyHistory, c.label).toBe(true);
+			expect(c.t.accountCount, c.label).toBe(0);
+		}
+	});
+
+	// **記録が無いと分かっているときは必ず案内側が言う。**
+	test('記録が無いときは案内が出る', () => {
+		for (const c of allCases()) {
+			if (c.t.hasAnyHistory) continue;
+			expect(ipSearchNotice(c.s, c.t), c.label).not.toBe(null);
+		}
+	});
+
+	// 案内は記録の状態だけで決まり、候補や打ち切りには依らない。
+	test('案内は記録の状態だけで決まる', () => {
+		for (const c of allCases()) {
+			const notice = ipSearchNotice(c.s, c.t);
+			if (notice === 'noHistory') {
+				expect(c.s.loggingEnabled, c.label).toBe(true);
+				expect(c.t.hasAnyHistory, c.label).toBe(false);
+			}
+			if (notice === 'loggingDisabled' || notice === 'loggingDisabledNoHistory') {
+				expect(c.s.loggingEnabled, c.label).toBe(false);
+			}
+		}
 	});
 });
 
