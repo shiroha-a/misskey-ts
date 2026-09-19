@@ -208,6 +208,14 @@ const menuDef = computed<SuperMenuDef[]>(() => [{
 		text: i18n.ts._mkgoIpSearch.title,
 		to: '/admin/ip-search',
 		active: currentPage.value?.route.name === 'ip-search',
+	}, {
+		// mk-go: 照会そのものの監査記録 (#3106)。**照会と同じ条件で出す** —
+		// 記録に入るのは照会に使った IP そのものなので、照会より緩い経路に
+		// しない。
+		icon: 'ti ti-file-search',
+		text: i18n.ts._mkgoIpLookupLog.title,
+		to: '/admin/ip-lookup-log',
+		active: currentPage.value?.route.name === 'ip-lookup-log',
 	}] : []), {
 		icon: 'ti ti-list-search',
 		text: i18n.ts.moderationLogs,

@@ -14196,6 +14196,10 @@ export interface Locale extends ILocale {
          */
         "pagingLimit": string;
         /**
+         * 短い時間に照会しすぎています。しばらく待ってからもう一度試してください。
+         */
+        "rateLimited": string;
+        /**
          * 通信に失敗しました。時間をおいてもう一度試してください。
          */
         "networkFailed": string;
@@ -14227,6 +14231,88 @@ export interface Locale extends ILocale {
          * 記録は{n}日で消えます。それより前の接続は残っていません。
          */
         "retentionNote": ParameterizedString<"n">;
+    };
+    "_mkgoIpLookupLog": {
+        /**
+         * IP照会の記録
+         */
+        "title": string;
+        /**
+         * IPアドレスとアカウントの対応を誰がいつ引いたかの記録です。照会した条件は残りますが、照会の結果そのもの(どのアカウントが候補に出たか)は記録していません。
+         */
+        "about": string;
+        /**
+         * 記録は{n}日で消えます。それより前の照会は残っていません。
+         */
+        "retentionNote": ParameterizedString<"n">;
+        /**
+         * 表示できる照会の記録がありません。この機能を入れる前の照会は残っていません。ほかに、まだ一度も照会されていない場合や、保持期間({n}日)を過ぎて消えた場合も同じ表示になります。
+         */
+        "empty": ParameterizedString<"n">;
+        /**
+         * 照会した日時
+         */
+        "at": string;
+        /**
+         * 種類
+         */
+        "kind": string;
+        /**
+         * IPアドレスから探す
+         */
+        "kindIp": string;
+        /**
+         * 関連アカウントを探す
+         */
+        "kindRelated": string;
+        /**
+         * 利用者のIP履歴を見る
+         */
+        "kindUserIps": string;
+        /**
+         * 照会した対象
+         */
+        "subject": string;
+        /**
+         * 対象期間
+         */
+        "period": string;
+        /**
+         * 直近{n}日
+         */
+        "periodDays": ParameterizedString<"n">;
+        /**
+         * 指定なし(最新30件)
+         */
+        "noPeriod": string;
+        /**
+         * 返した候補
+         */
+        "resultCount": string;
+        /**
+         * {n}件
+         */
+        "resultCountValue": ParameterizedString<"n">;
+        /**
+         * 候補の中身は記録していません。件数だけが残ります。
+         */
+        "resultsNotRecorded": string;
+        /**
+         * 削除済みの利用者:
+         */
+        "userGone": string;
+        /**
+         * これ以上は遡れません。
+         */
+        "pagingLimit": string;
+        /**
+         * 記録を読み込んでいます
+         */
+        "loading": string;
+        /**
+         * {n}件の記録
+         */
+        "found": ParameterizedString<"n">;
     };
     "_mkgoIpRelated": {
         /**

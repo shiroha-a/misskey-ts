@@ -272,6 +272,8 @@ describe('ipSearchErrorKind', () => {
 		['AUTHENTICATION_FAILED', false, 'sessionExpired'],
 		['INVALID_PARAM', true, 'notAnIp'],
 		['INVALID_PARAM', false, 'pagingLimit'],
+		['RATE_LIMIT_EXCEEDED', true, 'rateLimited'],
+		['RATE_LIMIT_EXCEEDED', false, 'rateLimited'],
 		['INTERNAL_ERROR', true, 'failed'],
 	] as const)('%s (first=%s) -> %s', (code, first, want) => {
 		expect(ipSearchErrorKind({ code }, first)).toBe(want);
