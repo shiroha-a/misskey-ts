@@ -35,7 +35,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 </template>
 
 <script lang="ts" setup>
-import { computed, markRaw, ref } from 'vue';
+import { computed, markRaw, onMounted, ref } from 'vue';
 import * as Misskey from 'misskey-js';
 import MkInput from '@/components/MkInput.vue';
 import MkSelect from '@/components/MkSelect.vue';
@@ -47,6 +47,10 @@ import { i18n } from '@/i18n.js';
 import { definePage } from '@/page.js';
 import { useMkSelect } from '@/composables/use-mkselect.js';
 import { Paginator } from '@/utility/paginator.js';
+import { misskeyApi } from '@/utility/misskey-api.js';
+import { cachedRemoteFileCount, cleanRemoteFilesState } from '@/utility/remote-cache-cleanup.js';
+import type { RemoteUsageBucket } from '@/utility/remote-cache-cleanup.js';
+import number from '@/filters/number.js';
 
 const {
 	model: origin,
@@ -74,13 +78,49 @@ const paginator = markRaw(new Paginator('admin/drive/files', {
 	})),
 }));
 
-// mk-go はリモートメディアをローカルにキャッシュしないので削除対象が存在しない。
-// ボタンは disabled で残す (消すと実装漏れに見えるため)。handler は到達しないが、
-// PageHeaderItem が handler 必須なので no-op を置く。
+// **削除対象が実在するときだけ押せるようにする** (#3102)。
+//
+// mk-go はリモートメディアをキャッシュしないので、mk-go が作った行に対象は無い
+// (docs/divergence.md 5.5)。**しかし純正 Misskey から引き継いだ DB には、
+// `cacheRemoteFiles` が有効だった時期の実体つきの行が残る。** 以前は無条件に
+// disabled にしていたので、その運用者は消せるはずのものを UI から消せなかった。
+//
+// 判定材料は `admin/drive/usage` (#3053) が既に返している。**取れなかったときは
+// 押せるままにする** — あれは mk-go 独自の endpoint なので純正 backend に向けると
+// 必ず失敗し、そちらは実際にキャッシュするため押せなくするのは誤り。
+const remoteUsage = ref<RemoteUsageBucket | null>(null);
+
+onMounted(async () => {
+	try {
+		const usage = await misskeyApi('admin/drive/usage' as never, {} as never) as unknown as { remote?: RemoteUsageBucket };
+		remoteUsage.value = usage.remote ?? null;
+	} catch {
+		// 取れなくてもボタンは出す (上記の理由)。使用量タブ側が理由を表示する。
+		remoteUsage.value = null;
+	}
+});
+
+const cleanState = computed(() => cleanRemoteFilesState(remoteUsage.value));
+
 function clear() {
+	// **件数だけを出す。容量は出さない。** `admin/drive/usage` の `remote.size` は
+	// リモート行**全部**の合計で、削除対象 (`isLink = false`) の合計ではない。
+	// 純正は `expireOldFile` で link 化するとき `size` を据え置くので、
+	// 引き継いだ DB には「実体は無いのに size を持つ link 行」が普通に溜まっており、
+	// そのまま出すと**破壊的操作の確認画面で実際より大きい数字を断定する**
+	// (敵対的レビューで指摘)。正しい値を出すには endpoint 側に
+	// `isLink = false` の合計を足す必要がある。
+	const detail = remoteUsage.value == null
+		? i18n.ts._mkgoCleanRemoteFiles.unknownTarget
+		: i18n.tsx._mkgoCleanRemoteFiles.target({
+			n: number(cachedRemoteFileCount(remoteUsage.value)),
+		});
 	os.confirm({
 		type: 'warning',
-		text: i18n.ts.clearCachedFilesConfirm,
+		title: i18n.ts.clearCachedFilesConfirm,
+		// **不可逆であることを読み取れるようにする。** 相手サーバーが既に消した
+		// ファイルは取り戻せない (再取得できるとは限らない)。
+		text: `${detail}\n\n${i18n.ts._mkgoCleanRemoteFiles.irreversible}`,
 	}).then(({ canceled }) => {
 		if (canceled) return;
 
@@ -93,9 +133,13 @@ const headerActions = computed(() => [{
 	icon: 'ti ti-search',
 	handler: lookupFile,
 }, {
-	text: `${i18n.ts.clearCachedFiles} (${i18n.ts._mkgoUnsupported.cleanRemoteFiles})`,
+	// **無効な理由を分けて出す。** 「対象がありません」は対象が 0 と
+	// **確かめたとき**にだけ言う。
+	text: cleanState.value === 'none'
+		? `${i18n.ts.clearCachedFiles} (${i18n.ts._mkgoCleanRemoteFiles.noTarget})`
+		: i18n.ts.clearCachedFiles,
 	icon: 'ti ti-trash',
-	disabled: true,
+	disabled: cleanState.value === 'none',
 	handler: clear,
 }]);
 

@@ -14509,10 +14509,24 @@ export interface Locale extends ILocale {
          * mk-goはリモートメディアをローカルにキャッシュしない設計のため、この設定は動作しません。相手サーバーが削除したメディアの複製を保持しないこと、および他サーバー由来のコンテンツを自サーバーのストレージに保存しないことを優先しています。値はMisskeyへ戻したときのために保存されます。
          */
         "remoteMediaCache": string;
+    };
+    "_mkgoCleanRemoteFiles": {
         /**
-         * mk-goはリモートメディアをローカルにキャッシュしないため、mk-goが作ったファイルに削除対象はありません。Misskeyから引き継いだデータベースにだけ対象が残ることがあり、その場合はAPIを直接呼ぶ必要があります。
+         * 削除対象なし
          */
-        "cleanRemoteFiles": string;
+        "noTarget": string;
+        /**
+         * 実体を持つリモートファイルが{n}件あります。
+         */
+        "target": ParameterizedString<"n">;
+        /**
+         * 削除対象の件数を確認できませんでした。実体を持つリモートファイルがあれば対象になります。
+         */
+        "unknownTarget": string;
+        /**
+         * この操作は取り消せません。保存してある実体を削除し、以降はリモートサーバーから直接読み込む形になります。相手サーバーが既に削除したファイルは表示できなくなります。
+         */
+        "irreversible": string;
     };
     "_emojiApplication": {
         /**
