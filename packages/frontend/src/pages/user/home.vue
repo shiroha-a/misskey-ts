@@ -38,7 +38,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 								<MkFollowButton v-if="$i?.id != user.id" v-model:user="user" :inline="true" :transparent="false" :full="true" class="koudoku"/>
 							</div>
 						</div>
-						<MkAvatar class="avatar" :user="user" indicator/>
+						<!--
+							aria-label は `MkAvatar` が root に持つ `title` (acct) より優先される。
+							acct はすぐ下に `MkAcct` として地の文で出ているので、ここは
+							「これが何のボタンか」を言うほうを採る (title 属性自体は残るので
+							ホバー時のツールチップは従来どおり acct)。
+						-->
+						<MkAvatar
+							class="avatar"
+							:user="user"
+							indicator
+							role="button"
+							tabindex="0"
+							:aria-label="i18n.ts.avatar"
+							@click="showAvatar"
+							@keydown.enter.prevent="showAvatar"
+							@keydown.space.prevent="showAvatar"
+						/>
 						<div class="title">
 							<MkUserName :user="user" :nowrap="false" class="name"/>
 							<div class="bottom">
@@ -164,6 +180,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { defineAsyncComponent, computed, onMounted, onUnmounted, onActivated, onDeactivated, nextTick, watch, ref, useTemplateRef } from 'vue';
 import * as Misskey from 'misskey-js';
 import { getScrollContainer } from '@@/js/scroll.js';
+import type { Content } from '@/components/MkLightbox.item.vue';
 import MkNote from '@/components/MkNote.vue';
 import MkFollowButton from '@/components/MkFollowButton.vue';
 import MkAccountMoved from '@/components/MkAccountMoved.vue';
@@ -258,6 +275,58 @@ const age = computed(() => {
 function menu(ev: PointerEvent) {
 	const { menu, cleanup } = getUserMenu(user.value, router);
 	os.popupMenu(menu, ev.currentTarget ?? ev.target).finally(cleanup);
+}
+
+// 開いている間の再入を止める。`@keydown` は `event.repeat` を見ないので押しっぱなしに
+// できてしまい、`popupAsyncWithDialog` が chunk を取りに行く窓ではフォーカスもまだ
+// ライトボックスへ移っていないため、初回 (未キャッシュ) は実際に二枚開けてしまう。
+const avatarLightboxShowing = ref(false);
+
+/**
+ * Opens the profile avatar in the shared lightbox.
+ *
+ * mk-go addition: upstream renders the profile avatar as a plain, inert image.
+ */
+async function showAvatar() {
+	if (avatarLightboxShowing.value) return;
+	avatarLightboxShowing.value = true;
+
+	// `MkLightbox` の `Content` は id / type / url だけが必須で、`file` (DriveFile) は
+	// 任意。item 側は `content.file?.` と全て optional chaining なので、合成した
+	// Content を渡しても壊れない (sensitive gate とファイルメニューが出ないだけ)。
+	const contents: Content[] = [{
+		// `id` を読むのは `initiallyRevealedContentIds` との突き合わせだけ (v-for の
+		// key は `content.url` のほう) で、その prop は渡していないので合成値で足りる。
+		// **`user.avatarId` は使えない** — mk-go はあれを MeDetailed でしか出さない
+		// (非 self に出すと misskey_dart の union 判別が誤爆する、#1251) ので、
+		// 他人のプロフィールでは型にも値にも存在しない。
+		id: `${user.value.id}-avatar`,
+		type: 'image',
+		url: user.value.avatarUrl,
+		// ライトボックス上部の見出しに出る。省略すると見出しが空欄になる。
+		filename: i18n.ts.avatar,
+	}];
+
+	try {
+		const { dispose } = await os.popupAsyncWithDialog(import('@/components/MkLightbox.vue').then(x => x.default), {
+			contents,
+			user: user.value,
+		}, {
+			// **解除はここ (`MkLightbox` の `@afterLeave`) なので、閉じる
+			// アニメーションの 200ms はアイコンを押しても反応しない。** その間
+			// ライトボックスはまだ画面に残っているので、見えているものと挙動が
+			// 食い違わないほうを採った。
+			closed: () => {
+				avatarLightboxShowing.value = false;
+				dispose();
+			},
+		});
+	} catch {
+		// `popupAsyncWithDialog` は chunk の読み込み失敗を自分で alert してから
+		// **rethrow する**。握らないと unhandled rejection になるうえ、上の再入ガードが
+		// 立ったままになって以後二度と開けなくなる。
+		avatarLightboxShowing.value = false;
+	}
 }
 
 function showMemoTextarea() {
@@ -488,6 +557,7 @@ onDeactivated(disposeBannerParallaxResizeObserver);
 
 				> .avatar {
 					display: block;
+					cursor: pointer;
 					position: absolute;
 					top: 170px;
 					left: 16px;
