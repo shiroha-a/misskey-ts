@@ -96,6 +96,7 @@ import { DI } from '@/di.js';
 import { globalEvents, useGlobalEvent } from '@/events.js';
 import { isSeparatorNeeded, getSeparatorInfo } from '@/utility/timeline-date-separate.js';
 import { Paginator } from '@/utility/paginator.js';
+import { createReconnectResync, paginatorResyncOptions } from '@/utility/reconnect-resync.js';
 
 const props = withDefaults(defineProps<{
 	src: BasicTimelineType | 'mentions' | 'directs' | 'list' | 'antenna' | 'channel' | 'role';
@@ -414,8 +415,27 @@ function disconnectChannel() {
 	}
 }
 
+// **切断していた間のノートは再送されない。** ストリーミングは pub/sub なので、
+// 再接続しただけでは抜けた分が埋まらず、リロードするまで出てこない。
+// realtimeMode でないときは `useInterval` の `fetchNewer` が同じ役割を果たして
+// いるので、この穴は realtimeMode にだけある。振り分けはそちらと揃える。
+//
+// 切断していた間の取りこぼしを再接続時に拾う。起点をいつ読むかと間隔制御は
+// `createReconnectResync` の仕事 (理由はあちらの doc)。
+const reconnectResync = createReconnectResync({
+	// 判断は `paginatorResyncOptions` 側 (SFC に置くとテストから触れない)。
+	...paginatorResyncOptions(paginator, {
+		toQueue: () => !isTop() || isPausingUpdate,
+	}),
+});
+
 if (store.s.realtimeMode) {
 	connectChannel();
+	// チャンネル購読ではなく Stream 全体のイベントなので、props 変化での
+	// 張り直し (watch → disconnectChannel / connectChannel) では触らない。
+	// `useStream()` を呼び直さないのは、realtimeMode を切っている利用者に
+	// WebSocket を張らないため (`stream` は上で条件付きに作ってある)。
+	stream?.on('_connected_', reconnectResync.onConnected);
 }
 
 watch(() => [props.list, props.antenna, props.channel, props.role, props.withRenotes], () => {
@@ -428,6 +448,8 @@ watch(() => props.withSensitive, reloadTimeline);
 
 onUnmounted(() => {
 	disconnectChannel();
+	stream?.off('_connected_', reconnectResync.onConnected);
+	reconnectResync.dispose();
 });
 
 function reloadTimeline() {

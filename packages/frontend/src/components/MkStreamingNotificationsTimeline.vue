@@ -75,6 +75,7 @@ import { prefer } from '@/preferences.js';
 import { store } from '@/store.js';
 import { isSeparatorNeeded, getSeparatorInfo } from '@/utility/timeline-date-separate.js';
 import { Paginator } from '@/utility/paginator.js';
+import { createReconnectResync, paginatorResyncOptions, NOTIFICATION_RESYNC_PARAMS } from '@/utility/reconnect-resync.js';
 
 const props = defineProps<{
 	excludeTypes?: typeof notificationTypes[number][] | null;
@@ -152,6 +153,9 @@ watch(visibility, () => {
 		if (isTop()) {
 			releaseQueue();
 		}
+		// init / reload 中やレート制限中に見送った控えがあれば、ここで拾い直す
+		// (`canResync` がそれらを見ている)。控えが無ければ何もしない。
+		void reconnectResync.retry();
 	}
 });
 
@@ -178,6 +182,24 @@ function reload() {
 
 let connection: Misskey.IChannelConnection<Misskey.Channels['main']> | null = null;
 
+// **切断していた間の通知は再送されない。** ストリーミングは pub/sub なので、
+// 再接続しただけでは抜けた分が埋まらず、リロードするまで一覧に出てこない。
+// `boot/main-boot.ts` が再接続時に揃えているのは未読バッジの件数だけで、
+// 中身はここで取りに行く必要がある。
+// realtimeMode でないときは `useInterval` が同じ役割を果たしているので不要。
+//
+// 切断していた間の取りこぼしを再接続時に拾う。起点をいつ読むかと間隔制御は
+// `createReconnectResync` の仕事 (理由はあちらの doc)。
+const reconnectResync = createReconnectResync({
+	// 判断は `paginatorResyncOptions` 側 (SFC に置くとテストから触れない)。
+	...paginatorResyncOptions(paginator, {
+		// このコンポーネントは queue の件数を描画しないので、積んでも見えない。
+		// 非 realtimeMode のポーリングが `toQueue: false` なのと揃える。
+		toQueue: () => false,
+		params: NOTIFICATION_RESYNC_PARAMS,
+	}),
+});
+
 onMounted(() => {
 	paginator.init();
 
@@ -191,11 +213,19 @@ onMounted(() => {
 		connection = useStream().useChannel('main');
 		connection.on('notification', onNotification);
 		connection.on('notificationFlushed', reload);
+		useStream().on('_connected_', reconnectResync.onConnected);
 	}
 });
 
 onUnmounted(() => {
-	if (connection) connection.dispose();
+	// connection が非 null なら realtimeMode で購読済み = ストリームは初期化
+	// されている。ここで `useStream()` を無条件に呼ぶと、realtimeMode を切って
+	// いる利用者にまで WebSocket を張ってしまう。
+	if (connection) {
+		connection.dispose();
+		useStream().off('_connected_', reconnectResync.onConnected);
+	}
+	reconnectResync.dispose();
 	if (scrollContainer != null) {
 		scrollContainer.removeEventListener('scroll', onScrollContainerScroll);
 	}
