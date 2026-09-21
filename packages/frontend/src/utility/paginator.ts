@@ -50,6 +50,8 @@ export interface IPaginator<T = unknown, _T = T & MisskeyEntity> {
 	canFetchOlder: Ref<boolean>;
 	canFetchNewer: Ref<boolean>;
 	canSearch: boolean;
+	// mk-go: `init()` のたびに増える世代 (#3132)。
+	generation: number;
 	error: Ref<boolean>;
 	/** mk-go: 直近の取得がレート制限で拒否されたか (#2955)。 */
 	rateLimited: Ref<boolean>;
@@ -67,10 +69,12 @@ export interface IPaginator<T = unknown, _T = T & MisskeyEntity> {
 	searchQuery: Ref<null | string>;
 	order: Ref<'newest' | 'oldest'>;
 
-	init(): Promise<void>;
-	reload(): Promise<void>;
+	init(params?: Record<string, unknown>): Promise<void>;
+	reload(params?: Record<string, unknown>): Promise<void>;
 	fetchOlder(): Promise<void>;
-	fetchNewer(options?: { toQueue?: boolean }): Promise<void>;
+	// mk-go: `sinceId` は再接続の穴埋め用 (#3132)。詳細は Paginator 側の doc。
+	fetchNewer(options?: { toQueue?: boolean; sinceId?: string; params?: Record<string, unknown> }): Promise<void>;
+	getNewestId(): string | null | undefined;
 	trim(trigger?: boolean): void;
 	unshiftItems(newItems: (_T)[]): void;
 	pushItems(oldItems: (_T)[]): void;
@@ -99,6 +103,8 @@ export class Paginator<
 	public canFetchOlder = ref(false);
 	public canFetchNewer = ref(false);
 	public canSearch = false;
+	// mk-go: `init()` のたびに増える。詳細は init 側のコメント (#3132)。
+	public generation = 0;
 	public error = ref(false);
 	/**
 	 * mk-go: set when the last fetch was rejected by the rate limiter (#2955).
@@ -111,6 +117,10 @@ export class Paginator<
 	 *
 	 * `error` は使わない。あちらは一覧をエラー表示で置き換えるので、既に
 	 * 読めている分が消える。
+	 *
+	 * **背景からの取得でも立つ。** 再接続時の穴埋め (`utility/reconnect-resync.ts`)
+	 * は利用者の操作なしに `fetchNewer` を呼ぶので、そこで 429 を受けると追い読みも
+	 * 止まる。握り潰さない判断の理由はあちらの doc にある。
 	 */
 	public rateLimited = ref(false);
 	/**
@@ -220,7 +230,10 @@ export class Paginator<
 		this.updateItem = this.updateItem.bind(this);
 	}
 
-	private getNewestId(): string | null | undefined {
+	// mk-go: 再接続の穴埋めでは「切断した時点の最新」を呼び出し側が覚えておく
+	// 必要があるので public にしてある (#3132)。**再接続後に読んでも遅い** —
+	// ストリーミングが 1 件届いた時点で戻り値は穴の向こう側を指す。
+	public getNewestId(): string | null | undefined {
 		// 様々な要因により並び順は保証されないのでソートが必要
 		if (this.aheadQueue.length > 0) {
 			return this.aheadQueue.map(x => x.id).sort().at(-1);
@@ -233,13 +246,19 @@ export class Paginator<
 		return this.items.value.map(x => x.id).sort().at(0);
 	}
 
-	public async init(): Promise<void> {
+	public async init(params?: Partial<E['req']>): Promise<void> {
+		// mk-go: 中身を総入れ替えしたことを外から判別するための世代 (#3132)。
+		// 再接続の穴埋めは「切断した時点の id」を起点に取りに行くので、その間に
+		// リロードされていたら起点ごと捨てないと、古いページが最新の上に積まれる。
+		this.generation++;
 		this.items.value = [];
 		this.aheadQueue = [];
 		this.queuedAheadItemsCount.value = 0;
 		this.fetching.value = true;
 
 		const data: E['req'] = {
+			// `fetchNewer` と同じく「足すだけ」の位置 (理由はあちらのコメント)。
+			...(params ?? {}),
 			...(typeof this.params === 'function' ? this.params() : this.params),
 			...(this.computedParams ? this.computedParams.value : {}),
 			...(this.searchQuery.value != null && this.searchQuery.value.trim() !== '' ? { [this.searchParamName]: this.searchQuery.value } : {}),
@@ -310,8 +329,11 @@ export class Paginator<
 		this.fetching.value = false;
 	}
 
-	public reload(): Promise<void> {
-		return this.init();
+	// mk-go: `params` は `fetchNewer` と同じ「この取得にだけ効く追加パラメータ」
+	// (#3132)。再接続の穴埋めは一覧が空のときここを通るので、通知一覧の
+	// `markAsRead: false` が**この経路でも**効く必要がある。
+	public reload(params?: Partial<E['req']>): Promise<void> {
+		return this.init(params);
 	}
 
 	/**
@@ -465,11 +487,34 @@ export class Paginator<
 	// 実際には止まらない。
 	public async fetchNewer(options: {
 		toQueue?: boolean;
+
+		/**
+		 * mk-go: 取得の起点を呼び出し側が指定する (#3132)。
+		 *
+		 * 既定の `getNewestId()` は **queue があればその最大 id** を返すので、
+		 * 再接続の直後にストリーミングが 1 件でも届くと起点が切断中の穴を
+		 * 飛び越える。穴を埋めたい呼び出し側は、切断した時点の id をここへ渡す。
+		 * offsetMode では使わない (あちらは件数で位置を決める)。
+		 */
+		sinceId?: string;
+
+		/**
+		 * mk-go: この取得にだけ効く追加パラメータ (#3132)。再接続の穴埋めは
+		 * 利用者の操作ではないので、通知一覧では `markAsRead: false` を渡して
+		 * 既読化の副作用を切る (`i/notifications` は取得そのものが既読化を伴う)。
+		 */
+		params?: Partial<E['req']>;
 	} = {}): Promise<void> {
 		if (this.rateLimited.value) return;
 		this.fetchingNewer.value = true;
 
 		const data: E['req'] = {
+			// **足すだけの位置に置く (いちばん前)。** 後ろにすると呼び出し側が
+			// `limit` / `sinceId` だけでなく、静的 params (`directs` の
+			// `visibility: 'specified'` など) や `computedParams`、検索語 — つまり
+			// 「この一覧が何であるか」を決めている値 — まで黙って差し替えられる
+			// (共通基盤の公開 API で、`IPaginator` 経由だと型でも止められない)。
+			...(options.params ?? {}),
 			...(typeof this.params === 'function' ? this.params() : this.params),
 			...(this.computedParams ? this.computedParams.value : {}),
 			...(this.searchQuery.value != null && this.searchQuery.value.trim() !== '' ? { [this.searchParamName]: this.searchQuery.value } : {}),
@@ -477,7 +522,7 @@ export class Paginator<
 			...(this.offsetMode ? {
 				offset: this.items.value.length,
 			} : {
-				sinceId: this.getNewestId(),
+				sinceId: options.sinceId ?? this.getNewestId(),
 			}),
 		};
 
@@ -495,7 +540,28 @@ export class Paginator<
 		}
 
 		if (options.toQueue) {
-			this.aheadQueue.unshift(...apiRes.toReversed());
+			// 取得中にストリーミングで同じものが届いていることがある (enqueue と同じ理由)。
+			// **バッチ内の重複も落とす** — `filter` は自分の出力を見ないので、API が
+			// 同じ id を 2 つ返すと素通りして一覧に並ぶ。
+			const seen = new Set<string>();
+			const fresh = apiRes.filter(x => {
+				if (this.hasItem(x.id) || seen.has(x.id)) return false;
+				seen.add(x.id);
+				return true;
+			});
+			if (fresh.length > 0) {
+				// **入れる順ではなく、入れたあとの並べ直しで順序を決める。** API は
+				// `sinceId` 単独のとき ASC を返す一方 queue は newest-first で、しかも
+				// 間引きで中間が欠けたり、取得中にストリーミングが積んだ分が queue の
+				// 先頭にあったりする。「バッチ全体が queue より新しい」前提は置けない。
+				// id は時系列順に増えるので、id で並べれば足りる。
+				// order:'oldest' はこの経路を使わない (fetchNewer の非 toQueue 側で
+				// pushItems に分岐する)。
+				this.aheadQueue.unshift(...fresh);
+				this.aheadQueue.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+			}
+			// **切り詰めは並べ直した後。** 逆にすると、未整列の先頭 100 件 (= 直前に
+			// 取得したバッチ) を残して、より新しいストリーミング分を捨てる。
 			if (this.aheadQueue.length > MAX_QUEUE_ITEMS) {
 				this.aheadQueue = this.aheadQueue.slice(0, MAX_QUEUE_ITEMS);
 			}
@@ -505,6 +571,14 @@ export class Paginator<
 				this.pushItems(apiRes);
 			} else {
 				this.unshiftItems(apiRes.toReversed(), false);
+				// **起点を明示した取得は「手持ちより古いかもしれない」。** 呼び出し側は
+				// 過去の時点を起点にするので、取得している間にストリーミングで入った
+				// ぶんのほうが新しい。そのまま先頭へ積むと最新が下に埋まるので、
+				// queue 側と同じく id で並べ直す。
+				if (options.sinceId != null) {
+					this.items.value.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+					if (this.useShallowRef) triggerRef(this.items);
+				}
 			}
 		}
 
@@ -517,6 +591,23 @@ export class Paginator<
 		}
 		// canFetchDetectionが'safe'の場合・apiRes.length === 0 の場合は apiRes.length === 0 の場合に canFetchNewer.value = false になるが、
 		// 余計な re-render を防ぐために上部で処理している。そのため、ここでは何もしない
+	}
+
+	// 表示中の items と、まだ出していない aheadQueue の両方を見る。どちらかに
+	// あれば「既に持っている」。
+	private hasItem(id: string): boolean {
+		return this.aheadQueue.some(x => x.id === id) || this.items.value.some(x => x.id === id);
+	}
+
+	// **items へ入れたものを queue に残さない。** 残すと「N 件の新しいノート」が
+	// 実際より多く出て、押しても何も増えずに 0 に戻る。items に入れる経路
+	// (`unshiftItems` / `prepend`) すべてから呼ぶ。
+	private dropFromQueue(ids: Set<string>): void {
+		if (this.aheadQueue.length === 0) return;
+		const rest = this.aheadQueue.filter(x => !ids.has(x.id));
+		if (rest.length === this.aheadQueue.length) return;
+		this.aheadQueue = rest;
+		this.queuedAheadItemsCount.value = rest.length;
 	}
 
 	public trim(trigger = true): void {
@@ -533,17 +624,40 @@ export class Paginator<
 	public unshiftItems(newItems: T[], trim = true): void {
 		if (newItems.length === 0) return; // これやらないと余計なre-renderが走る
 		this.items.value.unshift(...newItems.filter(x => !this.items.value.some(y => y.id === x.id))); // ストリーミングやポーリングのタイミングによっては重複することがあるため
+		this.dropFromQueue(new Set(newItems.map(x => x.id)));
 		if (trim) this.trim(true);
 		if (this.useShallowRef) triggerRef(this.items);
 	}
 
 	public pushItems(oldItems: T[]): void {
 		if (oldItems.length === 0) return; // これやらないと余計なre-renderが走る
-		this.items.value.push(...oldItems);
+		// **offsetMode では落とさない。** あちらは `offset: items.length` で次の
+		// 位置を決めるので、1 ページ丸ごと既知だったときに items が伸びず、同じ
+		// ページを取り続ける (「もっと見る」が押しても何も起きないボタンになる)。
+		if (this.offsetMode) {
+			this.items.value.push(...oldItems);
+			if (this.useShallowRef) triggerRef(this.items);
+			return;
+		}
+		// **重複を落とす。** `init()` が items を空にしてから API を待つ間に、
+		// 背景の `fetchNewer` が `unshiftItems` で入れていることがある
+		// (:key が重複して TransitionGroup が壊れる)。`unshiftItems` 側は元から
+		// 落としているので、向きを揃える。
+		const seen = new Set(this.items.value.map(x => x.id));
+		const fresh = oldItems.filter(x => {
+			if (seen.has(x.id)) return false;
+			seen.add(x.id);
+			return true;
+		});
+		if (fresh.length === 0) return;
+		this.items.value.push(...fresh);
 		if (this.useShallowRef) triggerRef(this.items);
 	}
 
 	public prepend(item: T): void {
+		// **引き取りは early return より前に行う。** 別経路で既に items へ入って
+		// いるのに queue にコピーが残っている状態から、ここで救えなくなる。
+		this.dropFromQueue(new Set([item.id]));
 		if (this.items.value.some(x => x.id === item.id)) return;
 		this.items.value.unshift(item);
 		this.trim(false);
@@ -551,9 +665,23 @@ export class Paginator<
 	}
 
 	public enqueue(item: T): void {
+		// **既に持っているものは積まない。** `unshiftItems` / `prepend` は id で
+		// 弾いているのにここだけ素通しで、再接続時の `fetchNewer({toQueue:true})` と
+		// ストリーミング受信が重なると同じアイテムが queue に 2 つ入る。
+		// `releaseQueue` が呼ぶ `unshiftItems` は items との重複しか見ないので、
+		// queue 内で重複した分はそのまま一覧に並ぶ。
+		if (this.hasItem(item.id)) return;
 		this.aheadQueue.unshift(item);
 		if (this.aheadQueue.length > MAX_QUEUE_ITEMS) {
-			this.aheadQueue.pop();
+			// **落とすのは最古。** `pop()` は「queue が到着順に newest-first で
+			// 並んでいる」前提だが、`fetchNewer({toQueue:true})` が id で並べ直す
+			// ようになった今、末尾が最古とは限らない (取得と受信が混ざる)。
+			// 到着順に依存したまま溢れさせると、いちばん新しいものを捨てうる。
+			let oldest = 0;
+			for (let i = 1; i < this.aheadQueue.length; i++) {
+				if (this.aheadQueue[i].id < this.aheadQueue[oldest].id) oldest = i;
+			}
+			this.aheadQueue.splice(oldest, 1);
 		}
 		this.queuedAheadItemsCount.value = this.aheadQueue.length;
 	}
