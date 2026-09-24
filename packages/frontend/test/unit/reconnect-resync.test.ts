@@ -16,8 +16,16 @@ function setup(over: {
 	holdResync?: boolean;
 	random?: () => number;
 	newestId?: () => string | null | undefined;
+	initialDelay?: number;
 } = {}) {
 	let clock = 1_000_000;
+	let visible = true;
+	let resumed = false;
+	// timer は手で発火させる。本物に任せると、どの時点で走ったかをテストが
+	// 決められない。
+	const scheduled: Array<{ fn: () => void; ms: number; cancelled: boolean }> = [];
+	let onVisibleCallback: (() => void) | null = null;
+	let unsubscribed = false;
 	let newest: string | null = 'n1';
 	let can = true;
 	let generation = 0;
@@ -45,7 +53,21 @@ function setup(over: {
 		interval: INTERVAL,
 		jitter: over.jitter ?? 0,
 		now: () => clock,
+		// **既定値 (5 秒) とも間隔とも別の数にしてある** (理由はファイル冒頭)。
+		initialDelay: over.initialDelay ?? 3_000,
+		resumeInterval: 500,
 		random: over.random ?? (() => 0),
+		schedule: (fn, ms) => {
+			const entry = { fn, ms, cancelled: false };
+			scheduled.push(entry);
+			return () => { entry.cancelled = true; };
+		},
+		isVisible: () => visible,
+		onVisible: (fn) => {
+			onVisibleCallback = fn;
+			return () => { unsubscribed = true; };
+		},
+		resumedRecently: () => resumed,
 		sleep: (ms: number) => {
 			sleepCalls.push(ms);
 			if (over.holdSleep) return new Promise<void>(resolve => { sleepReleases.push(resolve); });
@@ -64,6 +86,24 @@ function setup(over: {
 		bumpGeneration: () => { generation++; },
 		releaseSleep: () => { for (const f of sleepReleases.splice(0)) f(); },
 		releaseResync: () => { for (const f of resyncReleases.splice(0)) f(); },
+		/** Settles only the oldest outstanding resync. */
+		releaseFirstResync: () => { resyncReleases.shift()?.(); },
+		setVisible: (v: boolean) => { visible = v; },
+		setResumed: (v: boolean) => { resumed = v; },
+		/** Live (not cancelled, not yet fired) timers. */
+		liveTimers: () => scheduled.filter(x => !x.cancelled),
+		/** Fires every live timer once and waits for the runs they start. */
+		fireTimers: async () => {
+			const due = scheduled.splice(0).filter(x => !x.cancelled);
+			for (const x of due) x.fn();
+			// run() は async なので、中の await を流しきる。
+			for (let i = 0; i < 10; i++) await Promise.resolve();
+		},
+		becomeVisible: () => {
+			visible = true;
+			onVisibleCallback?.();
+		},
+		isUnsubscribed: () => unsubscribed,
 	};
 }
 
@@ -192,15 +232,21 @@ describe('createReconnectResync', () => {
 		// **待ちは sleep ではなく resync 側で作る。** sleep だけを止めると、
 		// `await options.resync(...)` の await を外す変異が素通りする
 		// (fetch 区間が無防備になる)。
-		const { r, resync, advance, releaseResync } = setup({ holdResync: true });
+		const { r, resync, resyncArgs, advance, releaseResync, setNewest } = setup({ holdResync: true });
 		advance(INTERVAL);
 		const first = r.onConnected();
 		advance(INTERVAL * 10);
+		setNewest('n2');
 		const second = r.onConnected();
+		await second;
+		// 飛行中は並べない。
+		expect(resync).toHaveBeenCalledTimes(1);
 		releaseResync();
 		await first;
-		await second;
-		expect(resync).toHaveBeenCalledTimes(1);
+		// **飛行中に来た接続の穴は、終わった時点で埋める** (#3195)。以前はここで
+		// 捨てており、次の接続まで誰も拾わなかった。
+		expect(resyncArgs).toEqual(['n1', 'n2']);
+		releaseResync();
 	});
 
 	test('keeps the cursor it captured when it declines up front', async () => {
@@ -440,9 +486,18 @@ describe('createReconnectResync の既定値', () => {
 		vi.restoreAllMocks();
 	});
 
+	// 既定値のインスタンスは本物の visibilitychange を購読するので、テストごとに
+	// 外す (残すと後続のテストの dispatch で過去のインスタンスまで走る)。
+	const created: Array<{ dispose: () => void }> = [];
+	afterEach(() => {
+		for (const x of created.splice(0)) x.dispose();
+	});
+
 	function defaults() {
 		const resync = vi.fn((_sinceId: string | null) => Promise.resolve() as unknown);
-		return { resync, r: createReconnectResync({ getNewestId: () => 'n1', resync }) };
+		const r = createReconnectResync({ getNewestId: () => 'n1', resync });
+		created.push(r);
+		return { resync, r };
 	}
 
 	async function run(r: { onConnected: () => Promise<void> }) {
@@ -458,15 +513,46 @@ describe('createReconnectResync の既定値', () => {
 		expect(resync).not.toHaveBeenCalled();
 	});
 
-	test('waits 30 seconds between runs', async () => {
+	test('ignores connections within 5 seconds of mount', async () => {
 		vi.spyOn(Math, 'random').mockReturnValue(0);
 		const { r, resync } = defaults();
-		vi.setSystemTime(BASE + 29_999);
+		vi.setSystemTime(BASE + 4_999);
 		await run(r);
 		expect(resync).not.toHaveBeenCalled();
-		vi.setSystemTime(BASE + 30_000);
-		await run(r);
+	});
+
+	test('runs a connection 5 seconds after mount without waiting 30 seconds', async () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0);
+		const { r, resync } = defaults();
+		vi.setSystemTime(BASE + 5_000);
+		const p = r.onConnected();
+		await vi.advanceTimersByTimeAsync(0);
+		await p;
 		expect(resync).toHaveBeenCalledTimes(1);
+	});
+
+	test('waits 30 seconds between runs, then runs the held connection', async () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0);
+		const { r, resync } = defaults();
+		vi.setSystemTime(BASE + 5_000);
+		const p1 = r.onConnected();
+		await vi.advanceTimersByTimeAsync(0);
+		await p1;
+		expect(resync).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(10_000);
+		const p2 = r.onConnected();
+		await vi.advanceTimersByTimeAsync(0);
+		await p2;
+		expect(resync).toHaveBeenCalledTimes(1);
+		// 前回 (BASE + 5 秒) から 30 秒 = BASE + 35 秒で走る。
+		await vi.advanceTimersByTimeAsync(19_999);
+		expect(resync).toHaveBeenCalledTimes(1);
+		await vi.advanceTimersByTimeAsync(1);
+		// 走らせ直しの中の既定ジッター (random = 0) が timer を 1 段挟む。fake timers は
+		// 発火の中で張った 0ms の timer を、時刻を進めないと流さない。
+		await vi.advanceTimersByTimeAsync(1);
+		expect(resync).toHaveBeenCalledTimes(2);
+		r.dispose();
 	});
 
 	test('jitters up to 10 seconds', async () => {
@@ -489,14 +575,383 @@ describe('createReconnectResync の既定値', () => {
 		const { r, resync } = defaults();
 		resync.mockRejectedValueOnce(new Error('boom'));
 		vi.setSystemTime(BASE + 30_000);
-		await run(r);
+		const p1 = r.onConnected();
+		await vi.advanceTimersByTimeAsync(0);
+		await p1;
 		expect(resync).toHaveBeenCalledTimes(1);
-		vi.setSystemTime(BASE + 59_999);
-		await run(r);
+		await vi.advanceTimersByTimeAsync(1_000);
+		const p2 = r.onConnected();
+		await vi.advanceTimersByTimeAsync(0);
+		await p2;
+		await vi.advanceTimersByTimeAsync(28_999);
 		expect(resync).toHaveBeenCalledTimes(1);
-		vi.setSystemTime(BASE + 60_000);
-		await run(r);
+		await vi.advanceTimersByTimeAsync(1);
+		// 走らせ直しの中の既定ジッター (random = 0) が timer を 1 段挟む。fake timers は
+		// 発火の中で張った 0ms の timer を、時刻を進めないと流さない。
+		await vi.advanceTimersByTimeAsync(1);
 		expect(resync).toHaveBeenCalledTimes(2);
+		r.dispose();
+	});
+
+	// **モジュールで持つ「表示に戻った時刻」を書き換えるので、時刻を過去へずらして
+	// から行う。** 後続のテストが BASE で走ったとき「戻った直後」と判定されないように。
+	test('does not run while hidden, then runs without jitter once visible', async () => {
+		const PAST = BASE - 1_000_000_000;
+		vi.setSystemTime(PAST);
+		vi.spyOn(Math, 'random').mockReturnValue(0.99);
+		const { r, resync } = defaults();
+		const setVisibility = (state: DocumentVisibilityState) => {
+			Object.defineProperty(window.document, 'visibilityState', { value: state, configurable: true });
+		};
+		try {
+			setVisibility('hidden');
+			vi.setSystemTime(PAST + 5_000);
+			const p = r.onConnected();
+			await vi.advanceTimersByTimeAsync(DRAIN);
+			await p;
+			expect(resync).not.toHaveBeenCalled();
+			setVisibility('visible');
+			window.document.dispatchEvent(new Event('visibilitychange'));
+			// 同期では走らない (呼び出し側の watch を先に流す)。
+			expect(resync).not.toHaveBeenCalled();
+			// ジッター (0.99 × 10 秒) を待たずに走る。
+			await vi.advanceTimersByTimeAsync(10);
+			expect(resync).toHaveBeenCalledTimes(1);
+		} finally {
+			r.dispose();
+			// happy-dom の既定 (getter) へ戻す。
+			delete (window.document as { visibilityState?: unknown }).visibilityState;
+		}
+	});
+
+	// 上と同じく、時刻を過去へずらしてから表示に戻す。
+	test('skips the jitter for 10 seconds after becoming visible and spaces runs by 2 seconds', async () => {
+		const PAST = BASE - 2_000_000_000;
+		vi.setSystemTime(PAST);
+		vi.spyOn(Math, 'random').mockReturnValue(0.99);
+		const { r, resync } = defaults();
+		window.document.dispatchEvent(new Event('visibilitychange'));
+		const connect = async () => {
+			const p = r.onConnected();
+			await vi.advanceTimersByTimeAsync(1);
+			await p;
+		};
+		vi.setSystemTime(PAST + 5_000);
+		await connect();
+		// ジッター (9.9 秒) を待たずに走った。
+		expect(resync).toHaveBeenCalledTimes(1);
+		vi.setSystemTime(PAST + 6_998);
+		await connect();
+		expect(resync).toHaveBeenCalledTimes(1);
+		// 前回 (PAST + 5 秒) から 2 秒で走る。
+		await vi.advanceTimersByTimeAsync(10);
+		expect(resync).toHaveBeenCalledTimes(2);
+		// ちょうど 10 秒で「戻った直後」は終わる。30 秒の間隔に戻るので、2 秒では
+		// 走らない (窓を広げる変異はここで 2 秒後に走る)。
+		vi.setSystemTime(PAST + 10_000);
+		const p = r.onConnected();
+		await vi.advanceTimersByTimeAsync(3_000);
+		expect(resync).toHaveBeenCalledTimes(2);
+		r.dispose();
+		await p;
+	});
+});
+
+/**
+ * #3195: 見送った回を捨てない / 裏では投げない / 復帰直後は待たない。
+ *
+ * 実機 (iOS 18.6.2 の PWA) で、裏で自動リロードされたページに 20 秒後に戻ると、
+ * 張り直しの穴埋めが「生成から 30 秒以内」で見送られ、その後二度と走らずに
+ * タイムラインが古いまま残った。
+ */
+describe('createReconnectResync (#3195)', () => {
+	test('runs a connection right after the initial delay without waiting out the interval', async () => {
+		// **これが実機で踏んだ形。** 以前は生成時刻を「前回」に数えていたので、
+		// 間隔 (ここでは 7 秒) が明けるまで見送った。
+		const { r, resync, newestCalls, advance } = setup();
+		advance(2_999);
+		await r.onConnected();
+		// mount 直後の接続は起点すら控えない (init が取っている)。
+		expect(newestCalls()).toBe(0);
+		advance(1);
+		await r.onConnected();
+		expect(resync).toHaveBeenCalledTimes(1);
+	});
+
+	test('does not arm a timer for a connection inside the initial delay', async () => {
+		// 控えないので、期限が明けても init と同じ範囲を取りに行かない。
+		const { r, resync, liveTimers, fireTimers } = setup();
+		await r.onConnected();
+		expect(liveTimers()).toHaveLength(0);
+		await fireTimers();
+		expect(resync).not.toHaveBeenCalled();
+	});
+
+	test('runs a held connection once the interval ends', async () => {
+		const { r, resyncArgs, advance, setNewest, liveTimers, fireTimers } = setup();
+		advance(INTERVAL);
+		await r.onConnected();
+		expect(resyncArgs).toEqual(['n1']);
+		advance(1_000);
+		setNewest('n2');
+		await r.onConnected();
+		expect(resyncArgs).toEqual(['n1']);
+		// 明ける時刻ちょうどに張る。
+		expect(liveTimers().map(x => x.ms)).toEqual([INTERVAL - 1_000]);
+		setNewest('n3');
+		advance(INTERVAL - 1_000);
+		await fireTimers();
+		// **控えた起点で走る** (走らせ直す時点の最新ではない)。
+		expect(resyncArgs).toEqual(['n1', 'n2']);
+	});
+
+	test('keeps a single timer for several held connections', async () => {
+		const { r, advance, liveTimers } = setup();
+		advance(INTERVAL);
+		await r.onConnected();
+		advance(100);
+		await r.onConnected();
+		advance(100);
+		await r.onConnected();
+		expect(liveTimers()).toHaveLength(1);
+	});
+
+	test('does not arm a timer when it runs right away', async () => {
+		const { r, resync, advance, liveTimers } = setup();
+		advance(INTERVAL);
+		await r.onConnected();
+		expect(resync).toHaveBeenCalledTimes(1);
+		expect(liveTimers()).toHaveLength(0);
+	});
+
+	test('does not run while hidden and keeps the cursor for when it becomes visible', async () => {
+		const { r, resync, resyncArgs, advance, setVisible, setNewest, becomeVisible, liveTimers, fireTimers } = setup();
+		advance(INTERVAL);
+		setVisible(false);
+		await r.onConnected();
+		expect(resync).not.toHaveBeenCalled();
+		// 裏にいる間に届いたぶんで起点が進んではいけない。
+		setNewest('n2');
+		becomeVisible();
+		// **同期では走らない。** 呼び出し側の watch (`isPausingUpdate`) より先に
+		// 投げると、取れたノートが queue に取り残される。
+		expect(resync).not.toHaveBeenCalled();
+		expect(liveTimers().map(x => x.ms)).toEqual([0]);
+		await fireTimers();
+		expect(resyncArgs).toEqual(['n1']);
+	});
+
+	test('does not start waiting out the jitter while hidden', async () => {
+		// 裏で待ち始めると飛行中の扱いになり、その間に表へ戻った回が弾かれて、
+		// 戻ってからもジッターぶん待たされる。
+		const { r, sleepCalls, advance, setVisible } = setup({ jitter: 1_000, holdSleep: true });
+		advance(INTERVAL);
+		setVisible(false);
+		await r.onConnected();
+		expect(sleepCalls).toEqual([]);
+	});
+
+	test('does not consume the interval while hidden', async () => {
+		const { r, resync, advance, setVisible, becomeVisible, fireTimers } = setup();
+		advance(INTERVAL);
+		setVisible(false);
+		await r.onConnected();
+		advance(1);
+		becomeVisible();
+		await fireTimers();
+		expect(resync).toHaveBeenCalledTimes(1);
+	});
+
+	test('declines after the jitter when sent to the background meanwhile', async () => {
+		// 実機で起きた形: 待っている間に裏へ戻され、取得が裏で投げられて 1 分半止まった。
+		const { r, resync, resyncArgs, advance, setVisible, releaseSleep, becomeVisible, fireTimers } = setup({ jitter: 1_000, holdSleep: true });
+		advance(INTERVAL);
+		const p = r.onConnected();
+		setVisible(false);
+		releaseSleep();
+		await p;
+		expect(resync).not.toHaveBeenCalled();
+		becomeVisible();
+		const q = fireTimers();
+		releaseSleep();
+		await q;
+		releaseSleep();
+		for (let i = 0; i < 10; i++) await Promise.resolve();
+		expect(resyncArgs).toEqual(['n1']);
+	});
+
+	test('does not wait out the jitter right after the page becomes visible', async () => {
+		const { r, resync, sleepCalls, advance, setResumed } = setup({ jitter: 1_000, random: () => 0.9 });
+		advance(INTERVAL);
+		setResumed(true);
+		await r.onConnected();
+		expect(sleepCalls).toEqual([]);
+		expect(resync).toHaveBeenCalledTimes(1);
+	});
+
+	test('still waits out the jitter when the page did not just become visible', async () => {
+		// サーバー再起動で全員が同時に繋ぎ直す形。散らす役目は残す。
+		const { r, sleepCalls, advance, setResumed } = setup({ jitter: 1_000, random: () => 0.9 });
+		advance(INTERVAL);
+		setResumed(false);
+		await r.onConnected();
+		expect(sleepCalls).toEqual([900]);
+	});
+
+	test('does nothing on becoming visible without a held cursor', async () => {
+		const { r, resync, newestCalls, advance, becomeVisible, fireTimers } = setup();
+		advance(INTERVAL);
+		becomeVisible();
+		await fireTimers();
+		expect(resync).not.toHaveBeenCalled();
+		expect(newestCalls()).toBe(0);
+		// 使わない変数の警告を避けるためだけに参照する。
+		expect(r).toBeDefined();
+	});
+
+	test('abandons a fetch that spanned a background period and runs again on becoming visible', async () => {
+		// 実機の形: 投げた直後に裏へ戻され、iOS に止められた取得が 1.5 分決着
+		// しなかった。その間の復帰は飛行中で弾かれ、何も走らなかった。
+		const { r, resyncArgs, advance, setVisible, becomeVisible, fireTimers, releaseResync } = setup({ holdResync: true });
+		advance(INTERVAL);
+		void r.onConnected();
+		await Promise.resolve();
+		expect(resyncArgs).toEqual(['n1']);
+		advance(1_000);
+		setVisible(false);
+		becomeVisible();
+		await fireTimers();
+		// **同じ起点で投げ直す** (見捨てた回は控えを捨てていたので戻す)。
+		// **間隔も数えない** — 数えると 1 秒前に投げたことになり 30 秒待たされる。
+		expect(resyncArgs).toEqual(['n1', 'n1']);
+		releaseResync();
+	});
+
+	test('does not let an abandoned fetch clear the flight of the one that replaced it', async () => {
+		const { r, resync, advance, setVisible, becomeVisible, fireTimers, releaseResync, releaseFirstResync, setNewest } = setup({ holdResync: true });
+		advance(INTERVAL);
+		void r.onConnected();
+		await Promise.resolve();
+		setVisible(false);
+		becomeVisible();
+		await fireTimers();
+		expect(resync).toHaveBeenCalledTimes(2);
+		// 見捨てた回だけ先に決着させる。後を継いだ回はまだ飛行中。
+		releaseFirstResync();
+		for (let i = 0; i < 10; i++) await Promise.resolve();
+		// ここで来た接続は並べずに控えるだけ (見捨てた回が印を消していれば並ぶ)。
+		advance(INTERVAL * 10);
+		setNewest('n2');
+		await r.onConnected();
+		expect(resync).toHaveBeenCalledTimes(2);
+		releaseResync();
+	});
+
+	test('does not fetch after waking from a jitter it was abandoned in', async () => {
+		const { r, resync, advance, setVisible, becomeVisible, fireTimers, releaseSleep } = setup({ jitter: 1_000, holdSleep: true });
+		advance(INTERVAL);
+		const p = r.onConnected();
+		setVisible(false);
+		becomeVisible();
+		await fireTimers();
+		// 見捨てた回も後を継いだ回もジッターで寝ている。両方起こす。
+		releaseSleep();
+		await p;
+		for (let i = 0; i < 10; i++) await Promise.resolve();
+		expect(resync).toHaveBeenCalledTimes(1);
+	});
+
+	test('ignores the interval right after the page becomes visible', async () => {
+		const { r, resync, advance, setResumed, liveTimers } = setup();
+		advance(INTERVAL);
+		await r.onConnected();
+		advance(1_000);
+		setResumed(true);
+		await r.onConnected();
+		expect(resync).toHaveBeenCalledTimes(2);
+		expect(liveTimers()).toHaveLength(0);
+	});
+
+	test('still spaces runs right after the page becomes visible', async () => {
+		// 復帰直後に接続が暴れても、張り直しのたびには撃たない。
+		const { r, resync, advance, setResumed, liveTimers, fireTimers } = setup();
+		advance(INTERVAL);
+		setResumed(true);
+		await r.onConnected();
+		advance(100);
+		await r.onConnected();
+		expect(resync).toHaveBeenCalledTimes(1);
+		expect(liveTimers().map(x => x.ms)).toEqual([400]);
+		advance(400);
+		await fireTimers();
+		expect(resync).toHaveBeenCalledTimes(2);
+	});
+
+	test('re-arms a longer timer when the page becomes visible', async () => {
+		// 3 周目のレビューで見つかった回帰: 窓の外で張った 30 秒 (ここでは 7 秒) の
+		// timer が残り、復帰直後に 2 秒 (ここでは 0.5 秒) で走るはずの回を吸った。
+		const { r, resync, advance, setResumed, liveTimers, fireTimers } = setup();
+		advance(INTERVAL);
+		await r.onConnected();
+		advance(100);
+		await r.onConnected();
+		expect(liveTimers().map(x => x.ms)).toEqual([INTERVAL - 100]);
+		setResumed(true);
+		await r.onConnected();
+		// 古い timer は取り消し、0.5 秒で明ける時刻に張り直す。
+		expect(liveTimers().map(x => x.ms)).toEqual([400]);
+		advance(400);
+		await fireTimers();
+		expect(resync).toHaveBeenCalledTimes(2);
+	});
+
+	test('does not re-arm to a later time', async () => {
+		const { r, advance, setResumed, liveTimers } = setup();
+		advance(INTERVAL);
+		setResumed(true);
+		await r.onConnected();
+		advance(100);
+		await r.onConnected();
+		expect(liveTimers().map(x => x.ms)).toEqual([400]);
+		// 窓が切れて 30 秒の判断に戻っても、張ってある早いほうはそのまま。発火時の
+		// run() が改めて判断する。
+		setResumed(false);
+		await r.onConnected();
+		expect(liveTimers().map(x => x.ms)).toEqual([400]);
+	});
+
+	test('does not overwrite a newer-generation cursor with the one it abandons', async () => {
+		// 2 周目のレビューで見つかった回帰: 裏にいる間に一覧が総入れ替えされ、
+		// そのあと来た接続が新しい世代で控えた。見捨てた回の古い起点で上書きすると、
+		// その控えは世代違いで止まり続け、その接続の穴が二度と埋まらない。
+		const { r, resyncArgs, advance, setVisible, becomeVisible, fireTimers, bumpGeneration, setNewest, releaseResync } = setup({ holdResync: true });
+		advance(INTERVAL);
+		void r.onConnected();
+		await Promise.resolve();
+		expect(resyncArgs).toEqual(['n1']);
+		setVisible(false);
+		bumpGeneration();
+		setNewest('b');
+		await r.onConnected();
+		becomeVisible();
+		await fireTimers();
+		expect(resyncArgs).toEqual(['n1', 'b']);
+		releaseResync();
+	});
+
+	test('dispose cancels the timer and stops listening for visibility', async () => {
+		const { r, resync, advance, liveTimers, fireTimers, isUnsubscribed } = setup();
+		advance(INTERVAL);
+		await r.onConnected();
+		advance(100);
+		await r.onConnected();
+		expect(liveTimers()).toHaveLength(1);
+		r.dispose();
+		expect(liveTimers()).toHaveLength(0);
+		expect(isUnsubscribed()).toBe(true);
+		advance(INTERVAL);
+		await fireTimers();
+		expect(resync).toHaveBeenCalledTimes(1);
 	});
 });
 

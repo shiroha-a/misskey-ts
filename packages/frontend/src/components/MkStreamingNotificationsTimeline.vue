@@ -153,9 +153,6 @@ watch(visibility, () => {
 		if (isTop()) {
 			releaseQueue();
 		}
-		// init / reload 中やレート制限中に見送った控えがあれば、ここで拾い直す
-		// (`canResync` がそれらを見ている)。控えが無ければ何もしない。
-		void reconnectResync.retry();
 	}
 });
 
