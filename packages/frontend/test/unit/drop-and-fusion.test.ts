@@ -103,18 +103,21 @@ describe('bubble game overflow grace (#3193)', () => {
 
 	// 終わったときに警告が 2 秒以上続いていること。**即時判定に戻すと 0 で終わる。**
 	// (警告は「どれかの玉がはみ出している間」なので、玉が入れ替わると 2 秒より長くなる)
+	//
+	// ゲームを終わるまで回すので、既定の 5 秒では CI のランナーで上限を超える (#3224
+	// と同じ)。
 	test.each(['normal', 'square'] as const)('%s: 2 秒とどまったら終わる', (mode) => {
 		const r = playUntilOver(mode, 'seed-a', 1);
 		expect(r.over).toBe(true);
 		expect(r.warnedForAtOver).toBeGreaterThanOrEqual(r.grace);
-	});
+	}, 30000);
 
 	// 一瞬はみ出しても終わらない。ゲームによっては一度も解けないまま終わるので、
 	// 解ける場面があるシードで見る。
 	test('一瞬はみ出しても、出れば終わらない', () => {
 		const r = playUntilOver('normal', 'seed-a', 1);
 		expect(r.recoveries).toBeGreaterThan(0);
-	});
+	}, 30000);
 
 	// リプレイと途中保存 (#3192) の早送りは、同じシードと操作の記録から同じ結末に
 	// なることが前提。判定を実時間で数えるとここが崩れる。
@@ -464,6 +467,7 @@ describe('bubble game bouncy / space (#3194)', () => {
 	});
 
 	// よく弾む玉は挟まれると 60px/tick を超える速さで押し出され、その勢いで壁を抜ける。
+	// 3 分ぶん回すので、既定の 5 秒では CI のランナーで上限を超える。
 	test('bouncy の玉の速さには上限がある', () => {
 		const g = newGame('bouncy', 'speed');
 		const rng = botRng(9);
@@ -477,7 +481,7 @@ describe('bubble game bouncy / space (#3194)', () => {
 		}
 		expect(max).toBeGreaterThan(5);
 		expect(max).toBeLessThanOrEqual(15 + 1e-9);
-	});
+	}, 30000);
 
 	// 上限は bouncy だけ。既存のモードにかけると版 4 の結末が変わる。square はこの局の
 	// 1046 フレーム目に 25.8 まで速くなる (実測)。

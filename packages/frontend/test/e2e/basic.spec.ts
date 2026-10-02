@@ -73,7 +73,9 @@ test.describe('After setup instance', () => {
 		await locateMkInput(page, 'signup-password-retype').fill('alice1234');
 		test.expect(await page.getByTestId('signup-submit').isDisabled()).toBeTruthy();
 		await locateMkInput(page, 'signup-invitation-code').fill('test-invitation-code');
-		test.expect(await page.getByTestId('signup-submit').isDisabled()).toBeFalsy();
+		// mk-go: 利用者名の照会を debounce しているので、照会が終わってボタンが押せる
+		// ようになるまで待つ (isDisabled() はその時点の状態しか見ない)。
+		await test.expect(page.getByTestId('signup-submit')).toBeEnabled();
 
 		const signupResponse = waitApiResponse(page, '/api/signup');
 		await page.getByTestId('signup-submit').click();
