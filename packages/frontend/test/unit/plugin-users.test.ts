@@ -8,6 +8,19 @@ import { getUsers } from '@/plugin-api.js';
 const mocks = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock('@/utility/misskey-api.js', () => ({ misskeyApi: mocks.api }));
 vi.mock('@/i.js', () => ({ $i: null }));
+// UIの起動・ルーター・ネットワーク初期化を行わず、実際のgetUsersだけを検証する。
+vi.mock('@/components/MkInput.vue', () => ({ default: {} }));
+vi.mock('@/components/MkButton.vue', () => ({ default: {} }));
+vi.mock('@/components/MkFolder.vue', () => ({ default: {} }));
+vi.mock('@/components/MkSelect.vue', () => ({ default: {} }));
+vi.mock('@/components/MkSwitch.vue', () => ({ default: {} }));
+vi.mock('@/components/global/MkLoading.vue', () => ({ default: {} }));
+vi.mock('@/components/global/MkAvatar.vue', () => ({ default: {} }));
+vi.mock('@/components/global/MkUserName.vue', () => ({ default: {} }));
+vi.mock('@/components/global/MkTime.vue', () => ({ default: {} }));
+vi.mock('@/components/global/PageWithHeader.vue', () => ({ default: {} }));
+vi.mock('@/composables/use-mkselect.js', () => ({ useMkSelect: vi.fn() }));
+vi.mock('@/page.js', () => ({ definePage: vi.fn() }));
 
 beforeEach(() => { mocks.api.mockReset(); });
 
