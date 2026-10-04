@@ -77,6 +77,22 @@ afterAll(() => {
 	globalThis.fetch = realFetch;
 });
 
+// `home.vue` のアクティビティのチャート (`XActivity`) は `defineAsyncComponent` で
+// 読み込まれる。最初の描画では `narrow` が `null` なので `.sub` 側が描画され、
+// `renderHome()` のたびに読み込みが始まる。テストの await の間に読み込みが終わると
+// `MkChart` の setup で `initChart` がテーマ未用意のまま
+// `currentCompiledTheme!.fg` を読み、unhandled error (exit 1) になる (#3366。CI で
+// 不定期に落ち、手元でも 15 回中 1 回再現した)。ここで見ているのはライトボックスの
+// 配線なので、チャートは空の部品に差し替える。
+//
+// **`__esModule: true` を付ける。** 付けないと `defineAsyncComponent` がモジュールの
+// オブジェクトそのものを component として扱い、mock が `__isTeleport` の参照で
+// throw して全件が落ちる。
+vi.mock('@/pages/user/index.activity.vue', async () => {
+	const { h } = await import('vue');
+	return { __esModule: true, default: { render: () => h('div') } };
+});
+
 describe('プロフィールのアイコンを押すと拡大表示が開く', () => {
 	const renderHome = (): RenderResult => {
 		return render(XHome, {
