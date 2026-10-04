@@ -52,10 +52,22 @@ export { default as PageWithHeader } from '@/components/global/PageWithHeader.vu
 export { useMkSelect } from '@/composables/use-mkselect.js';
 export { definePage } from '@/page.js';
 
-/** 標準ユーザー表示コンポーネントへ渡す公開ユーザー情報。 */
+/**
+ * 標準ユーザー表示コンポーネントへ渡す公開ユーザー情報。
+ *
+ * **SlotUser と違い、misskey-js の型をそのまま公開している。** MkAvatar /
+ * MkUserName の props へそのまま渡せることを優先した。そのぶん upstream が
+ * UserLite を変えると、ここで約束する形も一緒に変わる。
+ */
 export type PluginUser = entities.UserLite;
 
-/** 重複を除き、users/show の上限（100人）ごとに公開ユーザー情報を取得する。 */
+/**
+ * 重複を除き、users/show の上限（100人）ごとに公開ユーザー情報を取得する。
+ *
+ * 存在しない・凍結中などで見えないユーザーは結果から黙って消えるので、結果の件数は
+ * 入力以下になる (順序も入力と一致するとは限らない)。形式が不正な ID が混ざると、
+ * その 100 件のまとまりごと失敗してエラーを返す。
+ */
 export async function getUsers(userIds: string[]): Promise<PluginUser[]> {
 	const ids = [...new Set(userIds)];
 	const users: PluginUser[] = [];
